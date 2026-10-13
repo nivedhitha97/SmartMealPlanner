@@ -1,7 +1,7 @@
-# This workflow will build a Swift project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-swift
+# Builds the iOS app with Xcode on every push and pull request to develop.
+# This is an Xcode project (no Package.swift), so it uses xcodebuild rather than `swift build`.
 
-name: Swift
+name: iOS build
 
 on:
   push:
@@ -11,12 +11,20 @@ on:
 
 jobs:
   build:
-
-    runs-on: macos-latest
+    # The app targets iOS 26, so it needs a runner image that ships Xcode 26.
+    runs-on: macos-26
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: swift build -v
-    - name: Run tests
-      run: swift test -v
+    - uses: actions/checkout@v5
+
+    - name: Show Xcode version
+      run: xcodebuild -version
+
+    - name: Build for iOS Simulator
+      run: |
+        xcodebuild build \
+          -project SmartMealPlanner.xcodeproj \
+          -target SmartMealPlanner \
+          -configuration Debug \
+          -sdk iphonesimulator \
+          CODE_SIGNING_ALLOWED=NO
