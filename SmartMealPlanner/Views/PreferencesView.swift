@@ -283,12 +283,7 @@ struct PreferencesView: View {
     }
 
     private func loadRoutineSummary() {
-        guard let data = UserDefaults.standard.data(forKey: "mealRoutine"),
-              let routine = try? JSONDecoder().decode(MealRoutine.self, from: data) else {
-            routineSummary = nil
-            return
-        }
-        routineSummary = routine.summary
+        routineSummary = MealRoutine.load()?.summary
     }
 }
 

@@ -10,7 +10,7 @@ struct WeeklyPlanView: View {
     @EnvironmentObject private var planning: PlanningViewModel
 
     @State private var selectedDayIndex = 0
-    @State private var checkedGroceries: Set<UUID> = []
+    @State private var groceryChecklist = GroceryChecklist()
     @State private var showAllGroceries = false
 
     private static let dayTitleFormatter: DateFormatter = {
@@ -30,8 +30,6 @@ struct WeeklyPlanView: View {
         f.dateTemplate = "MMMd"
         return f
     }()
-
-    private let groceryPreviewCount = 5
 
     var body: some View {
         NavigationStack {
@@ -55,12 +53,12 @@ struct WeeklyPlanView: View {
                 }
             }
             .onChange(of: planning.suggestedPlan?.id) {
-                selectedDayIndex = todayIndex(in: planning.suggestedPlan?.weeklyMealPlan)
-                checkedGroceries = []
+                selectedDayIndex = WeeklyPlanContent.initialDayIndex(in: planning.suggestedPlan?.weeklyMealPlan)
+                groceryChecklist.reset()
                 showAllGroceries = false
             }
             .onAppear {
-                selectedDayIndex = todayIndex(in: planning.suggestedPlan?.weeklyMealPlan)
+                selectedDayIndex = WeeklyPlanContent.initialDayIndex(in: planning.suggestedPlan?.weeklyMealPlan)
             }
         }
     }
@@ -147,8 +145,7 @@ struct WeeklyPlanView: View {
     }
 
     private func budgetCard(_ plan: AISuggestedWeekPlan) -> some View {
-        let progress = plan.budgetWeekly > 0 ? min(plan.estimatedGroceryTotal / plan.budgetWeekly, 1) : 1
-        let remaining = plan.budgetWeekly - plan.estimatedGroceryTotal
+        let budget = BudgetSummary(plan: plan)
         return VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Text("Estimated groceries")
@@ -156,15 +153,15 @@ struct WeeklyPlanView: View {
                     .foregroundStyle(.white.opacity(0.85))
                 Spacer()
                 HStack(spacing: 4) {
-                    Image(systemName: plan.isWithinBudget ? "checkmark" : "exclamationmark.triangle.fill")
+                    Image(systemName: budget.isWithinBudget ? "checkmark" : "exclamationmark.triangle.fill")
                         .font(.system(size: 10, weight: .bold))
-                    Text(plan.isWithinBudget ? "Within budget" : "Over budget")
+                    Text(budget.statusText)
                         .font(.caption.weight(.semibold))
                 }
                 .foregroundStyle(.white)
                 .padding(.vertical, 5)
                 .padding(.horizontal, 10)
-                .background(plan.isWithinBudget ? Color.white.opacity(0.18) : Color.accentCoral, in: Capsule())
+                .background(budget.isWithinBudget ? Color.white.opacity(0.18) : Color.accentCoral, in: Capsule())
             }
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -181,15 +178,13 @@ struct WeeklyPlanView: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(.white.opacity(0.22))
                     Capsule()
-                        .fill(plan.isWithinBudget ? Color.white : Color.accentCoral)
-                        .frame(width: geo.size.width * progress)
+                        .fill(budget.isWithinBudget ? Color.white : Color.accentCoral)
+                        .frame(width: geo.size.width * budget.progress)
                 }
             }
             .frame(height: 8)
 
-            Text(remaining >= 0
-                 ? "\(remaining.euros) left to spend this week"
-                 : "\((-remaining).euros) over your weekly budget")
+            Text(budget.remainingText)
                 .font(.footnote.weight(.medium))
                 .foregroundStyle(.white.opacity(0.85))
         }
@@ -247,8 +242,7 @@ struct WeeklyPlanView: View {
                             .font(.cardTitle)
                             .foregroundStyle(Color.textPrimary)
                         Spacer()
-                        let homeMeals = day.mealsWithSlot.compactMap(\.1).count
-                        Text("\(homeMeals) home \(homeMeals == 1 ? "meal" : "meals")")
+                        Text(WeeklyPlanContent.homeMealsText(for: day))
                             .font(.footnote.weight(.medium))
                             .foregroundStyle(Color.textTertiary)
                     }
@@ -328,7 +322,7 @@ struct WeeklyPlanView: View {
             }
             .buttonStyle(.plain)
         } else {
-            let isGranola = slot == .breakfast && breakfastPreference == .granolaMuesliOnly
+            let isGranola = WeeklyPlanContent.isGranolaSlot(slot, breakfastPreference)
             HStack(spacing: 14) {
                 Image(systemName: isGranola ? "cup.and.saucer.fill" : "fork.knife")
                     .font(.system(size: 22))
@@ -337,10 +331,10 @@ struct WeeklyPlanView: View {
                     .background(Color.bgMuted, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     slotLabel(slot.rawValue, style: .muted)
-                    Text(emptySlotLabel(slot: slot, breakfastPreference: breakfastPreference))
+                    Text(WeeklyPlanContent.emptySlotTitle(slot: slot, breakfastPreference: breakfastPreference))
                         .font(.cardTitle)
                         .foregroundStyle(Color.textSecondary)
-                    Text(isGranola ? "Buy granola or muesli separately" : "No recipe needed")
+                    Text(WeeklyPlanContent.emptySlotDetail(slot: slot, breakfastPreference: breakfastPreference))
                         .font(.footnote)
                         .foregroundStyle(Color.textTertiary)
                 }
@@ -359,13 +353,6 @@ struct WeeklyPlanView: View {
                 .tracking(0.6)
         }
         .foregroundStyle(style.tint)
-    }
-
-    private func emptySlotLabel(slot: MealSlot, breakfastPreference: BreakfastRecipePreference) -> String {
-        if slot == .breakfast && breakfastPreference == .granolaMuesliOnly {
-            return "Granola / muesli"
-        }
-        return "Outside / flexible"
     }
 
     // MARK: - Nutrition
@@ -407,7 +394,7 @@ struct WeeklyPlanView: View {
     // MARK: - Groceries
 
     private func grocerySection(_ plan: AISuggestedWeekPlan) -> some View {
-        let lines = showAllGroceries ? plan.groceryLines : Array(plan.groceryLines.prefix(groceryPreviewCount))
+        let lines = WeeklyPlanContent.visibleGroceryLines(plan.groceryLines, showAll: showAllGroceries)
         return VStack(alignment: .leading, spacing: 14) {
             SectionHeader(title: "Grocery list") {
                 Text("\(plan.groceryLines.count) items")
@@ -420,7 +407,7 @@ struct WeeklyPlanView: View {
                     if index > 0 { RowDivider() }
                     groceryRow(line)
                 }
-                if plan.groceryLines.count > groceryPreviewCount {
+                if WeeklyPlanContent.canExpandGroceries(plan.groceryLines) {
                     RowDivider()
                     Button {
                         withAnimation(.snappy) { showAllGroceries.toggle() }
@@ -446,11 +433,9 @@ struct WeeklyPlanView: View {
     }
 
     private func groceryRow(_ line: GroceryLineItem) -> some View {
-        let isChecked = checkedGroceries.contains(line.id)
+        let isChecked = groceryChecklist.isChecked(line)
         return Button {
-            withAnimation(.snappy(duration: 0.2)) {
-                if isChecked { checkedGroceries.remove(line.id) } else { checkedGroceries.insert(line.id) }
-            }
+            withAnimation(.snappy(duration: 0.2)) { groceryChecklist.toggle(line) }
         } label: {
             HStack(alignment: .center, spacing: 12) {
                 ZStack {
@@ -498,10 +483,6 @@ struct WeeklyPlanView: View {
         return Self.rangeFormatter.string(from: first, to: last)
     }
 
-    private func todayIndex(in weekly: WeeklyMealPlan?) -> Int {
-        guard let weekly else { return 0 }
-        return weekly.days.firstIndex { Calendar.current.isDateInToday($0.date) } ?? 0
-    }
 }
 
 // MARK: - Slot styling
@@ -581,8 +562,8 @@ private struct PlanEmptyState: View {
             .floatingBarBackground()
         }
         .onAppear {
-            hasPreferences = UserDefaults.standard.data(forKey: "userPreferences") != nil
-            hasRoutine = UserDefaults.standard.data(forKey: "mealRoutine") != nil
+            hasPreferences = UserPreferences.loadFromUserDefaults() != nil
+            hasRoutine = MealRoutine.load() != nil
         }
     }
 

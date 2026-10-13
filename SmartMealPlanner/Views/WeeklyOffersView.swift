@@ -12,29 +12,8 @@ struct WeeklyOffersView: View {
     @State private var selectedCategory: String?
     @State private var region = ""
 
-    private var categories: [String] {
-        Array(Set(offers.map(\.category))).sorted()
-    }
-
-    private var filteredOffers: [SupermarketOffer] {
-        offers
-            .filter { selectedCategory == nil || $0.category == selectedCategory }
-            .sorted { $0.validUntil < $1.validUntil }
-    }
-
-    private var endingSoon: [SupermarketOffer] {
-        let now = Date()
-        let cutoff = Calendar.current.date(byAdding: .day, value: 3, to: now) ?? now
-        return filteredOffers.filter { $0.validUntil >= now && $0.validUntil <= cutoff }
-    }
-
-    private var otherOffers: [SupermarketOffer] {
-        let soonIDs = Set(endingSoon.map(\.id))
-        return filteredOffers.filter { !soonIDs.contains($0.id) }
-    }
-
-    private var totalSavings: Double {
-        offers.compactMap(\.savings).reduce(0, +)
+    private var list: OffersList {
+        OffersList(offers: offers, selectedCategory: selectedCategory)
     }
 
     var body: some View {
@@ -50,9 +29,10 @@ struct WeeklyOffersView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
                             header
-                            if totalSavings > 0 { savingsBanner }
+                            let endingSoon = list.endingSoon()
+                            if list.totalSavings > 0 { savingsBanner }
                             categoryFilters
-                            if filteredOffers.isEmpty {
+                            if list.filtered.isEmpty {
                                 Text("No offers in this category right now.")
                                     .font(.subheadline)
                                     .foregroundStyle(Color.textSecondary)
@@ -60,7 +40,7 @@ struct WeeklyOffersView: View {
                                     .padding(.top, 24)
                             }
                             offerGroup("Ending soon", endingSoon)
-                            offerGroup(endingSoon.isEmpty ? "All deals" : "More deals", otherOffers)
+                            offerGroup(endingSoon.isEmpty ? "All deals" : "More deals", list.otherOffers())
                         }
                         .padding(.horizontal, 24)
                         .padding(.top, 8)
@@ -101,7 +81,7 @@ struct WeeklyOffersView: View {
         HStack(spacing: 14) {
             IconCircle(systemName: "flame.fill", tint: .accentAmber, background: .bgSurface, size: 40)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Save up to \(totalSavings.euros)")
+                Text("Save up to \(list.totalSavings.euros)")
                     .font(.callout.bold())
                     .foregroundStyle(Color.textPrimary)
                 Text("Matched offers are used automatically in your grocery list.")
@@ -121,7 +101,7 @@ struct WeeklyOffersView: View {
                 Chip(title: "All", isSelected: selectedCategory == nil) {
                     selectedCategory = nil
                 }
-                ForEach(categories, id: \.self) { category in
+                ForEach(list.categories, id: \.self) { category in
                     Chip(title: category, isSelected: selectedCategory == category) {
                         selectedCategory = category
                     }
@@ -164,11 +144,6 @@ struct WeeklyOffersView: View {
 private struct OfferCard: View {
     let offer: SupermarketOffer
 
-    private var initials: String {
-        let words = offer.storeName.split(separator: " ")
-        return String(words.prefix(2).compactMap(\.first)).uppercased()
-    }
-
     private var avatarColors: (Color, Color) {
         let palette: [(Color, Color)] = [
             (.brandPrimarySoft, .brandPrimaryDeep),
@@ -180,14 +155,9 @@ private struct OfferCard: View {
         return palette[sum % palette.count]
     }
 
-    private var discountPercent: Int? {
-        guard let regular = offer.regularPrice, regular > 0, regular > offer.offerPrice else { return nil }
-        return Int(((regular - offer.offerPrice) / regular * 100).rounded())
-    }
-
     var body: some View {
         HStack(spacing: 14) {
-            Text(initials)
+            Text(offer.storeInitials)
                 .font(.callout.bold())
                 .foregroundStyle(avatarColors.1)
                 .frame(width: 52, height: 52)
@@ -209,7 +179,7 @@ private struct OfferCard: View {
             Spacer(minLength: 4)
 
             VStack(alignment: .trailing, spacing: 2) {
-                if let discountPercent {
+                if let discountPercent = offer.discountPercent {
                     Text("−\(discountPercent)%")
                         .font(.caption2.bold())
                         .foregroundStyle(Color.accentCoral)

@@ -11,15 +11,12 @@ struct MealRoutineView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var breakfast: MealType = .fixed
-    @State private var lunch: MealType = .outside
-    @State private var dinner: MealType = .homeCooked
+    @State private var breakfast = MealRoutine.default.breakfastType
+    @State private var lunch = MealRoutine.default.lunchType
+    @State private var dinner = MealRoutine.default.dinnerType
 
     private func loadRoutine() {
-        guard let data = UserDefaults.standard.data(forKey: "mealRoutine"),
-              let saved = try? JSONDecoder().decode(MealRoutine.self, from: data) else {
-            return
-        }
+        guard let saved = MealRoutine.load() else { return }
 
         breakfast = saved.breakfastType
         lunch = saved.lunchType
@@ -86,8 +83,7 @@ struct MealRoutineView: View {
             dinnerType: dinner
         )
 
-        if let encoded = try? JSONEncoder().encode(routine) {
-            UserDefaults.standard.set(encoded, forKey: "mealRoutine")
+        if routine.save() {
             dismiss()
         }
     }
