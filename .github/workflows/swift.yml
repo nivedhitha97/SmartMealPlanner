@@ -35,10 +35,28 @@ jobs:
         echo "Using simulator $DEVICE_ID"
         echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
 
-    - name: Build and run unit tests
+    # Start booting now so the (slow, cold) simulator boot overlaps with the build below.
+    - name: Start simulator
+      run: xcrun simctl boot "$DEVICE_ID"
+
+    - name: Build for testing
       run: |
-        xcodebuild test \
+        xcodebuild build-for-testing \
           -project SmartMealPlanner.xcodeproj \
           -scheme SmartMealPlanner \
           -destination "id=$DEVICE_ID" \
+          CODE_SIGNING_ALLOWED=NO
+
+    - name: Wait for simulator
+      run: xcrun simctl bootstatus "$DEVICE_ID" -b
+
+    # Parallel testing makes xcodebuild boot a fresh clone of the simulator, which takes
+    # ~12 minutes on the runner; run on the already-booted device instead.
+    - name: Run unit tests
+      run: |
+        xcodebuild test-without-building \
+          -project SmartMealPlanner.xcodeproj \
+          -scheme SmartMealPlanner \
+          -destination "id=$DEVICE_ID" \
+          -parallel-testing-enabled NO \
           CODE_SIGNING_ALLOWED=NO
