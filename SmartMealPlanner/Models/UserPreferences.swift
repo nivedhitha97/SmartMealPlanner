@@ -87,11 +87,25 @@ struct UserPreferences: Codable, Equatable {
         try c.encode(breakfastRecipePreference, forKey: .breakfastRecipePreference)
     }
 
+    static let defaultsKey = "userPreferences"
+
     static func loadFromUserDefaults() -> UserPreferences? {
-        guard let data = UserDefaults.standard.data(forKey: "userPreferences"),
+        load(from: .standard)
+    }
+
+    static func load(from defaults: UserDefaults) -> UserPreferences? {
+        guard let data = defaults.data(forKey: defaultsKey),
               let prefs = try? JSONDecoder().decode(UserPreferences.self, from: data) else {
             return nil
         }
         return prefs
+    }
+
+    /// Returns false if encoding failed and nothing was written.
+    @discardableResult
+    func save(to defaults: UserDefaults = .standard) -> Bool {
+        guard let data = try? JSONEncoder().encode(self) else { return false }
+        defaults.set(data, forKey: Self.defaultsKey)
+        return true
     }
 }
