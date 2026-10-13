@@ -7,22 +7,12 @@ import SwiftUI
 
 struct PreferencesView: View {
 
-    @State private var dietType = "Vegetarian"
-    @State private var selectedCuisines: Set<String> = []
-    @State private var dislikes = ""
-    @State private var allergies = ""
-    @State private var weeklyBudget: Double = 50
-    @State private var shoppingRegion = ""
-    @State private var postcode = ""
+    @State private var form = PreferencesForm()
     @State private var location: PostcodeLocation?
     @State private var isLookingUpPostcode = false
     @State private var postcodeError: String?
-    @State private var breakfastRecipePreference: BreakfastRecipePreference = .includeRecipes
     @State private var routineSummary: String?
     @State private var didSave = false
-
-    private let cuisines = ["Indian", "Italian", "Dutch", "Asian", "Mexican", "Greek", "French"]
-    private let dietOptions = ["Vegetarian", "Non-Vegetarian", "Vegan", "High Protein"]
 
     var body: some View {
         NavigationStack {
@@ -69,9 +59,9 @@ struct PreferencesView: View {
         VStack(alignment: .leading, spacing: 14) {
             CardHeader(icon: "leaf.fill", tint: .brandPrimary, tintBackground: .brandPrimarySoft, title: "Diet", subtitle: "What do you eat?")
             FlowLayout {
-                ForEach(dietOptions, id: \.self) { option in
-                    Chip(title: option, isSelected: dietType == option) {
-                        dietType = option
+                ForEach(PreferencesForm.dietOptions, id: \.self) { option in
+                    Chip(title: option, isSelected: form.dietType == option) {
+                        form.dietType = option
                     }
                 }
             }
@@ -89,9 +79,9 @@ struct PreferencesView: View {
     }
 
     private func breakfastOption(_ mode: BreakfastRecipePreference, title: String, subtitle: String) -> some View {
-        let isSelected = breakfastRecipePreference == mode
+        let isSelected = form.breakfastRecipePreference == mode
         return Button {
-            withAnimation(.snappy(duration: 0.2)) { breakfastRecipePreference = mode }
+            withAnimation(.snappy(duration: 0.2)) { form.breakfastRecipePreference = mode }
         } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -122,13 +112,9 @@ struct PreferencesView: View {
         VStack(alignment: .leading, spacing: 14) {
             CardHeader(icon: "globe.europe.africa.fill", tint: .accentCoral, tintBackground: .accentCoralSoft, title: "Cuisines", subtitle: "Pick as many as you like")
             FlowLayout {
-                ForEach(cuisines, id: \.self) { cuisine in
-                    Chip(title: cuisine, isSelected: selectedCuisines.contains(cuisine)) {
-                        if selectedCuisines.contains(cuisine) {
-                            selectedCuisines.remove(cuisine)
-                        } else {
-                            selectedCuisines.insert(cuisine)
-                        }
+                ForEach(PreferencesForm.cuisineOptions, id: \.self) { cuisine in
+                    Chip(title: cuisine, isSelected: form.selectedCuisines.contains(cuisine)) {
+                        form.toggleCuisine(cuisine)
                     }
                 }
             }
@@ -139,8 +125,8 @@ struct PreferencesView: View {
     private var exclusionsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             CardHeader(icon: "nosign", tint: .textSecondary, tintBackground: .bgMuted, title: "Exclusions", subtitle: "Comma-separated")
-            InputField(icon: "hand.thumbsdown", placeholder: "Disliked ingredients", text: $dislikes, multiline: true)
-            InputField(icon: "allergens", placeholder: "Allergies (e.g. peanuts, gluten)", text: $allergies, multiline: true)
+            InputField(icon: "hand.thumbsdown", placeholder: "Disliked ingredients", text: $form.dislikes, multiline: true)
+            InputField(icon: "allergens", placeholder: "Allergies (e.g. peanuts, gluten)", text: $form.allergies, multiline: true)
         }
         .card()
     }
@@ -150,19 +136,19 @@ struct PreferencesView: View {
             CardHeader(icon: "wallet.bifold.fill", tint: .brandPrimary, tintBackground: .brandPrimarySoft, title: "Budget & region")
 
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(weeklyBudget.eurosRounded)
+                Text(form.weeklyBudget.eurosRounded)
                     .font(.screenTitle)
                     .tracking(-0.6)
                     .foregroundStyle(Color.textPrimary)
-                    .contentTransition(.numericText(value: weeklyBudget))
-                    .animation(.snappy, value: weeklyBudget)
+                    .contentTransition(.numericText(value: form.weeklyBudget))
+                    .animation(.snappy, value: form.weeklyBudget)
                 Text("/ week")
                     .font(.callout.weight(.medium))
                     .foregroundStyle(Color.textSecondary)
             }
 
             VStack(spacing: 4) {
-                Slider(value: $weeklyBudget, in: 20...150, step: 5) {
+                Slider(value: $form.weeklyBudget, in: 20...150, step: 5) {
                     Text("Weekly budget")
                 }
                 .tint(.brandPrimary)
@@ -176,14 +162,14 @@ struct PreferencesView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                InputField(icon: "mappin.and.ellipse", placeholder: "Postcode (e.g. 1012 AB)", text: $postcode)
+                InputField(icon: "mappin.and.ellipse", placeholder: "Postcode (e.g. 1012 AB)", text: $form.postcode)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
                     .textContentType(.postalCode)
                 locationStatus
                     .animation(.snappy(duration: 0.2), value: location)
             }
-            .task(id: postcode) { await resolvePostcode() }
+            .task(id: form.postcode) { await resolvePostcode() }
         }
         .card()
     }
@@ -217,8 +203,8 @@ struct PreferencesView: View {
                 Badge(text: location.regionId, foreground: .brandPrimaryDeep, background: .brandPrimarySoft)
             }
             .accessibilityElement(children: .combine)
-        } else if !shoppingRegion.isEmpty {
-            Text("Current region: \(shoppingRegion). Add your postcode to update it.")
+        } else if !form.legacyRegion.isEmpty {
+            Text("Current region: \(form.legacyRegion). Add your postcode to update it.")
                 .font(.footnote)
                 .foregroundStyle(Color.textSecondary)
         } else {
@@ -256,18 +242,7 @@ struct PreferencesView: View {
     // MARK: - Persistence
 
     private func savePreferences() {
-        let preferences = UserPreferences(
-            dietType: dietType,
-            cuisines: Array(selectedCuisines),
-            dislikes: splitList(dislikes),
-            allergies: splitList(allergies),
-            budgetWeekly: weeklyBudget,
-            shoppingRegion: location?.shoppingRegion ?? (postcode.isEmpty ? shoppingRegion : ""),
-            postcode: location?.postcode ?? "",
-            breakfastRecipePreference: breakfastRecipePreference
-        )
-        if let encoded = try? JSONEncoder().encode(preferences) {
-            UserDefaults.standard.set(encoded, forKey: "userPreferences")
+        if form.makePreferences(location: location).save() {
             didSave = true
             Task {
                 try? await Task.sleep(for: .seconds(1.5))
@@ -278,36 +253,20 @@ struct PreferencesView: View {
 
     private func loadPreferences() {
         guard let saved = UserPreferences.loadFromUserDefaults() else { return }
-        dietType = saved.dietType
-        selectedCuisines = Set(saved.cuisines)
-        dislikes = saved.dislikes.joined(separator: ", ")
-        allergies = saved.allergies.joined(separator: ", ")
-        weeklyBudget = saved.budgetWeekly
-        // With a postcode the region is re-derived from it; the raw text is only kept for
-        // preferences saved before postcode lookup existed.
-        shoppingRegion = saved.postcode.isEmpty ? saved.shoppingRegion : ""
-        postcode = saved.postcode
-        breakfastRecipePreference = saved.breakfastRecipePreference
+        form = PreferencesForm(preferences: saved)
     }
 
     /// Resolves the typed postcode after a short pause. Runs whenever `postcode` changes; a newer
     /// keystroke cancels the previous lookup.
     private func resolvePostcode() async {
         isLookingUpPostcode = false
-        let trimmed = postcode.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else {
+        let trimmed = form.postcode.trimmingCharacters(in: .whitespaces)
+        guard let normalized = PostcodeLocationService.normalize(trimmed) else {
             location = nil
-            postcodeError = nil
+            postcodeError = PreferencesForm.postcodeError(for: trimmed)
             return
         }
-        guard PostcodeLocationService.normalize(trimmed) != nil else {
-            location = nil
-            // Only complain once a full-length postcode has been typed.
-            let typed = trimmed.filter { !$0.isWhitespace }.count
-            postcodeError = typed >= 6 ? PostcodeLookupError.invalidFormat.errorDescription : nil
-            return
-        }
-        if location?.postcode == PostcodeLocationService.normalize(trimmed) { return }
+        if location?.postcode == normalized { return }
 
         postcodeError = nil
         isLookingUpPostcode = true
@@ -329,15 +288,7 @@ struct PreferencesView: View {
             routineSummary = nil
             return
         }
-        routineSummary = [routine.breakfastType, routine.lunchType, routine.dinnerType]
-            .map(\.rawValue)
-            .joined(separator: " · ")
-    }
-
-    private func splitList(_ raw: String) -> [String] {
-        raw.split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        routineSummary = routine.summary
     }
 }
 

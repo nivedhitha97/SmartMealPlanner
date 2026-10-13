@@ -11,6 +11,11 @@ struct MealRoutine: Codable {
     var breakfastType: MealType
     var lunchType: MealType
     var dinnerType: MealType
+
+    /// "Fixed · Outside · Home Cooked" (breakfast · lunch · dinner).
+    var summary: String {
+        [breakfastType, lunchType, dinnerType].map(\.rawValue).joined(separator: " · ")
+    }
 }
 
 enum MealType: String, Codable, CaseIterable, Identifiable {

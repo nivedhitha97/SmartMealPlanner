@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		F9D452D72F03024700DEB0BB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F9D452AF2F03024500DEB0BB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F9D452B62F03024500DEB0BB;
+			remoteInfo = SmartMealPlanner;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		F9D452B72F03024500DEB0BB /* SmartMealPlanner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SmartMealPlanner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F9D452D12F03024700DEB0BB /* SmartMealPlannerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SmartMealPlannerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +27,22 @@
 			path = SmartMealPlanner;
 			sourceTree = "<group>";
 		};
+		F9D452D22F03024700DEB0BB /* SmartMealPlannerTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SmartMealPlannerTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		F9D452B42F03024500DEB0BB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F9D452D42F03024700DEB0BB /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				F9D452B92F03024500DEB0BB /* SmartMealPlanner */,
+				F9D452D22F03024700DEB0BB /* SmartMealPlannerTests */,
 				F9D452B82F03024500DEB0BB /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				F9D452B72F03024500DEB0BB /* SmartMealPlanner.app */,
+				F9D452D12F03024700DEB0BB /* SmartMealPlannerTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,6 +95,29 @@
 			productReference = F9D452B72F03024500DEB0BB /* SmartMealPlanner.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F9D452D62F03024700DEB0BB /* SmartMealPlannerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F9D452DB2F03024700DEB0BB /* Build configuration list for PBXNativeTarget "SmartMealPlannerTests" */;
+			buildPhases = (
+				F9D452D32F03024700DEB0BB /* Sources */,
+				F9D452D42F03024700DEB0BB /* Frameworks */,
+				F9D452D52F03024700DEB0BB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F9D452D82F03024700DEB0BB /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				F9D452D22F03024700DEB0BB /* SmartMealPlannerTests */,
+			);
+			name = SmartMealPlannerTests;
+			packageProductDependencies = (
+			);
+			productName = SmartMealPlannerTests;
+			productReference = F9D452D12F03024700DEB0BB /* SmartMealPlannerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -82,6 +130,10 @@
 				TargetAttributes = {
 					F9D452B62F03024500DEB0BB = {
 						CreatedOnToolsVersion = 26.0.1;
+					};
+					F9D452D62F03024700DEB0BB = {
+						CreatedOnToolsVersion = 26.0.1;
+						TestTargetID = F9D452B62F03024500DEB0BB;
 					};
 				};
 			};
@@ -100,12 +152,20 @@
 			projectRoot = "";
 			targets = (
 				F9D452B62F03024500DEB0BB /* SmartMealPlanner */,
+				F9D452D62F03024700DEB0BB /* SmartMealPlannerTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		F9D452B52F03024500DEB0BB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F9D452D52F03024700DEB0BB /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +182,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F9D452D32F03024700DEB0BB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F9D452D82F03024700DEB0BB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F9D452B62F03024500DEB0BB /* SmartMealPlanner */;
+			targetProxy = F9D452D72F03024700DEB0BB /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		F9D452C02F03024600DEB0BB /* Debug */ = {
@@ -310,6 +385,50 @@
 			};
 			name = Release;
 		};
+		F9D452D92F03024700DEB0BB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6AF3RCJFNB;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.swift.SmartMealPlannerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SmartMealPlanner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SmartMealPlanner";
+			};
+			name = Debug;
+		};
+		F9D452DA2F03024700DEB0BB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6AF3RCJFNB;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.swift.SmartMealPlannerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SmartMealPlanner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SmartMealPlanner";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -327,6 +446,15 @@
 			buildConfigurations = (
 				F9D452C32F03024600DEB0BB /* Debug */,
 				F9D452C42F03024600DEB0BB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F9D452DB2F03024700DEB0BB /* Build configuration list for PBXNativeTarget "SmartMealPlannerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F9D452D92F03024700DEB0BB /* Debug */,
+				F9D452DA2F03024700DEB0BB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

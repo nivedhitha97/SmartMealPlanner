@@ -1,4 +1,4 @@
-# Builds the iOS app with Xcode on every push and pull request to develop.
+# Builds the iOS app and runs its unit tests on every push and pull request to develop.
 # This is an Xcode project (no Package.swift), so it uses xcodebuild rather than `swift build`.
 
 name: iOS build
@@ -20,11 +20,43 @@ jobs:
     - name: Show Xcode version
       run: xcodebuild -version
 
-    - name: Build for iOS Simulator
+    - name: Pick an iPhone simulator
+      # Simulator names differ between runner images, so pick the first available iPhone
+      # on the newest installed iOS runtime instead of hard-coding one.
       run: |
-        xcodebuild build \
+        DEVICE_ID=$(xcrun simctl list devices available --json | python3 -c '
+        import json, sys
+        devices = json.load(sys.stdin)["devices"]
+        def version(runtime):
+            return [int(part) for part in runtime.rsplit("iOS-", 1)[1].split("-")]
+        runtimes = sorted((r for r in devices if "SimRuntime.iOS-" in r), key=version, reverse=True)
+        print(next(d["udid"] for r in runtimes for d in devices[r] if d["name"].startswith("iPhone")))
+        ')
+        echo "Using simulator $DEVICE_ID"
+        echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+
+    # Start booting now so the (slow, cold) simulator boot overlaps with the build below.
+    - name: Start simulator
+      run: xcrun simctl boot "$DEVICE_ID"
+
+    - name: Build for testing
+      run: |
+        xcodebuild build-for-testing \
           -project SmartMealPlanner.xcodeproj \
-          -target SmartMealPlanner \
-          -configuration Debug \
-          -sdk iphonesimulator \
+          -scheme SmartMealPlanner \
+          -destination "id=$DEVICE_ID" \
+          CODE_SIGNING_ALLOWED=NO
+
+    - name: Wait for simulator
+      run: xcrun simctl bootstatus "$DEVICE_ID" -b
+
+    # Parallel testing makes xcodebuild boot a fresh clone of the simulator, which takes
+    # ~12 minutes on the runner; run on the already-booted device instead.
+    - name: Run unit tests
+      run: |
+        xcodebuild test-without-building \
+          -project SmartMealPlanner.xcodeproj \
+          -scheme SmartMealPlanner \
+          -destination "id=$DEVICE_ID" \
+          -parallel-testing-enabled NO \
           CODE_SIGNING_ALLOWED=NO
