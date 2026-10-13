@@ -12,10 +12,6 @@ struct RecipeDetailView: View {
 
     private let heroHeight: CGFloat = 340
 
-    private var calories: Double {
-        recipe.ingredients.reduce(0) { $0 + $1.ingredient.calories * $1.quantity / 100 }
-    }
-
     var body: some View {
         ScrollView {
             VStack(spacing: -28) {
@@ -69,8 +65,8 @@ struct RecipeDetailView: View {
                 if !recipe.instructions.isEmpty {
                     metaItem("clock", "\(recipe.instructions.count) steps")
                 }
-                if calories > 0 {
-                    metaItem("flame", "\(Int(calories)) kcal")
+                if recipe.estimatedCalories > 0 {
+                    metaItem("flame", "\(Int(recipe.estimatedCalories)) kcal")
                 }
             }
         }
@@ -85,7 +81,7 @@ struct RecipeDetailView: View {
 
     @ViewBuilder
     private var referenceLinks: some View {
-        let hasLinks = recipe.youtubeURLParsed != nil || recipe.cookbookURLParsed != nil
+        let hasLinks = recipe.hasReferenceLinks
         VStack(alignment: .leading, spacing: 12) {
             if hasLinks {
                 HStack(spacing: 12) {
