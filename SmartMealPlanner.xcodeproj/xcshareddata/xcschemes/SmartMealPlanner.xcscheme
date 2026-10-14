@@ -29,6 +29,24 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
+      <PostActions>
+         <ExecutionAction
+            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+            <ActionContent
+               title = "Update test report"
+               scriptText = '# Record this test run in TestReports/SmartMealPlanner-TestCases.xlsx.&#10;# Runs in the background because Xcode finishes writing the result bundle after this action starts.&#10;# CI records runs in its own workflow step, so skip there. A clean environment keeps build settings out of the log.&#10;[ -n "$CI" ] &amp;&amp; exit 0&#10;mkdir -p "$SRCROOT/TestReports"&#10;nohup env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin /usr/bin/python3 "$SRCROOT/scripts/update_test_report.py" --source xcode --wait-for-new --wait 180 --derived-data "$BUILD_DIR/../.." &gt;&gt; "$SRCROOT/TestReports/update.log" 2&gt;&amp;1 &amp;&#10;'>
+               <EnvironmentBuildable>
+                  <BuildableReference
+                     BuildableIdentifier = "primary"
+                     BlueprintIdentifier = "F9D452B62F03024500DEB0BB"
+                     BuildableName = "SmartMealPlanner.app"
+                     BlueprintName = "SmartMealPlanner"
+                     ReferencedContainer = "container:SmartMealPlanner.xcodeproj">
+                  </BuildableReference>
+               </EnvironmentBuildable>
+            </ActionContent>
+         </ExecutionAction>
+      </PostActions>
       <Testables>
          <TestableReference
             skipped = "NO"

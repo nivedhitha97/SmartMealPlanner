@@ -119,6 +119,8 @@ SmartMealPlanner
 
 SmartMealPlannerTests               Unit tests (Swift Testing), one suite per screen
 SmartMealPlannerUITests             UI tests (XCTest) that drive the running app
+scripts/update_test_report.py       Sends each test run to the test report Google Sheet
+docs/test-report/Code.gs            Apps Script that records runs in the sheet
 ```
 
 ---
@@ -197,6 +199,32 @@ xcodebuild test -project SmartMealPlanner.xcodeproj -scheme SmartMealPlanner -de
 ```
 
 Add `-only-testing:SmartMealPlannerTests` or `-only-testing:SmartMealPlannerUITests` to run one kind. The GitHub Actions workflow builds the app and runs both on every push and pull request to `develop`.
+
+### Test case report (Google Sheets)
+
+The [SmartMealPlanner Test Cases](https://docs.google.com/spreadsheets/d/1YKWuDnbF0zmI1NbZde3dtsLhVRfhXbsNPPZ-43Ga_AE/edit) sheet lists every unit and UI test case and is updated after each test run:
+
+| Tab | Contents |
+|---|---|
+| Summary | Last run (when, where, device, result) and live totals: passed / failed / skipped / not run, overall and for unit vs UI tests, plus pass rate |
+| Test Cases | One row per test: ID, type, suite, readable description, source file and line, number of argument cases, last status (colour-coded), last run time, duration, run / pass / fail counts, pass rate, the last 10 results and the last failure message |
+| Run History | One row per test run, newest first: time, source (Xcode / CI / local), branch, commit, device, totals, duration and result |
+
+How it stays up to date:
+
+- **Xcode / `xcodebuild test`:** the shared scheme's post-test action runs `scripts/update_test_report.py` in the background after every test run (log: `TestReports/update.log`).
+- **CI:** the workflow sends each run, including failed ones, using the `TEST_REPORT_URL` and `TEST_REPORT_TOKEN` repository secrets.
+- **Manually:** `scripts/update_test_report.py --result path/to/Run.xcresult`, `--sync-tests` to add new test cases without recording a run, or `--check` to test the connection.
+
+The script reads the result bundle and posts it to an Apps Script web app attached to the sheet ([`docs/test-report/Code.gs`](docs/test-report/Code.gs)), which updates the rows under a lock, so runs from your Mac and from CI end up in the same history and a run is never counted twice. Tests are discovered from the source, so new tests appear as **Not run** until they run, and a partial run (e.g. `-only-testing`) only updates the tests it ran. If the sheet can't be reached, the run is kept in `TestReports/pending/` and sent with the next one. The script only uses the Python standard library.
+
+**One-time setup** (needed on each Mac that should report, and for CI):
+
+1. In the sheet, open **Extensions → Apps Script** (or, if that won't open, create a new project at [script.google.com](https://script.google.com) while signed in to the account that owns the sheet), replace the editor's contents with `docs/test-report/Code.gs`, and save.
+2. In the Apps Script editor, open **Project Settings → Script properties** and add `TOKEN` with a long random value.
+3. **Deploy → New deployment → Web app**, with *Execute as: Me* and *Who has access: Anyone*. Authorise it and copy the web app URL (it ends in `/exec`).
+4. On your Mac: `scripts/update_test_report.py --configure <web app URL> <token>`, then `scripts/update_test_report.py --check`. The settings are saved in `TestReports/google-sheets.json`, which git ignores.
+5. For CI: add the same values as the repository secrets `TEST_REPORT_URL` and `TEST_REPORT_TOKEN` (Settings → Secrets and variables → Actions).
 
 ---
 
