@@ -237,6 +237,7 @@ struct PreferencesView: View {
             .card()
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("preferences.routineLink")
     }
 
     // MARK: - Persistence

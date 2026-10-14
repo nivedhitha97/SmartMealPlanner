@@ -20,6 +20,10 @@ struct MainTabView: View {
                 .tabItem {
                     Label("Preferences", systemImage: "slider.horizontal.3")
                 }
+            SettingsView()
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape")
+                }
         }
         .tint(.brandPrimary)
     }

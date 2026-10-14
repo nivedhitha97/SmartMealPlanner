@@ -40,6 +40,8 @@ struct SplashView: View {
             }
             .opacity(appeared ? 1 : 0)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("splash")
         .onAppear {
             withAnimation(.spring(duration: 0.5)) { appeared = true }
         }

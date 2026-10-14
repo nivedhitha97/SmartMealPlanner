@@ -41,6 +41,17 @@
                ReferencedContainer = "container:SmartMealPlanner.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "F9D452E62F03024800DEB0BB"
+               BuildableName = "SmartMealPlannerUITests.xctest"
+               BlueprintName = "SmartMealPlannerUITests"
+               ReferencedContainer = "container:SmartMealPlanner.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
