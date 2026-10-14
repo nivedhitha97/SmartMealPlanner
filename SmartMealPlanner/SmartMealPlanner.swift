@@ -10,8 +10,18 @@ import SwiftUI
 @main
 struct SmartMealPlannerApp: App {
 
-    @StateObject private var planning = PlanningViewModel(ai: LocalHeuristicAIPlanner())
-    @State private var showSplash = true
+    @StateObject private var planning: PlanningViewModel
+    @State private var showSplash: Bool
+    @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
+
+    init() {
+        // UI tests start from a clean slate so each test is independent of earlier runs.
+        if LaunchArguments.contains(LaunchArguments.resetState), let bundleID = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: bundleID)
+        }
+        _planning = StateObject(wrappedValue: PlanningViewModel(ai: LocalHeuristicAIPlanner()))
+        _showSplash = State(initialValue: !LaunchArguments.contains(LaunchArguments.skipSplash))
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -24,8 +34,10 @@ struct SmartMealPlannerApp: App {
                         .zIndex(1)
                 }
             }
+            .preferredColorScheme(appearance.colorScheme)
             .task {
-                try? await Task.sleep(for: .seconds(1.4))
+                guard showSplash else { return }
+                try? await Task.sleep(for: .seconds(LaunchArguments.splashDuration()))
                 withAnimation(.easeOut(duration: 0.35)) { showSplash = false }
             }
         }
