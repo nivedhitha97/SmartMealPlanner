@@ -52,7 +52,7 @@ jobs:
 
     # Parallel testing makes xcodebuild boot a fresh clone of the simulator, which takes
     # ~12 minutes on the runner; run on the already-booted device instead.
-    - name: Run unit tests
+    - name: Run unit and UI tests
       run: |
         xcodebuild test-without-building \
           -project SmartMealPlanner.xcodeproj \
@@ -60,3 +60,13 @@ jobs:
           -destination "id=$DEVICE_ID" \
           -parallel-testing-enabled NO \
           CODE_SIGNING_ALLOWED=NO
+
+    # Record this run in the test report Google Sheet, also when tests fail. Needs the
+    # TEST_REPORT_URL and TEST_REPORT_TOKEN repository secrets; without them (e.g. on forks) it is skipped.
+    - name: Send results to the test report sheet
+      if: always()
+      continue-on-error: true
+      env:
+        TEST_REPORT_URL: ${{ secrets.TEST_REPORT_URL }}
+        TEST_REPORT_TOKEN: ${{ secrets.TEST_REPORT_TOKEN }}
+      run: python3 scripts/update_test_report.py --source ci --derived-data ~/Library/Developer/Xcode/DerivedData
