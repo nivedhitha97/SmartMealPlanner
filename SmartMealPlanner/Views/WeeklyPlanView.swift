@@ -231,6 +231,7 @@ struct WeeklyPlanView: View {
                         .onTapGesture {
                             withAnimation(.snappy(duration: 0.25)) { selectedDayIndex = index }
                         }
+                        .accessibilityIdentifier("plan.day.\(index)")
                 }
             }
 
@@ -321,6 +322,7 @@ struct WeeklyPlanView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("plan.meal.\(slot.rawValue)")
         } else {
             let isGranola = WeeklyPlanContent.isGranolaSlot(slot, breakfastPreference)
             HStack(spacing: 14) {

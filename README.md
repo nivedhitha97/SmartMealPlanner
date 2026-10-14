@@ -60,6 +60,10 @@ UI designed in Figma: [Smart Meal Planner – UI Revamp](https://www.figma.com/d
 - Weekly flyer offers filtered by category, grouped into "Ending soon" and other deals
 - Discount percentage and total savings
 
+### Settings
+- Light / dark theme choice (System, Light or Dark), remembered between launches
+- App version and build number
+
 ### Nutrition Calculation
 - Aggregates nutritional values per week and per recipe:
   - Calories
@@ -99,19 +103,22 @@ SmartMealPlanner
 │   ├── MealPlanner.swift           Recipe filtering and meal selection
 │   ├── WeeklyPlanContent.swift     Budget card, day picker, slots, grocery list
 │   ├── OffersList.swift            Offer filtering, grouping, savings
-│   └── PreferencesForm.swift       Preferences form ↔ saved preferences
+│   ├── PreferencesForm.swift       Preferences form ↔ saved preferences
+│   └── AppSettings.swift           Theme choice, version string, UI-test launch flags
 │
 ├── Views
 │   ├── MainTabView.swift, SplashView.swift
 │   ├── WeeklyPlanView.swift, RecipeDetailView.swift
 │   ├── WeeklyOffersView.swift
 │   ├── PreferencesView.swift, MealRoutineView.swift
+│   ├── SettingsView.swift
 │   └── DesignSystem/Theme.swift    Color tokens and shared components
 │
 └── Data
     └── recipes.json, offers.json, ingredients.json
 
 SmartMealPlannerTests               Unit tests (Swift Testing), one suite per screen
+SmartMealPlannerUITests             UI tests (XCTest) that drive the running app
 ```
 
 ---
@@ -138,7 +145,7 @@ SmartMealPlannerTests               Unit tests (Swift Testing), one suite per sc
 **Data Persistence:** UserDefaults  
 **Data Parsing:** Codable (JSON)  
 **Location:** MapKit (`MKGeocodingRequest`)  
-**Testing:** Swift Testing  
+**Testing:** Swift Testing (unit), XCTest / XCUITest (UI)  
 **CI:** GitHub Actions (Xcode 26, iOS Simulator)
 
 ---
@@ -156,6 +163,8 @@ No third-party dependencies are required.
 
 ## Testing
 
+### Unit tests
+
 Unit tests live in `SmartMealPlannerTests` and use Swift Testing. Each screen's rules are covered without driving the UI:
 
 | Suite | Covers |
@@ -167,14 +176,27 @@ Unit tests live in `SmartMealPlannerTests` and use Swift Testing. Each screen's 
 | Offers screen | Category filter, "Ending soon" grouping, total savings, discount badge, store initials |
 | Preferences form / storage | Loading and saving preferences, postcode validation and region rules, older saved data |
 | Meal routine screen | Default routine, saving and loading, corrupt data |
+| Settings screen | Appearance options and colour schemes, version string, launch flags |
+| App icon | Light / dark / tinted icons present and 1024×1024; light icon has no alpha; dark and tinted have transparent backgrounds; dark artwork is bright enough; tinted icon is grayscale with the leaf cut out of the badge |
 
-Run them in Xcode with **⌘U**, or from the command line:
+### UI tests
+
+UI tests live in `SmartMealPlannerUITests` and use XCUITest to drive the running app. Each test launches the app with `-uiTestingResetState` (start with no saved data) and `-uiTestingSkipSplash`.
+
+| Test class | Covers |
+|---|---|
+| Navigation | Splash screen on launch, every tab opens its screen |
+| Weekly plan | Setup checklist, generating before setup, full flow: preferences → meal routine → generate → open a recipe, picking another day |
+| Offers & preferences | Filtering offers by category, invalid postcode error, valid postcode shows its region |
+| Settings | Version number, System is the default, switching Dark / Light changes the rendered theme (checked from screenshot pixels), theme survives a relaunch, dark theme applies to other tabs |
+
+Run everything in Xcode with **⌘U**, or from the command line:
 
 ```bash
 xcodebuild test -project SmartMealPlanner.xcodeproj -scheme SmartMealPlanner -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
-The GitHub Actions workflow builds the app and runs the tests on every push and pull request to `develop`.
+Add `-only-testing:SmartMealPlannerTests` or `-only-testing:SmartMealPlannerUITests` to run one kind. The GitHub Actions workflow builds the app and runs both on every push and pull request to `develop`.
 
 ---
 
@@ -184,7 +206,6 @@ The GitHub Actions workflow builds the app and runs the tests on every push and 
 - Live supermarket offers (scraped flyers or an API) instead of bundled sample data
 - Supermarket price comparison across stores
 - Nutrition visualization using Swift Charts
-- UI tests for the main flows
 - Backend/API integration (Firebase / Supabase)
 - AI-assisted recipe recommendations
 

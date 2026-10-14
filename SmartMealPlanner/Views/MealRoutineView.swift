@@ -70,6 +70,7 @@ struct MealRoutineView: View {
                     OptionTile(type: type, isSelected: selection.wrappedValue == type) {
                         withAnimation(.snappy(duration: 0.2)) { selection.wrappedValue = type }
                     }
+                    .accessibilityIdentifier("routine.\(title).\(type.rawValue)")
                 }
             }
         }
