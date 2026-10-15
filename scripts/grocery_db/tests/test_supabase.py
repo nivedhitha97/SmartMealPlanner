@@ -123,6 +123,44 @@ class MirrorTests(unittest.TestCase):
         self.assertEqual((jumbo["updateDay"], jumbo["updateDaySource"]), ("Thursday", "manual"))
 
 
+class FirstSyncTests(unittest.TestCase):
+    """`update` on a day when no store is due: it fills an empty mirror once, and otherwise does nothing."""
+
+    def setUp(self):
+        self.folder = tempfile.TemporaryDirectory()
+        self.data = Path(self.folder.name)
+        db = Database(self.data / "grocery.db")
+        db.sync_stores(STORES)
+        for store in STORES:  # every store already fetched for its current week, so none is due
+            week = schedule.week_start(at("2026-10-15 12:00"), store.update_weekday).isoformat()
+            db.update_store(store.id, fetched_week=week, attempts_week=week, attempts=1)
+        db.save_catalog("jumbo", [Product("p1", "Jumbo Kipfilet 500 g", 5.99, "500 g")], "2026-10-14T04:15:00Z")
+        db.connection.commit()
+        db.connection.close()
+        self.mirror = FakeSupabase()
+
+    def tearDown(self):
+        self.folder.cleanup()
+
+    def run_update(self):
+        from unittest import mock
+        from grocery_db import __main__ as cli
+        output = self.data / "github_output"
+        with mock.patch.object(cli.mirror.Supabase, "from_environment", lambda: self.mirror), \
+             mock.patch.dict("os.environ", {"GITHUB_OUTPUT": str(output)}), \
+             mock.patch.object(cli, "update", lambda db, now, forced=(): None):  # no store due, no requests
+            cli.main(["update", "--data", str(self.data), "--now", "2026-10-15T12:00:00+02:00"])
+        return output.read_text().strip().splitlines()[-1]
+
+    def test_empty_mirror_is_filled_and_published_once(self):
+        self.assertEqual(self.run_update(), "changed=true", "publish, so the sync bookkeeping is kept")
+        self.assertEqual(self.mirror.upserts["products"], 1)
+        self.assertEqual(self.mirror.upserts["stores"], len(STORES))
+
+        self.assertEqual(self.run_update(), "changed=false", "already filled: nothing to do")
+        self.assertEqual(self.mirror.upserts["products"], 1)
+
+
 class RestTests(unittest.TestCase):
     """The REST calls themselves, with the HTTP layer recorded instead of sent."""
 
