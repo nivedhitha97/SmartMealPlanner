@@ -15,7 +15,8 @@ class FetchError(Exception):
 
 
 class Http:
-    def __init__(self, pause=1.0, retries=2, timeout=60, opener=None):
+    def __init__(self, pause=1.0, retries=2, timeout=60, opener=None, user_agent=USER_AGENT):
+        self.user_agent = user_agent
         self.pause = pause
         self.retries = retries
         self.timeout = timeout
@@ -27,7 +28,7 @@ class Http:
         """Response body as bytes. `data` (a dict) is sent as a JSON POST."""
         body = json.dumps(data).encode() if data is not None else None
         request = urllib.request.Request(url, data=body, headers={
-            "User-Agent": USER_AGENT, "Accept-Language": "nl-NL,nl;q=0.9",
+            "User-Agent": self.user_agent, "Accept-Language": "nl-NL,nl;q=0.9",
             **({"Content-Type": "application/json"} if body else {}), **(headers or {}),
         })
         for attempt in range(self.retries + 1):
