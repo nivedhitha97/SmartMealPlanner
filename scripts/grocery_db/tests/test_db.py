@@ -44,6 +44,29 @@ class DatabaseTests(unittest.TestCase):
         stored = self.db.connection.execute("SELECT valid_from, valid_to FROM offers").fetchone()
         self.assertEqual(tuple(stored), ("2026-10-13T22:00:00Z", "2026-10-20T21:59:59Z"), "stored in UTC")
 
+    def test_offer_image_is_kept_when_a_later_fetch_has_none(self):
+        offer = Offer("1", "Hak", "2026-10-14T00:00:00+02:00", "2026-10-20T23:59:59+02:00", 2.0,
+                      image_url="https://static.hoogvliet.nl/ecom/product/1.jpg")
+        self.db.save_offers("hoogvliet", [offer], "2026-10-14T04:00:00Z")
+        offer.image_url = None
+        self.db.save_offers("hoogvliet", [offer], "2026-10-15T04:00:00Z")
+        [row] = self.db.current_offers(at("2026-10-15 12:00"))
+        self.assertEqual(row["image_url"], "https://static.hoogvliet.nl/ecom/product/1.jpg")
+
+    def test_existing_database_gets_the_image_column(self):
+        path = Path(self.folder.name) / "old.db"
+        import sqlite3
+        old = sqlite3.connect(path)
+        old.executescript("CREATE TABLE offers (store_id TEXT, offer_key TEXT, valid_from TEXT, valid_to TEXT,"
+                          " title TEXT, size TEXT, deal_text TEXT, offer_price REAL, regular_price REAL,"
+                          " category TEXT, url TEXT, first_seen TEXT, last_seen TEXT,"
+                          " PRIMARY KEY (store_id, offer_key, valid_from));")
+        old.close()
+        migrated = Database(path)
+        columns = {r["name"] for r in migrated.connection.execute("PRAGMA table_info(offers)")}
+        migrated.connection.close()
+        self.assertIn("image_url", columns)
+
     def test_current_offers_are_valid_now_or_starting_within_a_day(self):
         make = lambda key, start, end: Offer(key, key, start, end, 1.0)
         self.db.save_offers("dirk", [

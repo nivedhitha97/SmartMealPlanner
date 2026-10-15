@@ -17,16 +17,16 @@ final class OffersAndPreferencesUITests: XCTestCase {
     func testFilteringOffersByCategory() {
         let app = XCUIApplication.launchForTesting()
         app.openTab("Offers")
-        XCTAssertTrue(app.staticTexts["Deals near you"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.element(containing: "Broccoli 500g").exists, "All offers show by default")
+        XCTAssertTrue(app.staticTexts["Deals near you"].waitForExistence(timeout: 5), "Offers screen opens")
+        XCTAssertTrue(app.element(containing: "Broccoli 500g").waitForExistence(timeout: 5), "All offers show by default")
 
         app.button(containing: "Meat").tap()
 
-        XCTAssertTrue(app.element(containing: "Chicken Breast Fillets 400g").waitForExistence(timeout: 3))
+        XCTAssertTrue(app.element(containing: "Chicken Breast Fillets 400g").waitForExistence(timeout: 3), "Meat offer shows")
         XCTAssertFalse(app.element(containing: "Broccoli 500g").exists, "Produce offers are hidden under Meat")
 
-        app.button(containing: "All").tap()
-        XCTAssertTrue(app.element(containing: "Broccoli 500g").waitForExistence(timeout: 3))
+        app.buttons["All"].tap()  // the category chip, not "All stores"
+        XCTAssertTrue(app.element(containing: "Broccoli 500g").waitForExistence(timeout: 3), "All shows every offer again")
     }
 
     func testInvalidPostcodeShowsAnError() {

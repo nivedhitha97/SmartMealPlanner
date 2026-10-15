@@ -11,6 +11,7 @@ import SwiftUI
 struct SmartMealPlannerApp: App {
 
     @StateObject private var planning: PlanningViewModel
+    @StateObject private var shopping = ShoppingListStore()
     @State private var showSplash: Bool
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
 
@@ -28,6 +29,7 @@ struct SmartMealPlannerApp: App {
             ZStack {
                 MainTabView()
                     .environmentObject(planning)
+                    .environmentObject(shopping)
                 if showSplash {
                     SplashView()
                         .transition(.opacity)

@@ -4,12 +4,30 @@ from .. import dates, pagedata
 from ..records import Offer
 
 
+IMAGE_HOSTS = {
+    "https://www.dirk.nl/aanbiedingen": "https://web-fileserver.dirk.nl/",
+    "https://www.dekamarkt.nl/aanbiedingen": "https://web-fileserver.dekamarkt.nl/",
+}
+IMAGE_WIDTH = "?width=300"  # the originals are 1–3 MB PNGs; the file server resizes on request
+
+
 def fetch_dirk(http):
     return parse_page(http.text("https://www.dirk.nl/aanbiedingen"), "https://www.dirk.nl/aanbiedingen")
 
 
 def fetch_dekamarkt(http):
     return parse_page(http.text("https://www.dekamarkt.nl/aanbiedingen"), "https://www.dekamarkt.nl/aanbiedingen")
+
+
+def _image(offer, products, page_url):
+    """The first product's photo (offer banners aren't publicly readable), resized."""
+    path = next((p["productInformation"]["image"] for p in products
+                 if (p.get("productInformation") or {}).get("image")), None)
+    if not path:
+        return None
+    if path.startswith("http"):
+        return path
+    return IMAGE_HOSTS[page_url] + path.lstrip("/") + IMAGE_WIDTH
 
 
 def parse_page(html, page_url):
@@ -36,5 +54,6 @@ def parse_page(html, page_url):
             deal_text=sign or None,
             size=(offer.get("packaging") or offer.get("subText") or "").strip().rstrip("."),
             url=page_url,
+            image_url=_image(offer, products, page_url),
         )
     return list(offers.values())

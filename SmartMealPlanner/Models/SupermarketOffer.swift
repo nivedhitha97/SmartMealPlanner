@@ -25,6 +25,8 @@ struct SupermarketOffer: Identifiable, Codable, Hashable {
     var ingredientName: String? = nil
     /// The store's deal, e.g. "1+1 gratis" or "2 voor €5,00"; `offerPrice` is then the price per item.
     var dealText: String? = nil
+    /// Product photo (about 300 px wide) hosted by the store; nil when the store has none.
+    var imageURL: URL? = nil
 
     /// Region id of offers that apply across the Netherlands.
     static let nationalRegionId = "NL"

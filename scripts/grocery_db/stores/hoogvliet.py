@@ -39,6 +39,7 @@ def parse_page(html):
                     size=(meta.get("promotie_beschrijving") or "").strip(),
                     category=group.get("name"),
                     url=f"https://hoogvliet.nl/product/{item['url_key']}" if item.get("url_key") else OFFERS_URL,
+                    image_url=(item.get("thumbnail") or {}).get("url") or None,
                 )
     return list(offers.values())
 

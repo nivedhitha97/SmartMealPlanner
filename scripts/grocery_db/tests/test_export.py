@@ -50,6 +50,14 @@ class DealTests(unittest.TestCase):
         self.assertEqual(export._deal_label("1+1 gratis", 5.0), "1+1 gratis")
 
 
+class OfferJsonTests(unittest.TestCase):
+    def test_exported_offer_carries_its_image(self):
+        offer = export._offer_json("k", "Lidl", "Broccoli", 0.89, None, "500 g", "2026-10-18T21:59:59Z", None, None,
+                                   image_url="https://www.lidl.nl/assets/broccoli.png")
+        self.assertEqual(offer["imageURL"], "https://www.lidl.nl/assets/broccoli.png")
+        self.assertIsNone(export._offer_json("k", "Lidl", "X", 1.0, None, "", "2026-10-18T21:59:59Z", None, None)["imageURL"])
+
+
 class MatchingTests(unittest.TestCase):
     def test_promotion_matches_the_cheapest_product_with_all_its_words(self):
         products = [{"name": "Campina Vla Vanille 1 L", "price": 1.79, "size": "1 l"},

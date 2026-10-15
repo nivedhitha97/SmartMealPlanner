@@ -35,7 +35,7 @@ class StoreParserTests(unittest.TestCase):
     def test_lidl_item_with_lidl_plus_price_and_dates(self):
         item = {"gridbox": {"data": {
             "productId": 101, "fullTitle": "ZWAGERMAN Kipfilet", "canonicalUrl": "/p/kipfilet/p101",
-            "storeStartDate": 1791756000, "storeEndDate": 1792360799,
+            "storeStartDate": 1791756000, "storeEndDate": 1792360799, "image": "https://www.lidl.nl/assets/kip.png",
             "price": {"packaging": {"text": "400 g"}, "discount": {"percentageDiscount": 20}},
             "lidlPlus": [{"price": {"price": 2.29}}]}}}
         offer = lidl.parse_item(item)
@@ -44,33 +44,40 @@ class StoreParserTests(unittest.TestCase):
         self.assertEqual(offer.valid_from, "2026-10-12T00:00:00+02:00")
         self.assertEqual(offer.valid_to, "2026-10-18T23:59:59+02:00")
         self.assertEqual(offer.url, "https://www.lidl.nl/p/kipfilet/p101")
+        self.assertEqual(offer.image_url, "https://www.lidl.nl/assets/kip.png")
 
     def test_lidl_item_without_price_or_dates_is_skipped(self):
         self.assertIsNone(lidl.parse_item({"gridbox": {"data": {"storeStartDate": 1, "storeEndDate": 2, "price": {}}}}))
 
     def test_jumbo_promotions_keep_the_deal_and_exact_times(self):
         table = [{"promos": 1}, [2], {"id": 3, "title": 4, "subtitle": 5, "isKiesAndMix": 6, "hidden": 6,
-                                      "start": 7, "end": 9, "tags": 11, "url": 13},
+                                      "start": 7, "end": 9, "tags": 11, "url": 13, "image": 15},
                  "3021283", "Campina vla", "Alle pakken à 1 liter", False,
                  {"iso": 8}, "2026-10-14T00:01:00+02:00", {"iso": 10}, "2026-10-20T23:59:59+02:00",
-                 [12], {"text": 14}, "/aanbiedingen/campina-vla/3021283", "1+1 gratis"]
+                 [12], {"text": 14}, "/aanbiedingen/campina-vla/3021283", "1+1 gratis",
+                 "https://www.jumbo.com/INTERSHOP/static/vla.png"]
         table[12] = {"text": 14}
         [offer] = jumbo.parse_page(nuxt(table))
         self.assertEqual((offer.key, offer.title, offer.deal_text), ("3021283", "Campina vla", "1+1 gratis"))
         self.assertIsNone(offer.offer_price)
         self.assertEqual((offer.valid_from, offer.valid_to), ("2026-10-14T00:01:00+02:00", "2026-10-20T23:59:59+02:00"))
+        self.assertEqual(offer.image_url, "https://www.jumbo.com/INTERSHOP/static/vla.png")
 
     def test_dirk_dates_are_local_calendar_dates(self):
         table = [{"offers": 1}, [2], {"offerId": 3, "headerText": 4, "packaging": 5, "offerPrice": 6,
-                                      "normalPrice": 7, "startDate": 8, "endDate": 9, "textPriceSign": 10},
+                                      "normalPrice": 7, "startDate": 8, "endDate": 9, "textPriceSign": 10,
+                                      "products": 11},
                  139851, "Hollandse aardbeien", "Bak 400 gram.", 2.49, 2.99,
-                 "2026-10-14T00:00:00.000Z", "2026-10-20T23:59:00.000Z", "ACTIE_"]
+                 "2026-10-14T00:00:00.000Z", "2026-10-20T23:59:00.000Z", "ACTIE_",
+                 [12], {"productInformation": 13}, {"image": 14}, "artikelen/243172_1.png"]
         [offer] = detailresult.parse_page(nuxt(table), "https://www.dirk.nl/aanbiedingen")
         self.assertEqual((offer.title, offer.offer_price, offer.regular_price), ("Hollandse aardbeien", 2.49, 2.99))
         self.assertEqual(offer.size, "Bak 400 gram")
         self.assertIsNone(offer.deal_text, "'ACTIE_' is a placeholder")
         self.assertEqual(offer.valid_from, "2026-10-14T00:00:00+02:00")
         self.assertEqual(offer.valid_to, "2026-10-20T23:59:59+02:00")
+        self.assertEqual(offer.image_url, "https://web-fileserver.dirk.nl/artikelen/243172_1.png?width=300",
+                         "the first product's photo, resized")
 
     def test_dekamarkt_midnight_end_date_means_the_day_before(self):
         table = [{"offers": 1}, [2], {"offerId": 3, "headerText": 4, "offerPrice": 5, "normalPrice": 6,
@@ -80,27 +87,34 @@ class StoreParserTests(unittest.TestCase):
         [offer] = detailresult.parse_page(nuxt(table), "https://www.dekamarkt.nl/aanbiedingen")
         self.assertEqual(offer.valid_to, "2026-10-19T23:59:59+02:00")
         self.assertEqual(offer.deal_text, "2 voor 0,99")
+        self.assertIsNone(offer.image_url, "no product photo")
 
     def test_hoogvliet_items_use_their_promotion_period(self):
         page = next_data({"props": {"pageProps": {"promotionPeriods": [{
             "weekNr": "2026-42", "validFrom": "2026-10-14 00:00:00", "validTo": "2026-10-20 23:59:59",
             "groups": [{"name": "Zuivel", "items": [{
                 "sku": "123", "name": "Hak", "url_key": "hak-123",
+                "thumbnail": {"url": "https://static.hoogvliet.nl/ecom/product/123.jpg"},
                 "price_range": {"minimum_price": {"regular_price": {"value": 9.78}, "final_price": {"value": 4.89}}},
                 "promotion_meta_data": {"korting_label": "1 + 1 Gratis"}}]}]}]}}})
         [offer] = hoogvliet.parse_page(page)
         self.assertEqual((offer.key, offer.offer_price, offer.regular_price), ("123@2026-42", 4.89, 9.78))
         self.assertEqual((offer.deal_text, offer.category), ("1 + 1 Gratis", "Zuivel"))
         self.assertEqual(offer.url, "https://hoogvliet.nl/product/hak-123")
+        self.assertEqual(offer.image_url, "https://static.hoogvliet.nl/ecom/product/123.jpg")
         self.assertEqual(offer.valid_to, "2026-10-20T23:59:59+02:00")
 
     def test_poiesz_offer_lines_become_the_deal(self):
         table = [{"offers": 1}, [2], {"id": 3, "commercialTextLine1": 4, "offerTypeLine1": 5, "newPriceLow": 6,
-                                      "validFrom": 7, "validUntil": 8, "commercialTextDetailsLine2": 9},
-                 130167, "Wagner piccolinis", "2 voor", 5.0, "2026-10-11T00:00:00", "2026-10-18T00:00:00", "doos à 9 stuks"]
+                                      "validFrom": 7, "validUntil": 8, "commercialTextDetailsLine2": 9,
+                                      "imageFile": 10},
+                 130167, "Wagner piccolinis", "2 voor", 5.0, "2026-10-11T00:00:00", "2026-10-18T00:00:00", "doos à 9 stuks",
+                 "files\\1\\8\\0\\5\\8\\3\\130167.psd"]
         [offer] = poiesz.parse_page(nuxt(table))
         self.assertEqual((offer.title, offer.offer_price, offer.deal_text), ("Wagner piccolinis", 5.0, "2 voor"))
         self.assertEqual((offer.valid_from, offer.valid_to), ("2026-10-11T00:00:00+02:00", "2026-10-17T23:59:59+02:00"))
+        self.assertEqual(offer.image_url,
+                         "https://files.poiesz-supermarkten.nl/files/1/8/0/5/8/3/130167.psd?width=300&mode=fill")
 
 
 if __name__ == "__main__":

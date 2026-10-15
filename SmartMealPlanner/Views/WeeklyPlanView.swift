@@ -8,10 +8,10 @@ import SwiftUI
 struct WeeklyPlanView: View {
 
     @EnvironmentObject private var planning: PlanningViewModel
+    @EnvironmentObject private var shopping: ShoppingListStore
+    @Environment(\.openTab) private var openTab
 
     @State private var selectedDayIndex = 0
-    @State private var groceryChecklist = GroceryChecklist()
-    @State private var showAllGroceries = false
 
     private static let dayTitleFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -54,8 +54,6 @@ struct WeeklyPlanView: View {
             }
             .onChange(of: planning.suggestedPlan?.id) {
                 selectedDayIndex = WeeklyPlanContent.initialDayIndex(in: planning.suggestedPlan?.weeklyMealPlan)
-                groceryChecklist.reset()
-                showAllGroceries = false
             }
             .onAppear {
                 selectedDayIndex = WeeklyPlanContent.initialDayIndex(in: planning.suggestedPlan?.weeklyMealPlan)
@@ -106,13 +104,13 @@ struct WeeklyPlanView: View {
 
                 budgetCard(plan)
 
+                groceryCard
+
                 notesCard(plan)
 
                 mealsSection(plan.weeklyMealPlan, breakfastPreference: breakfastPref)
 
                 nutritionSection(plan.weeklyMealPlan)
-
-                grocerySection(plan)
             }
             .padding(.horizontal, 24)
             .padding(.top, 8)
@@ -395,87 +393,36 @@ struct WeeklyPlanView: View {
 
     // MARK: - Groceries
 
-    private func grocerySection(_ plan: AISuggestedWeekPlan) -> some View {
-        let lines = WeeklyPlanContent.visibleGroceryLines(plan.groceryLines, showAll: showAllGroceries)
-        return VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(title: "Grocery list") {
-                Text("\(plan.groceryLines.count) items")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(Color.textSecondary)
-            }
-
-            VStack(spacing: 0) {
-                ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
-                    if index > 0 { RowDivider() }
-                    groceryRow(line)
-                }
-                if WeeklyPlanContent.canExpandGroceries(plan.groceryLines) {
-                    RowDivider()
-                    Button {
-                        withAnimation(.snappy) { showAllGroceries.toggle() }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(showAllGroceries ? "Show less" : "Show all \(plan.groceryLines.count) items")
-                            Image(systemName: showAllGroceries ? "chevron.up" : "chevron.down")
-                                .font(.footnote.weight(.bold))
-                        }
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.brandPrimary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 4)
-            .background(Color.bgSurface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Color.borderSubtle))
-        }
-    }
-
-    private func groceryRow(_ line: GroceryLineItem) -> some View {
-        let isChecked = groceryChecklist.isChecked(line)
+    /// The list itself lives on the List tab; this card summarises it.
+    private var groceryCard: some View {
+        let list = shopping.list
         return Button {
-            withAnimation(.snappy(duration: 0.2)) { groceryChecklist.toggle(line) }
+            openTab(.list)
         } label: {
-            HStack(alignment: .center, spacing: 12) {
-                ZStack {
-                    Circle()
-                        .strokeBorder(isChecked ? Color.clear : Color.borderSubtle, lineWidth: 1.5)
-                        .background(Circle().fill(isChecked ? Color.brandPrimary : Color.clear))
-                    if isChecked {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-                }
-                .frame(width: 22, height: 22)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(line.ingredientName)
-                        .font(.subheadline.weight(.medium))
-                        .strikethrough(isChecked)
-                        .foregroundStyle(isChecked ? Color.textTertiary : Color.textPrimary)
-                    HStack(spacing: 6) {
-                        Text("\(Int(line.totalGrams)) g")
-                            .font(.footnote)
-                            .foregroundStyle(Color.textSecondary)
-                        if let offer = line.matchedOffer {
-                            Badge(text: offer.storeName, systemImage: "tag.fill", foreground: .brandPrimaryDeep, background: .brandPrimarySoft)
-                        }
-                    }
+            HStack(spacing: 14) {
+                IconTile(systemName: "checklist", tint: .brandPrimaryDeep, background: .brandPrimarySoft, size: 44,
+                         cornerRadius: 12)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Grocery list")
+                        .font(.cardTitle)
+                        .foregroundStyle(Color.textPrimary)
+                    Text("\(list.itemCount) items · \(list.total().euros)")
+                        .font(.footnote)
+                        .foregroundStyle(Color.textSecondary)
                 }
                 Spacer(minLength: 8)
-                Text(line.estimatedLinePrice.euros)
+                Text("Open")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(isChecked ? Color.textTertiary : Color.textPrimary)
+                    .foregroundStyle(Color.brandPrimary)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(Color.brandPrimary)
             }
-            .padding(.vertical, 12)
+            .card(padding: 16, radius: 20)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityHint(line.rationale)
+        .accessibilityIdentifier("plan.groceryList")
     }
 
     // MARK: - Helpers
@@ -613,4 +560,5 @@ private struct PlanEmptyState: View {
 #Preview {
     WeeklyPlanView()
         .environmentObject(PlanningViewModel(ai: LocalHeuristicAIPlanner()))
+        .environmentObject(ShoppingListStore())
 }

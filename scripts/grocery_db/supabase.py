@@ -82,7 +82,7 @@ def push(db, supabase, full=False):
     where, params = after("last_seen")
     sent["offers"] = supabase.upsert("offers", rows(
         """SELECT store_id, offer_key, valid_from, valid_to, title, size, deal_text, offer_price, regular_price,
-                  category, url, first_seen FROM offers""" + where, params), "store_id,offer_key,valid_from")
+                  category, url, image_url, first_seen FROM offers""" + where, params), "store_id,offer_key,valid_from")
     where, params = after("started_at")
     sent["fetch_log"] = supabase.upsert("fetch_log", rows(
         "SELECT id, store_id, kind, started_at, finished_at, status, items, requests, message FROM fetch_log" + where,

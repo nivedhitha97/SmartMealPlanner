@@ -51,6 +51,13 @@ UI designed in Figma: [Smart Meal Planner – UI Revamp](https://www.figma.com/d
 - Intelligent filtering logic to exclude incompatible recipes (diet, allergies, dislikes, cuisines)
 - Planner sits behind an `AIPlanningService` protocol, so the on-device heuristic can be swapped for a remote model
 
+### Grocery List (List tab)
+- One editable list: the weekly plan's groceries, offers added from the Offers screen, and your own items
+- Filters: All, Added (offers and your own items) and each store; items are grouped by store with a subtotal, plus the overall total and what's left to buy
+- Tap the circle to tick an item off, tap the row to edit its name, store, price or quantity (or delete it), and + to add your own; the List tab's badge shows how many items are left
+- Saved on the device; a new plan replaces only the plan's items, everything you added stays
+- The Plan screen shows a summary card that opens the list
+
 ### Budget-Aware Grocery List
 - Aggregates ingredients across the week into one grocery list
 - Prices each ingredient from a matching offer, else today's supermarket prices (typical price per 100 g across stores), else the recipe catalog
@@ -60,7 +67,9 @@ UI designed in Figma: [Smart Meal Planner – UI Revamp](https://www.figma.com/d
 ### Live Supermarket Offers
 - This week's offers from Jumbo, Lidl, Dirk, DekaMarkt, Hoogvliet and Poiesz, with their real end dates and deals, plus price drops at Spar
 - Shows whether prices are live, saved from the last download (offline) or the bundled samples, when the next store refresh is, and each store's weekly update day; pull to refresh
-- Filtered by category, recipe ingredients first, with the deal or discount percentage and total savings
+- Product photos on the offer cards (store initials while loading or when there is none)
+- Filtered by store and category, recipe ingredients first, with the deal or discount percentage and total savings
+- A + button on each offer adds it to the grocery list; once added it shows the quantity, and tapping again adds one more
 
 ### Settings
 - Light / dark theme choice (System, Light or Dark), remembered between launches
@@ -92,6 +101,7 @@ A SQLite database (`grocery.db`) of Dutch supermarket products, shelf prices wit
 - The workflow (`.github/workflows/grocery-feed.yml`) runs every morning, but on days when no store is due it makes **no requests** and publishes nothing. A full week costs about a dozen requests: one per store's offers (three for Lidl) plus one shared [Checkjebon](https://github.com/supermarkt/checkjebon) catalog download on each update day
 - If a store hasn't published its new week yet, it is tried again the next morning (up to three times)
 - Offers keep the store's real start and end dates and deal ("1+1 gratis", "2 voor €5,00"); multi-buy prices are shown per item, and Jumbo's price-less deals are priced from the product's shelf price
+- Offers include a product photo (`image_url`, about 300 px wide, hosted by the store; Dirk, DekaMarkt and Poiesz images are resized by their file servers). Nearly every offer has one; the catalog's shelf-price products don't, because Checkjebon has no images
 - Checkjebon has stopped updating several stores (Albert Heijn, Plus, Hoogvliet and DekaMarkt prices haven't changed since at least December 2025). The database notices when a store's prices stop changing: stale shelf prices are left out of ingredient prices, and the Offers screen says so
 - The database and the app's files (`offers.json`, `prices.json`, `meta.json`) live on the `grocery-feed` branch (the database gzipped). Nothing needs an API key: the job pushes with its own `GITHUB_TOKEN`
 - Every fetch is logged with its request count (`fetch_log` table); `meta.json` reports requests in the last 7 and 28 days
@@ -113,7 +123,7 @@ To try the app against a local copy, serve the folder (`python3 -m http.server 8
 ### Browse and Edit the Database (Supabase)
 The database is mirrored to [Supabase](https://supabase.com) (hosted Postgres, free tier), whose **Table Editor** shows every table as a searchable, sortable, filterable spreadsheet at a URL, and lets you edit it.
 
-- Tables: `stores` (weekly schedule), `products` (all shelf prices), `price_history`, `offers`, `fetch_log`; views `offers_this_week` and `requests_per_week`
+- Tables: `stores` (weekly schedule), `products` (all shelf prices), `price_history`, `offers` (with `image_url`), `fetch_log`; views `offers_this_week` and `requests_per_week`. After a schema change, run `supabase_schema.sql` again: it only adds what's missing
 - **Editable columns** (everything else is rewritten by the weekly update):
   - `products.price_override` (+ `override_note`): use this price instead of the store's
   - `offers.offer_price_override`, `offers.hidden`: correct an offer's price, or leave it out of the app
@@ -162,14 +172,15 @@ SmartMealPlanner
 │   ├── PlanningViewModel.swift     Generate / cache / clear the weekly plan
 │   ├── MealPlanner.swift           Recipe filtering and meal selection
 │   ├── WeeklyPlanContent.swift     Budget card, day picker, slots, grocery list
-│   ├── OffersList.swift            Offer filtering, grouping, savings
+│   ├── OffersList.swift            Offer filtering (store, category), grouping, savings
+│   ├── ShoppingList.swift          Editable grocery list: items, filters, store totals, saving
 │   ├── PreferencesForm.swift       Preferences form ↔ saved preferences
 │   └── AppSettings.swift           Theme choice, version string, UI-test launch flags
 │
 ├── Views
 │   ├── MainTabView.swift, SplashView.swift
 │   ├── WeeklyPlanView.swift, RecipeDetailView.swift
-│   ├── WeeklyOffersView.swift
+│   ├── WeeklyOffersView.swift, GroceryListView.swift
 │   ├── PreferencesView.swift, MealRoutineView.swift
 │   ├── SettingsView.swift
 │   └── DesignSystem/Theme.swift    Color tokens and shared components
@@ -236,12 +247,13 @@ Unit tests live in `SmartMealPlannerTests` and use Swift Testing. Each screen's 
 
 | Suite | Covers |
 |---|---|
-| Weekly plan screen | Budget card maths and copy, day picker opening on today, empty-slot labels, grocery preview and checklist |
+| Weekly plan screen | Budget card maths and copy, day picker opening on today, empty-slot labels |
 | Planning view model | Missing preferences / routine errors, generating and caching a plan, restoring it on relaunch, clearing it, planner and catalog failures, live prices reaching the planner |
 | Plan generation | 7-day structure, diet / allergy / dislike / cuisine filtering, meal-type rules, grocery aggregation, regional and national offer matching, live ingredient prices, nutrition totals |
 | Live grocery data | No request before the next store refresh, only meta.json when the feed is unchanged, downloading a rebuilt feed (stubbed network), offline fallback to the cached feed and then the bundled offers, server errors, broken feeds, freshness line |
 | Recipe detail screen | Calorie estimate, reference links, photo URL handling, meat and animal-product detection |
-| Offers screen | Category filter, "Ending soon" grouping (live price drops excluded), ordering, total savings, discount badge, store initials, next-update line, store update statuses |
+| Grocery list | Adding offers (and again for more), own items, editing and deleting, ticking off, plan groceries replaced by a new plan while added items stay, All / Added / store filters, store and overall totals, saving |
+| Offers screen | Store and category filters, "Ending soon" grouping (live price drops excluded), ordering, total savings, discount badge, store initials, next-update line, store update statuses |
 | Preferences form / storage | Loading and saving preferences, postcode validation and region rules, older saved data |
 | Meal routine screen | Default routine, saving and loading, corrupt data |
 | Settings screen | Appearance options and colour schemes, version string, launch flags |
@@ -260,6 +272,7 @@ UI tests live in `SmartMealPlannerUITests` and use XCUITest to drive the running
 | Navigation | Splash screen on launch, every tab opens its screen |
 | Weekly plan | Setup checklist, generating before setup, full flow: preferences → meal routine → generate → open a recipe, picking another day |
 | Offers & preferences | Filtering offers by category, invalid postcode error, valid postcode shows its region |
+| Grocery list | Store filter on Offers, adding offers (twice for two) and the totals on the List tab, store filter on the list, adding / editing / ticking off / deleting your own item, the Plan screen's card opening the list with the plan's groceries |
 | Settings | Version number, System is the default, switching Dark / Light changes the rendered theme (checked from screenshot pixels), theme survives a relaunch, dark theme applies to other tabs |
 
 Run everything in Xcode with **⌘U**, or from the command line:

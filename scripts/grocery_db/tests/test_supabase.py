@@ -67,6 +67,7 @@ class MirrorTests(unittest.TestCase):
     def test_first_push_sends_everything_then_only_changes(self):
         first = supabase.push(self.db, self.mirror)
         self.assertEqual((first["products"], first["offers"], first["stores"]), (2, 2, len(STORES)))
+        self.assertIn("image_url", next(iter(self.mirror.tables["offers"].values())))
         self.assertIs(self.mirror.tables["stores"][("jumbo",)]["has_offers"], True, "booleans, not 0/1")
 
         self.db.set_sync_value("pushed_at", "2026-10-15T00:00:00Z")
