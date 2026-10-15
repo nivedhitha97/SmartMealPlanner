@@ -32,6 +32,7 @@ final class NavigationUITests: XCTestCase {
 
         let screens = [
             ("Offers", "Deals near you"),
+            ("List", "Grocery list"),
             ("Preferences", "These shape your weekly plan and grocery list."),
             ("Settings", "Appearance"),
             ("Plan", "Your week"),

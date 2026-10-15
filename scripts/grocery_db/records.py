@@ -17,6 +17,7 @@ class Offer:
     size: str = ""
     category: Optional[str] = None
     url: Optional[str] = None
+    image_url: Optional[str] = None   # a product photo about 300 px wide, hosted by the store
 
 
 @dataclass

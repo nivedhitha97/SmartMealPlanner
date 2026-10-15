@@ -15,16 +15,24 @@ struct OffersList {
     var offers: [SupermarketOffer]
     /// nil means "All".
     var selectedCategory: String?
+    /// nil means every store.
+    var selectedStore: String? = nil
 
-    /// Categories for the filter chips, alphabetical and without duplicates.
+    /// Categories for the filter chips, alphabetical and without duplicates (within the selected store).
     var categories: [String] {
-        Array(Set(offers.map(\.category))).sorted()
+        Array(Set(offers.filter { selectedStore == nil || $0.storeName == selectedStore }.map(\.category))).sorted()
     }
 
-    /// Offers in the selected category, soonest to expire first. Offers ending together show
+    /// Stores for the store filter, alphabetical.
+    var stores: [String] {
+        Array(Set(offers.map(\.storeName))).sorted()
+    }
+
+    /// Offers in the selected store and category, soonest to expire first. Offers ending together show
     /// recipe ingredients first, then the biggest saving.
     var filtered: [SupermarketOffer] {
         offers
+            .filter { selectedStore == nil || $0.storeName == selectedStore }
             .filter { selectedCategory == nil || $0.category == selectedCategory }
             .sorted { a, b in
                 if a.validUntil != b.validUntil { return a.validUntil < b.validUntil }

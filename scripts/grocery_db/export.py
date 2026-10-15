@@ -72,7 +72,8 @@ def store_offers(db, stores, fresh, now):
         result.append(_offer_json(
             key=f"{row['store_id']}:{row['offer_key']}:{row['valid_from']}",
             store=stores[row["store_id"]]["name"], title=title, price=price, regular=regular, size=size,
-            valid_until=row["valid_to"], deal=_deal_label(deal, row["offer_price"]), category=row["category"]))
+            valid_until=row["valid_to"], deal=_deal_label(deal, row["offer_price"]), category=row["category"],
+            image_url=row["image_url"]))
     return result
 
 
@@ -192,7 +193,8 @@ def _cheapest_match(title, size, index):
     return min(candidates.values(), key=lambda p: p["price"])
 
 
-def _offer_json(key, store, title, price, regular, size, valid_until, deal, category, observed_at=None):
+def _offer_json(key, store, title, price, regular, size, valid_until, deal, category, observed_at=None,
+                image_url=None):
     return {
         "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"smartmealplanner:{key}")).upper(),
         "storeName": store,
@@ -207,6 +209,7 @@ def _offer_json(key, store, title, price, regular, size, valid_until, deal, cate
         "notes": deal,
         "dealText": deal,
         "ingredientName": ingredient_for(title),
+        "imageURL": image_url,
     }
 
 

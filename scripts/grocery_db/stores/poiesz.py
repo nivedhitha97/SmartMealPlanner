@@ -4,6 +4,7 @@ from .. import dates, pagedata
 from ..records import Offer
 
 OFFERS_URL = "https://webwinkel.poiesz-supermarkten.nl/aanbiedingen"
+FILES_URL = "https://files.poiesz-supermarkten.nl/"
 
 
 def fetch_offers(http):
@@ -34,5 +35,14 @@ def parse_page(html):
             deal_text=deal.lower() or None,
             size=(offer.get("commercialTextDetailsLine2") or first.get("packageDescription") or "").strip(),
             url=OFFERS_URL,
+            image_url=_image(offer, first),
         )
     return list(offers.values())
+
+
+def _image(offer, first_product):
+    """The offer's own picture (a Photoshop file the file server converts and resizes), else the first
+    product's photo."""
+    if offer.get("imageFile"):
+        return FILES_URL + offer["imageFile"].replace("\\", "/") + "?width=300&mode=fill"
+    return first_product.get("image") or None

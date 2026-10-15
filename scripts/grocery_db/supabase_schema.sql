@@ -55,12 +55,16 @@ create table if not exists offers (
     regular_price numeric(10, 2),
     category text,
     url text,
+    image_url text,                            -- product photo (~300 px), hosted by the store
     first_seen timestamptz,
     offer_price_override numeric(10, 2),       -- EDITABLE: use this price instead
     hidden boolean not null default false,     -- EDITABLE: leave this offer out of the app
     override_note text,                        -- EDITABLE: why
     primary key (store_id, offer_key, valid_from)
 );
+
+-- Added after the first release; this line updates tables created before it.
+alter table offers add column if not exists image_url text;
 
 create table if not exists fetch_log (
     id bigint primary key,
@@ -77,7 +81,8 @@ create table if not exists fetch_log (
 -- Handy views for browsing.
 create or replace view offers_this_week as
     select s.name as store, o.title, o.deal_text, coalesce(o.offer_price_override, o.offer_price) as price,
-           o.regular_price, o.size, o.valid_from, o.valid_to, o.hidden, o.store_id, o.offer_key
+           o.regular_price, o.size, o.valid_from, o.valid_to, o.hidden, o.store_id, o.offer_key,
+           o.image_url  -- last: `create or replace view` can only add columns at the end
     from offers o join stores s on s.id = o.store_id
     where o.valid_to >= now() and o.valid_from <= now() + interval '1 day'
     order by s.name, o.title;

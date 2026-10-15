@@ -1,0 +1,238 @@
+//
+//  ShoppingList.swift
+//  SmartMealPlanner
+//
+//  The editable grocery list: items from the weekly plan, offers added on the Offers screen, and items typed
+//  in by hand. Kept free of SwiftUI so it can be unit tested; `ShoppingListStore` saves it.
+//
+
+import Combine
+import Foundation
+
+struct ShoppingListItem: Identifiable, Codable, Hashable {
+    enum Source: String, Codable {
+        /// From the weekly plan's grocery list; replaced when a new plan is generated.
+        case plan
+        /// Added from the Offers screen.
+        case offer
+        /// Typed in on the List screen.
+        case manual
+    }
+
+    var id = UUID()
+    var name: String
+    /// nil when it can be bought anywhere.
+    var storeName: String?
+    /// Price per item; nil when unknown.
+    var price: Double?
+    var quantity = 1
+    /// Pack size or amount, e.g. "500 g" or "1050 g".
+    var amountText: String?
+    var source: Source
+    /// The offer this was added from, so adding it again raises the quantity.
+    var offerID: UUID?
+    var dealText: String?
+    var imageURL: URL?
+    var isChecked = false
+
+    var lineTotal: Double { (price ?? 0) * Double(quantity) }
+
+    /// Added by the user (from an offer or by hand) rather than generated from the plan.
+    var isAdded: Bool { source != .plan }
+
+    /// Store name for grouping and filters.
+    var storeLabel: String { storeName ?? ShoppingList.anyStore }
+}
+
+/// What the List screen shows.
+enum ShoppingListFilter: Hashable {
+    case all
+    /// Items added from offers or by hand.
+    case added
+    case store(String)
+
+    var title: String {
+        switch self {
+        case .all: "All"
+        case .added: "Added"
+        case .store(let name): name
+        }
+    }
+}
+
+struct StoreGroup: Identifiable, Equatable {
+    var id: String { store }
+    let store: String
+    let items: [ShoppingListItem]
+    var total: Double { items.map(\.lineTotal).reduce(0, +) }
+}
+
+struct ShoppingList: Codable, Equatable {
+    static let anyStore = "Any store"
+
+    private(set) var items: [ShoppingListItem] = []
+    /// The plan the `.plan` items came from.
+    private(set) var planID: UUID?
+
+    // MARK: - Offers
+
+    /// Adds an offer, or one more of it if it's already on the list.
+    mutating func add(_ offer: SupermarketOffer) {
+        if let index = items.firstIndex(where: { $0.offerID == offer.id }) {
+            items[index].quantity += 1
+            items[index].isChecked = false
+            return
+        }
+        items.append(ShoppingListItem(
+            name: offer.productName,
+            storeName: offer.storeName,
+            price: offer.offerPrice,
+            amountText: offer.unitLabel == "item" ? nil : offer.unitLabel,
+            source: .offer,
+            offerID: offer.id,
+            dealText: offer.dealText,
+            imageURL: offer.imageURL
+        ))
+    }
+
+    /// How many of this offer are on the list (0 if none).
+    func quantity(of offer: SupermarketOffer) -> Int {
+        items.first { $0.offerID == offer.id }?.quantity ?? 0
+    }
+
+    // MARK: - Editing
+
+    /// Adds an item typed in by hand. Blank names are ignored.
+    mutating func addManual(name: String, storeName: String?, price: Double?, quantity: Int = 1) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        items.append(ShoppingListItem(name: trimmed, storeName: Self.normalisedStore(storeName), price: price,
+                                      quantity: max(1, quantity), source: .manual))
+    }
+
+    /// Replaces an item with an edited copy. A quantity below 1 removes it.
+    mutating func update(_ item: ShoppingListItem) {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+        guard item.quantity >= 1 else {
+            items.remove(at: index)
+            return
+        }
+        var edited = item
+        edited.name = item.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if edited.name.isEmpty { edited.name = items[index].name }
+        edited.storeName = Self.normalisedStore(item.storeName)
+        items[index] = edited
+    }
+
+    mutating func remove(_ ids: Set<UUID>) {
+        items.removeAll { ids.contains($0.id) }
+    }
+
+    mutating func toggleChecked(_ id: UUID) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        items[index].isChecked.toggle()
+    }
+
+    mutating func removeChecked() {
+        items.removeAll(where: \.isChecked)
+    }
+
+    // MARK: - Plan
+
+    /// Puts the plan's grocery lines on the list, replacing those of an earlier plan. Added items are kept.
+    /// Does nothing if the list already has this plan, so edits to plan items survive relaunches.
+    mutating func syncPlan(_ plan: AISuggestedWeekPlan?) {
+        guard plan?.id != planID else { return }
+        items.removeAll { $0.source == .plan }
+        planID = plan?.id
+        guard let plan else { return }
+        items.insert(contentsOf: plan.groceryLines.map { line in
+            ShoppingListItem(
+                name: line.ingredientName,
+                storeName: line.matchedOffer?.storeName,
+                price: line.estimatedLinePrice,
+                amountText: "\(Int(line.totalGrams.rounded())) g",
+                source: .plan,
+                offerID: nil,
+                dealText: line.matchedOffer?.dealText,
+                imageURL: line.matchedOffer?.imageURL
+            )
+        }, at: 0)
+    }
+
+    // MARK: - Filters and totals
+
+    /// Stores on the list, alphabetically, with "Any store" last.
+    var stores: [String] {
+        let names = Set(items.map(\.storeLabel))
+        return names.subtracting([Self.anyStore]).sorted() + (names.contains(Self.anyStore) ? [Self.anyStore] : [])
+    }
+
+    /// Filter chips: All, Added (if anything was added), then each store.
+    var filters: [ShoppingListFilter] {
+        [.all] + (items.contains(where: \.isAdded) ? [.added] : []) + stores.map { .store($0) }
+    }
+
+    func items(for filter: ShoppingListFilter) -> [ShoppingListItem] {
+        switch filter {
+        case .all: items
+        case .added: items.filter(\.isAdded)
+        case .store(let name): items.filter { $0.storeLabel == name }
+        }
+    }
+
+    /// The filtered items grouped by store (in `stores` order), unticked items first within each store.
+    func groups(for filter: ShoppingListFilter) -> [StoreGroup] {
+        let filtered = items(for: filter)
+        return stores.compactMap { store in
+            let inStore = filtered.filter { $0.storeLabel == store }
+            guard !inStore.isEmpty else { return nil }
+            return StoreGroup(store: store, items: inStore.filter { !$0.isChecked } + inStore.filter(\.isChecked))
+        }
+    }
+
+    func total(for filter: ShoppingListFilter = .all) -> Double {
+        items(for: filter).map(\.lineTotal).reduce(0, +)
+    }
+
+    /// Total of the items not yet ticked off.
+    func remaining(for filter: ShoppingListFilter = .all) -> Double {
+        items(for: filter).filter { !$0.isChecked }.map(\.lineTotal).reduce(0, +)
+    }
+
+    var itemCount: Int { items.map(\.quantity).reduce(0, +) }
+
+    /// Items still to buy (counting quantities), for the List tab's badge.
+    var itemsLeft: Int { items.filter { !$0.isChecked }.map(\.quantity).reduce(0, +) }
+
+    private static func normalisedStore(_ name: String?) -> String? {
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty || trimmed == anyStore ? nil : trimmed
+    }
+}
+
+/// The shopping list shared by the Plan, Offers and List screens, saved in UserDefaults.
+@MainActor
+final class ShoppingListStore: ObservableObject {
+    static let defaultsKey = "shoppingList_v1"
+
+    @Published private(set) var list: ShoppingList
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        list = defaults.data(forKey: Self.defaultsKey)
+            .flatMap { try? JSONDecoder().decode(ShoppingList.self, from: $0) } ?? ShoppingList()
+    }
+
+    /// Changes the list and saves it.
+    func change(_ edit: (inout ShoppingList) -> Void) {
+        var copy = list
+        edit(&copy)
+        guard copy != list else { return }
+        list = copy
+        if let data = try? JSONEncoder().encode(copy) {
+            defaults.set(data, forKey: Self.defaultsKey)
+        }
+    }
+}

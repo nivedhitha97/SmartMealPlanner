@@ -46,4 +46,5 @@ def parse_item(item):
         deal_text=deal,
         size=(price_info.get("packaging") or {}).get("text") or "",
         url=("https://www.lidl.nl" + path) if path.startswith("/") else (path or None),
+        image_url=data.get("image") or next(iter(data.get("imageList") or []), None),
     )

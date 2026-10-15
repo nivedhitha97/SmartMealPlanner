@@ -32,5 +32,6 @@ def parse_page(html):
             deal_text=", ".join(tags) or None,
             size=promo.get("subtitle") or "",
             url=("https://www.jumbo.com" + url) if url and url.startswith("/") else url,
+            image_url=promo.get("image") or None,
         )
     return list(offers.values())

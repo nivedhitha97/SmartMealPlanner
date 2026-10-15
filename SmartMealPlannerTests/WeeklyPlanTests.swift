@@ -2,7 +2,7 @@
 //  WeeklyPlanTests.swift
 //  SmartMealPlannerTests
 //
-//  Display rules for the Weekly plan screen: budget card, day picker, meal slots and grocery list.
+//  Display rules for the Weekly plan screen: budget card, day picker and meal slots.
 //
 
 import Foundation
@@ -97,40 +97,5 @@ struct WeeklyPlanTests {
     func otherEmptySlotsShowOutsideOrFlexible(slot: MealSlot, preference: BreakfastRecipePreference) {
         #expect(WeeklyPlanContent.emptySlotTitle(slot: slot, breakfastPreference: preference) == "Outside / flexible")
         #expect(WeeklyPlanContent.emptySlotDetail(slot: slot, breakfastPreference: preference) == "No recipe needed")
-    }
-
-    // MARK: - Grocery list
-
-    @Test func longGroceryListShowsAPreviewUntilExpanded() {
-        let lines = (1...8).map { Fixtures.groceryLine("Item \($0)") }
-
-        #expect(WeeklyPlanContent.canExpandGroceries(lines))
-        #expect(WeeklyPlanContent.visibleGroceryLines(lines, showAll: false).map(\.ingredientName)
-                == ["Item 1", "Item 2", "Item 3", "Item 4", "Item 5"])
-        #expect(WeeklyPlanContent.visibleGroceryLines(lines, showAll: true).count == 8)
-    }
-
-    @Test func shortGroceryListShowsEverythingWithoutAShowAllButton() {
-        let lines = (1...5).map { Fixtures.groceryLine("Item \($0)") }
-
-        #expect(!WeeklyPlanContent.canExpandGroceries(lines))
-        #expect(WeeklyPlanContent.visibleGroceryLines(lines, showAll: false).count == 5)
-    }
-
-    @Test func tickingAGroceryItemTogglesItAndResetClearsAll() {
-        let milk = Fixtures.groceryLine("Milk")
-        let eggs = Fixtures.groceryLine("Eggs")
-        var checklist = GroceryChecklist()
-
-        checklist.toggle(milk)
-        checklist.toggle(eggs)
-        #expect(checklist.isChecked(milk))
-        #expect(checklist.isChecked(eggs))
-
-        checklist.toggle(milk)
-        #expect(!checklist.isChecked(milk))
-
-        checklist.reset()
-        #expect(!checklist.isChecked(eggs))
     }
 }

@@ -9,13 +9,16 @@ struct WeeklyOffersView: View {
 
     var service: GroceryDataService = GroceryDataServices.shared
 
+    @EnvironmentObject private var shopping: ShoppingListStore
+
     @State private var offers: [SupermarketOffer] = []
     @State private var grocery: GroceryData?
     @State private var selectedCategory: String?
+    @State private var selectedStore: String?
     @State private var region = ""
 
     private var list: OffersList {
-        OffersList(offers: offers, selectedCategory: selectedCategory)
+        OffersList(offers: offers, selectedCategory: selectedCategory, selectedStore: selectedStore)
     }
 
     var body: some View {
@@ -30,7 +33,10 @@ struct WeeklyOffersView: View {
                             header
                             let endingSoon = list.endingSoon()
                             if list.totalSavings > 0 { savingsBanner }
-                            categoryFilters
+                            VStack(alignment: .leading, spacing: 10) {
+                                storeFilters
+                                categoryFilters
+                            }
                             if list.filtered.isEmpty {
                                 Text("No offers in this category right now.")
                                     .font(.subheadline)
@@ -113,6 +119,29 @@ struct WeeklyOffersView: View {
         .background(Color.accentAmberSoft, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
+    /// One chip per supermarket; "All stores" clears it.
+    private var storeFilters: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                Chip(title: "All stores", isSelected: selectedStore == nil) {
+                    selectedStore = nil
+                }
+                ForEach(list.stores, id: \.self) { store in
+                    Chip(title: store, isSelected: selectedStore == store) {
+                        selectedStore = store
+                        if let category = selectedCategory, !list.categories.contains(category) {
+                            selectedCategory = nil  // that category has no offers at this store
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 24)
+        }
+        .scrollIndicators(.hidden)
+        .padding(.horizontal, -24)
+        .accessibilityIdentifier("offers.storeFilter")
+    }
+
     private var categoryFilters: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
@@ -140,7 +169,9 @@ struct WeeklyOffersView: View {
                     .tracking(0.6)
                     .foregroundStyle(Color.textSecondary)
                 ForEach(items) { offer in
-                    OfferCard(offer: offer)
+                    OfferCard(offer: offer, quantityInList: shopping.list.quantity(of: offer)) {
+                        shopping.change { $0.add(offer) }
+                    }
                 }
             }
         }
@@ -197,6 +228,9 @@ struct WeeklyOffersView: View {
 
 private struct OfferCard: View {
     let offer: SupermarketOffer
+    /// How many are on the shopping list (0 if none).
+    let quantityInList: Int
+    let onAdd: () -> Void
 
     private var avatarColors: (Color, Color) {
         let palette: [(Color, Color)] = [
@@ -209,13 +243,70 @@ private struct OfferCard: View {
         return palette[sum % palette.count]
     }
 
+    /// The product photo, or the store's initials while it loads, if it fails or if there is none.
+    @ViewBuilder
+    private var thumbnail: some View {
+        if let imageURL = offer.imageURL {
+            AsyncImage(url: imageURL) { phase in
+                if let image = phase.image {
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .padding(4)
+                        .frame(width: 52, height: 52)
+                        .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .accessibilityHidden(true)
+                } else {
+                    initials
+                }
+            }
+        } else {
+            initials
+        }
+    }
+
+    private var initials: some View {
+        Text(offer.storeInitials)
+            .font(.callout.bold())
+            .foregroundStyle(avatarColors.1)
+            .frame(width: 52, height: 52)
+            .background(avatarColors.0, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    /// "+" on the photo; once added it shows how many are on the list, and tapping adds one more.
+    private var addButton: some View {
+        Button(action: onAdd) {
+            Group {
+                if quantityInList > 0 {
+                    Text("\(quantityInList)")
+                        .font(.caption.bold())
+                        .monospacedDigit()
+                } else {
+                    Image(systemName: "plus")
+                        .font(.system(size: 13, weight: .bold))
+                }
+            }
+            .foregroundStyle(.white)
+            .frame(width: 28, height: 28)
+            .background(quantityInList > 0 ? Color.brandPrimaryDeep : Color.brandPrimary, in: Circle())
+            .overlay(Circle().strokeBorder(Color.bgSurface, lineWidth: 2))
+            .contentShape(Circle().inset(by: -8))
+        }
+        .buttonStyle(.plain)
+        .sensoryFeedback(.increase, trigger: quantityInList)
+        .accessibilityLabel(quantityInList > 0
+                            ? "\(quantityInList) on your list. Add one more \(offer.productName)"
+                            : "Add \(offer.productName) to your list")
+        .accessibilityIdentifier("offer.add.\(offer.productName)")
+    }
+
     var body: some View {
         HStack(spacing: 14) {
-            Text(offer.storeInitials)
-                .font(.callout.bold())
-                .foregroundStyle(avatarColors.1)
-                .frame(width: 52, height: 52)
-                .background(avatarColors.0, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            thumbnail
+                .overlay(alignment: .bottomTrailing) {
+                    addButton
+                        .offset(x: 8, y: 8)
+                }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(offer.productName)
@@ -270,12 +361,13 @@ private struct OfferCard: View {
                     .font(.caption2)
                     .foregroundStyle(Color.textTertiary)
             }
+            .accessibilityElement(children: .combine)
         }
         .card(padding: 14, radius: 20)
-        .accessibilityElement(children: .combine)
     }
 }
 
 #Preview {
     WeeklyOffersView()
+        .environmentObject(ShoppingListStore())
 }

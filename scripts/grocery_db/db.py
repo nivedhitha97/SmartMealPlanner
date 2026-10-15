@@ -82,11 +82,12 @@ CREATE TABLE IF NOT EXISTS fetch_log (
 """
 
 
-# Manual edits made in the Supabase table editor, copied in before every export. Added as migrations so
-# databases created before they existed get them too.
-OVERRIDE_COLUMNS = {
+# Columns added after the first release, as migrations so existing databases get them too. The override columns
+# hold manual edits made in the Supabase table editor, copied in before every export.
+ADDED_COLUMNS = {
     "products": [("price_override", "REAL"), ("override_note", "TEXT")],
-    "offers": [("offer_price_override", "REAL"), ("hidden", "INTEGER NOT NULL DEFAULT 0"), ("override_note", "TEXT")],
+    "offers": [("image_url", "TEXT"),
+               ("offer_price_override", "REAL"), ("hidden", "INTEGER NOT NULL DEFAULT 0"), ("override_note", "TEXT")],
     "stores": [("manual_update_weekday", "INTEGER")],
 }
 
@@ -96,7 +97,7 @@ class Database:
         self.connection = sqlite3.connect(path)
         self.connection.row_factory = sqlite3.Row
         self.connection.executescript(SCHEMA)
-        for table, columns in OVERRIDE_COLUMNS.items():
+        for table, columns in ADDED_COLUMNS.items():
             existing = {row["name"] for row in self.connection.execute(f"PRAGMA table_info({table})")}
             for name, kind in columns:
                 if name not in existing:
@@ -143,16 +144,16 @@ class Database:
         for offer in offers:
             cursor = self.connection.execute(
                 """INSERT INTO offers (store_id, offer_key, valid_from, valid_to, title, size, deal_text, offer_price,
-                                       regular_price, category, url, first_seen, last_seen)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                       regular_price, category, url, image_url, first_seen, last_seen)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(store_id, offer_key, valid_from) DO UPDATE SET
                        valid_to = excluded.valid_to, title = excluded.title, size = excluded.size,
                        deal_text = excluded.deal_text, offer_price = excluded.offer_price,
                        regular_price = excluded.regular_price, category = excluded.category, url = excluded.url,
-                       last_seen = excluded.last_seen
+                       image_url = coalesce(excluded.image_url, offers.image_url), last_seen = excluded.last_seen
                    RETURNING first_seen = last_seen""",
                 (store_id, offer.key, utc(offer.valid_from), utc(offer.valid_to), offer.title, offer.size, offer.deal_text,
-                 offer.offer_price, offer.regular_price, offer.category, offer.url, now, now))
+                 offer.offer_price, offer.regular_price, offer.category, offer.url, offer.image_url, now, now))
             new += int(bool(cursor.fetchone()[0]))
         self.connection.commit()
         return new
@@ -162,7 +163,7 @@ class Database:
         overridden prices used)."""
         return self.connection.execute(
             """SELECT store_id, offer_key, valid_from, valid_to, title, size, deal_text, regular_price, category,
-                      url, coalesce(offer_price_override, offer_price) AS offer_price
+                      url, image_url, coalesce(offer_price_override, offer_price) AS offer_price
                FROM offers WHERE valid_to >= ? AND valid_from <= ? AND hidden = 0
                ORDER BY store_id, offer_key""",
             (utc(now), utc(now + dt.timedelta(days=1)))).fetchall()

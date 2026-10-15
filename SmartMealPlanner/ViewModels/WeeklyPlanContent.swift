@@ -43,8 +43,6 @@ struct BudgetSummary: Equatable {
 
 enum WeeklyPlanContent {
 
-    static let groceryPreviewCount = 5
-
     /// The day the day picker opens on: today if it's in the plan, otherwise the first day.
     static func initialDayIndex(in weekly: WeeklyMealPlan?, now: Date = Date(), calendar: Calendar = .current) -> Int {
         guard let weekly else { return 0 }
@@ -69,36 +67,5 @@ enum WeeklyPlanContent {
 
     static func isGranolaSlot(_ slot: MealSlot, _ breakfastPreference: BreakfastRecipePreference) -> Bool {
         slot == .breakfast && breakfastPreference == .granolaMuesliOnly
-    }
-
-    /// Grocery rows to show: the first few unless the list is expanded.
-    static func visibleGroceryLines(_ lines: [GroceryLineItem], showAll: Bool) -> [GroceryLineItem] {
-        showAll ? lines : Array(lines.prefix(groceryPreviewCount))
-    }
-
-    /// Whether to offer "Show all N items".
-    static func canExpandGroceries(_ lines: [GroceryLineItem]) -> Bool {
-        lines.count > groceryPreviewCount
-    }
-}
-
-/// Which grocery lines have been ticked off. Not persisted.
-struct GroceryChecklist: Equatable {
-    private(set) var checked: Set<UUID> = []
-
-    func isChecked(_ line: GroceryLineItem) -> Bool {
-        checked.contains(line.id)
-    }
-
-    mutating func toggle(_ line: GroceryLineItem) {
-        if checked.contains(line.id) {
-            checked.remove(line.id)
-        } else {
-            checked.insert(line.id)
-        }
-    }
-
-    mutating func reset() {
-        checked = []
     }
 }
