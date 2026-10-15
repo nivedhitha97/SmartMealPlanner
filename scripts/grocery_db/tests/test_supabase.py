@@ -146,6 +146,23 @@ class RestTests(unittest.TestCase):
         self.assertIn("merge-duplicates", headers["Prefer"])
         self.assertEqual(len(data), 1000)
 
+    def test_new_secret_keys_go_only_in_the_apikey_header(self):
+        recorder = self.Recorder()
+        supabase.Supabase("https://abc.supabase.co", "sb_secret_abc", recorder).select("stores", "id")
+        headers = recorder.calls[0][1]
+        self.assertEqual(headers["apikey"], "sb_secret_abc")
+        self.assertNotIn("Authorization", headers)
+
+    def test_legacy_jwt_keys_are_also_sent_as_bearer(self):
+        recorder = self.Recorder()
+        supabase.Supabase("https://abc.supabase.co", "eyJhbGciOi.x.y", recorder).select("stores", "id")
+        self.assertEqual(recorder.calls[0][1]["Authorization"], "Bearer eyJhbGciOi.x.y")
+
+    def test_the_client_does_not_identify_as_a_browser(self):
+        client = supabase.Supabase("https://abc.supabase.co", "sb_secret_abc")
+        self.assertNotIn("Mozilla", client.http.user_agent)
+        self.assertIn("Mozilla", supabase.Http().user_agent, "store fetchers still look like a browser")
+
     def test_select_pages_until_a_short_page(self):
         recorder = self.Recorder([[{"id": i} for i in range(1000)], [{"id": 1000}]])
         client = supabase.Supabase("https://abc.supabase.co", "secret", recorder)

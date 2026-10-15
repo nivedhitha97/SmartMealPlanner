@@ -15,13 +15,16 @@ from .db import utc
 from .web import FetchError, Http
 
 BATCH = 1000
+# Supabase refuses secret keys from anything that looks like a web browser, so this job doesn't pretend to be one
+# (unlike the store fetchers).
+USER_AGENT = "SmartMealPlanner-grocery-db/1.0 (+https://github.com/nivedhitha97/SmartMealPlanner)"
 
 
 class Supabase:
     def __init__(self, url, key, http=None):
         self.base = url.rstrip("/") + "/rest/v1/"
         self.key = key
-        self.http = http or Http(pause=0.1)
+        self.http = http or Http(pause=0.1, user_agent=USER_AGENT)
 
     @classmethod
     def from_environment(cls):
@@ -30,7 +33,10 @@ class Supabase:
         return cls(url, key) if url and key else None
 
     def _headers(self, **extra):
-        return {"apikey": self.key, "Authorization": f"Bearer {self.key}", **extra}
+        headers = {"apikey": self.key, **extra}
+        if self.key.startswith("eyJ"):  # legacy service_role JWT; new sb_secret_ keys go in `apikey` only
+            headers["Authorization"] = f"Bearer {self.key}"
+        return headers
 
     def upsert(self, table, rows, conflict):
         """Inserts or updates `rows` (dicts) in batches; only the columns given are written."""
