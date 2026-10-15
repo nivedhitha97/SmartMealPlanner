@@ -13,7 +13,8 @@ import Testing
 @MainActor
 final class StubPlanner: AIPlanningService {
     var result: Result<AISuggestedWeekPlan, Error>
-    private(set) var calls: [(preferences: UserPreferences, routine: MealRoutine, recipes: [Recipe], offers: [SupermarketOffer])] = []
+    private(set) var calls: [(preferences: UserPreferences, routine: MealRoutine, recipes: [Recipe], offers: [SupermarketOffer],
+                              prices: [IngredientPrice])] = []
 
     init(result: Result<AISuggestedWeekPlan, Error>) {
         self.result = result
@@ -23,9 +24,10 @@ final class StubPlanner: AIPlanningService {
         preferences: UserPreferences,
         routine: MealRoutine,
         recipes: [Recipe],
-        weeklyOffers: [SupermarketOffer]
+        weeklyOffers: [SupermarketOffer],
+        ingredientPrices: [IngredientPrice]
     ) async throws -> AISuggestedWeekPlan {
-        calls.append((preferences, routine, recipes, weeklyOffers))
+        calls.append((preferences, routine, recipes, weeklyOffers, ingredientPrices))
         return try result.get()
     }
 }
@@ -41,7 +43,8 @@ struct PlanningViewModelTests {
     private let storage = IsolatedDefaults()
     private let catalog = PlanningViewModel.Catalog(
         recipes: [Fixtures.recipe("Pasta")],
-        offers: [Fixtures.offer(product: "Tomatoes", price: 1.19)]
+        offers: [Fixtures.offer(product: "Tomatoes", price: 1.19)],
+        ingredientPrices: [Fixtures.ingredientPrice("Tomato", per100g: 0.41)]
     )
 
     private func makeViewModel(planner: StubPlanner, catalog: PlanningViewModel.Catalog? = nil) -> PlanningViewModel {
@@ -104,6 +107,7 @@ struct PlanningViewModelTests {
         #expect(call.routine == .default)
         #expect(call.recipes.map(\.name) == ["Pasta"])
         #expect(call.offers.map(\.productName) == ["Tomatoes"])
+        #expect(call.prices.map(\.ingredientName) == ["Tomato"], "Live ingredient prices reach the planner")
     }
 
     @Test func generatedPlanIsRestoredNextLaunch() async {
@@ -157,10 +161,11 @@ struct PlanningViewModelTests {
         #expect(viewModel.suggestedPlan == nil)
     }
 
-    @Test func bundledCatalogLoads() throws {
-        let catalog = try PlanningViewModel.Catalog.bundled()
+    @Test func catalogCombinesBundledRecipesWithTheGroceryFeed() async throws {
+        let catalog = try await PlanningViewModel.Catalog.live(from: BundledGroceryDataService())
 
         #expect(!catalog.recipes.isEmpty)
         #expect(!catalog.offers.isEmpty)
+        #expect(catalog.ingredientPrices.isEmpty, "Bundled data has no live prices")
     }
 }

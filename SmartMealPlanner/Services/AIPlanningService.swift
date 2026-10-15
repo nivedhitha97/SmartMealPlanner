@@ -12,11 +12,28 @@ protocol AIPlanningService: Sendable {
         preferences: UserPreferences,
         routine: MealRoutine,
         recipes: [Recipe],
-        weeklyOffers: [SupermarketOffer]
+        weeklyOffers: [SupermarketOffer],
+        ingredientPrices: [IngredientPrice]
     ) async throws -> AISuggestedWeekPlan
 }
 
-/// On-device heuristic that scores regional offers and builds a coherent grocery list.
+extension AIPlanningService {
+    /// Plans with catalog prices only (no live ingredient prices).
+    func generateWeeklySuggestions(
+        preferences: UserPreferences,
+        routine: MealRoutine,
+        recipes: [Recipe],
+        weeklyOffers: [SupermarketOffer]
+    ) async throws -> AISuggestedWeekPlan {
+        try await generateWeeklySuggestions(
+            preferences: preferences, routine: routine, recipes: recipes,
+            weeklyOffers: weeklyOffers, ingredientPrices: []
+        )
+    }
+}
+
+/// On-device heuristic that scores regional offers and builds a coherent grocery list, pricing each
+/// ingredient from a matching offer, then live supermarket prices, then the recipe catalog.
 /// Suitable as a fallback and for previews; replace with a remote model for richer reasoning.
 final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
 
@@ -26,7 +43,8 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
         preferences: UserPreferences,
         routine: MealRoutine,
         recipes: [Recipe],
-        weeklyOffers: [SupermarketOffer]
+        weeklyOffers: [SupermarketOffer],
+        ingredientPrices: [IngredientPrice]
     ) async throws -> AISuggestedWeekPlan {
         let regionKey = preferences.shoppingRegion
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -35,7 +53,8 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
             scopedOffers = weeklyOffers
         } else {
             scopedOffers = weeklyOffers.filter {
-                $0.regionId.localizedCaseInsensitiveContains(regionKey)
+                $0.regionId == SupermarketOffer.nationalRegionId
+                    || $0.regionId.localizedCaseInsensitiveContains(regionKey)
                     || regionKey.localizedCaseInsensitiveContains($0.regionId)
             }
         }
@@ -57,10 +76,15 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
         let lines: [GroceryLineItem] = gramsByIngredient.keys.sorted().map { name in
             let grams = gramsByIngredient[name] ?? 0
             let offer = bestOffer(forIngredientName: name, in: scopedOffers)
-            let price = linePrice(ingredientName: name, grams: grams, offer: offer, recipes: recipes)
+            let livePrice = ingredientPrices.first { $0.ingredientName.caseInsensitiveCompare(name) == .orderedSame }
+            let price = linePrice(ingredientName: name, grams: grams, offer: offer, livePrice: livePrice, recipes: recipes)
             let rationale: String
             if let offer {
                 rationale = "Matched weekly offer at \(offer.storeName) (\(offer.unitLabel))."
+            } else if let livePrice {
+                rationale = "Live price: about \(String(format: "€%.2f", livePrice.pricePer100g)) per 100 g across "
+                    + "\(livePrice.storeCount) stores. Cheapest: \(livePrice.cheapestProduct) at \(livePrice.cheapestStore) "
+                    + "(\(String(format: "€%.2f", livePrice.cheapestPrice)))."
             } else {
                 rationale = "Estimated from catalog prices (no matching offer this week)."
             }
@@ -78,6 +102,10 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
             preferences: preferences,
             weeklyMealPlan: weeklyMealPlan,
             offerCount: scopedOffers.count,
+            livePriceCount: lines.filter { line in
+                line.matchedOffer == nil
+                    && ingredientPrices.contains { $0.ingredientName.caseInsensitiveCompare(line.ingredientName) == .orderedSame }
+            }.count,
             estimatedTotal: total
         )
         let highlights = scopedOffers
@@ -102,6 +130,11 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
 
     private func bestOffer(forIngredientName name: String, in offers: [SupermarketOffer]) -> SupermarketOffer? {
         guard !offers.isEmpty else { return nil }
+        // Live feed offers say which ingredient they are; take the cheapest of those.
+        let tagged = offers.filter { $0.ingredientName?.caseInsensitiveCompare(name) == .orderedSame }
+        if let cheapest = tagged.min(by: { $0.offerPrice < $1.offerPrice }) {
+            return cheapest
+        }
         let lowered = name.lowercased()
         let scored: [(SupermarketOffer, Int)] = offers.map { offer in
             let product = offer.productName.lowercased()
@@ -121,10 +154,14 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
         ingredientName: String,
         grams: Double,
         offer: SupermarketOffer?,
+        livePrice: IngredientPrice?,
         recipes: [Recipe]
     ) -> Double {
         if let offer {
             return offer.offerPrice
+        }
+        if let livePrice {
+            return livePrice.pricePer100g * (grams / 100.0)
         }
         if let ing = firstIngredient(named: ingredientName, in: recipes) {
             return ing.defaultPrice * (grams / 100.0)
@@ -146,6 +183,7 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
         preferences: UserPreferences,
         weeklyMealPlan: WeeklyMealPlan,
         offerCount: Int,
+        livePriceCount: Int,
         estimatedTotal: Double
     ) -> String {
         let uniqueNames = Set(weeklyMealPlan.allPlannedRecipes.map(\.name))
@@ -165,10 +203,13 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
         case .includeRecipes:
             breakfastNote = ""
         }
+        let priceNote = livePriceCount > 0
+            ? " (\(livePriceCount) ingredients priced from today's supermarket prices)"
+            : ""
         return """
         Analyzed \(offerCount) regional offers for \(region). Full-week plan: \(homeMeals) home-cooked meals across 7 days \
         (\(uniqueNames.count) different recipes). Highlights: \(mealText).\(breakfastNote) \
-        Estimated grocery spend for aggregated ingredients is €\(total) vs. weekly target €\(budget). \
+        Estimated grocery spend for aggregated ingredients is €\(total) vs. weekly target €\(budget)\(priceNote). \
         Open each day below for full recipes, photos, and video or cookbook links.
         """
     }

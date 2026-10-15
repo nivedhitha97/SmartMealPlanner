@@ -57,6 +57,69 @@ struct OffersTests {
         #expect(names(others) == ["Tomatoes", "Chicken", "Rice"], "Everything not ending soon, including expired offers")
     }
 
+    @Test func livePriceDropsAreNeverEndingSoon() {
+        var drop = Fixtures.offer(product: "Broccoli", price: 0.99, regularPrice: 1.49, validUntil: Fixtures.date(daysFromNow: 1))
+        drop.observedAt = Fixtures.date(daysFromNow: -6)
+        let list = OffersList(offers: [drop, pasta])
+
+        #expect(names(list.endingSoon(now: Fixtures.now, calendar: Fixtures.calendar)) == ["Pasta"])
+        #expect(names(list.otherOffers(now: Fixtures.now, calendar: Fixtures.calendar)) == ["Broccoli"])
+    }
+
+    @Test func offersEndingTogetherShowTheBiggestSavingFirst() {
+        let day = Fixtures.date(daysFromNow: 7)
+        let small = Fixtures.offer(product: "Small", price: 1.00, regularPrice: 1.20, validUntil: day)
+        let big = Fixtures.offer(product: "Big", price: 1.00, regularPrice: 2.50, validUntil: day)
+
+        #expect(names(OffersList(offers: [small, big]).filtered) == ["Big", "Small"])
+    }
+
+    @Test func recipeIngredientsComeFirstAmongOffersEndingTogether() {
+        let day = Fixtures.date(daysFromNow: 7)
+        let snack = Fixtures.offer(product: "Chocolate", price: 1.00, regularPrice: 3.00, validUntil: day)
+        var broccoli = Fixtures.offer(product: "Broccoli", price: 0.99, regularPrice: 1.49, validUntil: day)
+        broccoli.ingredientName = "Broccoli"
+
+        #expect(names(OffersList(offers: [snack, broccoli]).filtered) == ["Broccoli", "Chocolate"])
+    }
+
+    // MARK: - Store updates
+
+    private func store(_ id: String, day: String, next: Date?, offers: Bool = true, current: Bool? = true,
+                       error: String? = nil) -> StoreSchedule {
+        StoreSchedule(id: id, name: id.capitalized, updateDay: day, fetchesOffers: offers,
+                      lastUpdatedAt: Fixtures.date(daysFromNow: -1), nextUpdateAt: next,
+                      pricesChangedAt: nil, pricesAreCurrent: current, lastError: error)
+    }
+
+    @Test func nextUpdateNamesTheStoresRefreshedSoonest() {
+        let stores = [
+            store("jumbo", day: "Wednesday", next: Fixtures.date(daysFromNow: 6)),
+            store("dirk", day: "Wednesday", next: Fixtures.date(daysFromNow: 6)),
+            store("poiesz", day: "Sunday", next: Fixtures.date(daysFromNow: 3)),
+        ]
+        #expect(OffersList.nextUpdateText(stores: stores, now: Fixtures.now) == "Next update: Poiesz on Sunday")
+        #expect(OffersList.nextUpdateText(stores: Array(stores.prefix(2)), now: Fixtures.now)
+                == "Next update: Dirk and Jumbo on Wednesday")
+        #expect(OffersList.nextUpdateText(stores: [], now: Fixtures.now) == nil)
+    }
+
+    @Test func storeStatusShowsTheWeeklyDayAndProblemsLast() {
+        let statuses = OffersList.storeStatuses([
+            store("plus", day: "Monday", next: nil, offers: false, current: false),
+            store("lidl", day: "Monday", next: nil, error: "HTTP 503"),
+            store("jumbo", day: "Wednesday", next: nil),
+            store("spar", day: "Monday", next: nil, offers: false, current: true),
+        ], now: Fixtures.now)
+
+        #expect(statuses.map(\.name) == ["Jumbo", "Spar", "Lidl", "Plus"])
+        #expect(statuses[0].schedule == "Every Wednesday")
+        #expect(statuses[0].detail.hasPrefix("Offers · updated"))
+        #expect(statuses[1].detail.hasPrefix("Shelf prices only"))
+        #expect(statuses[2].isWarning && statuses[2].detail.contains("failed"))
+        #expect(statuses[3].isWarning && statuses[3].detail.contains("out of date"))
+    }
+
     @Test func groupingRespectsTheSelectedCategory() {
         let list = OffersList(offers: all, selectedCategory: "Produce")
 

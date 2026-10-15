@@ -1,0 +1,85 @@
+# Keeps the grocery database up to date. Each supermarket is fetched once a week, on the day its new offer week
+# starts (see scripts/grocery_db/stores/__init__.py); the job runs every morning but on days when no store is due
+# it makes no requests and publishes nothing.
+#
+# The database (grocery.db.gz) and the files the app downloads (offers.json, prices.json, meta.json) live on the
+# grocery-feed branch; the job pushes with the workflow's own GITHUB_TOKEN.
+#
+# Optional: with the SUPABASE_URL and SUPABASE_SERVICE_KEY repository secrets, the database is mirrored to
+# Supabase for browsing and editing in its table editor, and manual edits made there are applied every morning
+# (even on days when no store is due). Without them this is skipped.
+
+name: Grocery database
+
+on:
+  schedule:
+    - cron: "15 4 * * *"   # 06:15 in Amsterdam in summer, 05:15 in winter (FETCH_HOUR is 06:00 local)
+    - cron: "15 6 * * *"   # second chance, and after 06:00 in winter
+  workflow_dispatch:
+    inputs:
+      stores:
+        description: "Fetch these stores now (comma-separated ids, or 'all'); empty = only stores that are due"
+        required: false
+        default: ""
+  push:
+    branches: [ "develop" ]
+    paths: [ "scripts/grocery_db/**", ".github/workflows/grocery-feed.yml" ]
+  pull_request:
+    branches: [ "develop" ]
+    paths: [ "scripts/grocery_db/**", ".github/workflows/grocery-feed.yml" ]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grocery-feed
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Unit tests
+      working-directory: scripts
+      run: python3 -m unittest discover -s grocery_db/tests -t . -v
+
+    - name: Get the current database
+      run: |
+        mkdir -p "$RUNNER_TEMP/data"
+        if git clone -q --depth 1 --branch grocery-feed "https://github.com/${{ github.repository }}.git" "$RUNNER_TEMP/feed"; then
+          if [ -f "$RUNNER_TEMP/feed/grocery.db.gz" ]; then gunzip -c "$RUNNER_TEMP/feed/grocery.db.gz" > "$RUNNER_TEMP/data/grocery.db"; fi
+        fi
+
+    # On pull requests every store is fetched (to check the fetchers still work from GitHub's servers) but
+    # nothing is published.
+    - name: Fetch due stores
+      id: update
+      working-directory: scripts
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        STORES: ${{ github.event_name == 'pull_request' && 'all' || inputs.stores }}
+        # Pull requests only test the fetchers, so they never touch the Supabase mirror.
+        SUPABASE_URL: ${{ github.event_name != 'pull_request' && secrets.SUPABASE_URL || '' }}
+        SUPABASE_SERVICE_KEY: ${{ github.event_name != 'pull_request' && secrets.SUPABASE_SERVICE_KEY || '' }}
+      run: |
+        args=()
+        if [ "$STORES" = "all" ]; then args+=(--all)
+        elif [ -n "$STORES" ]; then IFS=',' read -ra ids <<< "$STORES"; for id in "${ids[@]}"; do args+=(--store "$id"); done
+        fi
+        python3 -m grocery_db update --data "$RUNNER_TEMP/data" "${args[@]}"
+        python3 -m grocery_db status --data "$RUNNER_TEMP/data"
+
+    - name: Publish to the grocery-feed branch
+      if: steps.update.outputs.changed == 'true' && github.event_name != 'pull_request'
+      run: |
+        cd "$RUNNER_TEMP/data"
+        gzip -9 -c grocery.db > grocery.db.gz && rm grocery.db
+        git init -q -b grocery-feed
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add .
+        git commit -q -m "Grocery database $(date -u +%Y-%m-%dT%H:%MZ)"
+        # The database keeps its own history, so the branch is a single commit replaced on each update.
+        git push -q --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" grocery-feed

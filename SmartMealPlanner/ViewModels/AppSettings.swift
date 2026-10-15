@@ -72,6 +72,8 @@ enum LaunchArguments {
     static let skipSplash = "-uiTestingSkipSplash"
     /// Followed by a number of seconds: keep the splash up that long, so a UI test can see it.
     static let splashSeconds = "-uiTestingSplashSeconds"
+    /// Use the bundled sample offers instead of the live grocery feed, so results don't depend on the network.
+    static let bundledData = "-uiTestingBundledData"
 
     static let defaultSplashSeconds = 1.4
 

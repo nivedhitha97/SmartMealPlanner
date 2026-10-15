@@ -163,6 +163,60 @@ struct PlanGenerationTests {
         #expect(plan.offerHighlights.count == 1)
     }
 
+    @Test func liveIngredientPricesReplaceCatalogPrices() async throws {
+        let plan = try await LocalHeuristicAIPlanner().generateWeeklySuggestions(
+            preferences: Fixtures.preferences(), routine: lunchOnly, recipes: [greekSalad], weeklyOffers: [],
+            ingredientPrices: [Fixtures.ingredientPrice("tomato", per100g: 0.41, store: "Dirk")]
+        )
+
+        let tomatoLine = try #require(plan.groceryLines.first { $0.ingredientName == "Tomato" })
+        #expect(abs(tomatoLine.estimatedLinePrice - 0.41 * (1050 / 100)) < 0.0001)
+        #expect(tomatoLine.rationale.hasPrefix("Live price"))
+        #expect(tomatoLine.rationale.contains("Dirk"))
+        let fetaLine = try #require(plan.groceryLines.first { $0.ingredientName == "Feta Cheese" })
+        #expect(fetaLine.rationale.hasPrefix("Estimated from catalog"), "No live price, so the catalog price is used")
+        #expect(plan.aiSummary.contains("1 ingredients priced from today's supermarket prices"))
+    }
+
+    @Test func matchingOfferBeatsTheLivePrice() async throws {
+        let offer = Fixtures.offer(product: "Cherry Tomato 250g", price: 1.19, region: "NL-North")
+
+        let plan = try await LocalHeuristicAIPlanner().generateWeeklySuggestions(
+            preferences: Fixtures.preferences(region: "Amsterdam, NL-North"), routine: lunchOnly,
+            recipes: [greekSalad], weeklyOffers: [offer],
+            ingredientPrices: [Fixtures.ingredientPrice("Tomato", per100g: 0.41)]
+        )
+
+        let tomatoLine = try #require(plan.groceryLines.first { $0.ingredientName == "Tomato" })
+        #expect(tomatoLine.matchedOffer?.id == offer.id)
+        #expect(tomatoLine.estimatedLinePrice == 1.19)
+    }
+
+    @Test func nationalOffersApplyInEveryRegion() async throws {
+        let national = Fixtures.offer(product: "Cherry Tomato 250g", price: 1.19, region: SupermarketOffer.nationalRegionId)
+
+        let plan = try await LocalHeuristicAIPlanner().generateWeeklySuggestions(
+            preferences: Fixtures.preferences(region: "Maastricht, NL-South"),
+            routine: lunchOnly, recipes: [greekSalad], weeklyOffers: [national]
+        )
+
+        #expect(plan.groceryLines.first { $0.ingredientName == "Tomato" }?.matchedOffer?.id == national.id)
+    }
+
+    @Test func feedOffersTaggedWithAnIngredientMatchEvenWithADutchName() async throws {
+        var cheap = Fixtures.offer(store: "Dirk", product: "Snoeptomaten 250 g", price: 0.99, region: "NL")
+        cheap.ingredientName = "Tomato"
+        var dearer = Fixtures.offer(store: "Jumbo", product: "Cherrytomaten 500 g", price: 1.79, region: "NL")
+        dearer.ingredientName = "Tomato"
+
+        let plan = try await LocalHeuristicAIPlanner().generateWeeklySuggestions(
+            preferences: Fixtures.preferences(), routine: lunchOnly, recipes: [greekSalad], weeklyOffers: [dearer, cheap]
+        )
+
+        #expect(plan.groceryLines.first { $0.ingredientName == "Tomato" }?.matchedOffer?.id == cheap.id,
+                "The cheapest tagged offer wins")
+    }
+
     @Test func offersFromOtherRegionsAreIgnored() async throws {
         let amsterdamOnly = Fixtures.offer(product: "Cherry Tomato 250g", price: 1.19, region: "Amsterdam")
 

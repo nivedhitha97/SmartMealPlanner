@@ -12,17 +12,19 @@ enum LaunchFlag {
     static let resetState = "-uiTestingResetState"
     static let skipSplash = "-uiTestingSkipSplash"
     static let splashSeconds = "-uiTestingSplashSeconds"
+    static let bundledData = "-uiTestingBundledData"
 }
 
 extension XCUIApplication {
 
     /// Launches the app. By default it starts from a clean slate (no saved preferences, routine,
-    /// plan or settings) and skips the splash screen.
+    /// plan or settings), skips the splash screen and uses the bundled sample offers instead of the live feed.
     @discardableResult
-    static func launchForTesting(resetState: Bool = true, skipSplash: Bool = true, extraArguments: [String] = []) -> XCUIApplication {
+    static func launchForTesting(resetState: Bool = true, skipSplash: Bool = true, liveData: Bool = false,
+                                 extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = (resetState ? [LaunchFlag.resetState] : []) + (skipSplash ? [LaunchFlag.skipSplash] : [])
-            + extraArguments
+            + (liveData ? [] : [LaunchFlag.bundledData]) + extraArguments
         app.launch()
         return app
     }

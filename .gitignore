@@ -1,3 +1,7 @@
 
 # Test report: Google Sheet connection settings (secret), unsent runs and the updater log
 TestReports/
+
+# Local output of scripts/build_grocery_feed.py
+build/
+__pycache__/
