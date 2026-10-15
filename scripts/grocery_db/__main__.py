@@ -55,11 +55,15 @@ def main(argv=None):
         edits_changed = _sync(lambda: mirror.pull_overrides(db, supabase), "read manual edits") if supabase else False
         if edits_changed:
             print("Applied new manual edits from Supabase.")
+        # A mirror that has never been filled is filled now, even on a day when no store is due.
+        first_sync = bool(supabase) and db.sync_value("pushed_at") is None
         requests = update(db, now, forced)
-        if requests is None and not edits_changed:
+        if requests is None and not edits_changed and not first_sync:
             print("No store is due today; nothing fetched.")
             _output("changed", "false")
             return 0
+        if requests is None:
+            print("No store is due today; nothing fetched." + (" Filling the Supabase mirror." if first_sync else ""))
         meta = export.export(db, now, args.data, requests or 0)
         if supabase:
             sent = _sync(lambda: mirror.push(db, supabase), "mirror the database")
