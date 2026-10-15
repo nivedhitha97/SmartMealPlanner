@@ -14,20 +14,45 @@ final class PlanningViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var lastError: String?
 
-    private let ai: AIPlanningService
+    /// Recipes and offers the planner chooses from.
+    struct Catalog {
+        var recipes: [Recipe]
+        var offers: [SupermarketOffer]
 
-    private enum Keys {
+        /// The JSON files bundled with the app.
+        static func bundled() throws -> Catalog {
+            Catalog(
+                recipes: try JSONLoader.load("recipes", as: [Recipe].self),
+                offers: try JSONLoader.load("offers", as: [SupermarketOffer].self)
+            )
+        }
+    }
+
+    static let missingPreferencesMessage = "Save your preferences on the Preferences tab first."
+    static let missingRoutineMessage = "Set your meal routine (Preferences → Meal Routine) first."
+
+    private let ai: AIPlanningService
+    private let defaults: UserDefaults
+    private let loadCatalog: () throws -> Catalog
+
+    enum Keys {
         /// Bumped when `AISuggestedWeekPlan` shape changes (e.g. single-day → full week).
         static let lastPlan = "lastAISuggestedWeekPlan_v2"
     }
 
-    init(ai: AIPlanningService) {
+    init(
+        ai: AIPlanningService,
+        defaults: UserDefaults = .standard,
+        loadCatalog: @escaping () throws -> Catalog = Catalog.bundled
+    ) {
         self.ai = ai
+        self.defaults = defaults
+        self.loadCatalog = loadCatalog
         loadCachedPlan()
     }
 
     func loadCachedPlan() {
-        guard let data = UserDefaults.standard.data(forKey: Keys.lastPlan) else { return }
+        guard let data = defaults.data(forKey: Keys.lastPlan) else { return }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         suggestedPlan = try? decoder.decode(AISuggestedWeekPlan.self, from: data)
@@ -39,33 +64,30 @@ final class PlanningViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let recipes: [Recipe] = try JSONLoader.load("recipes", as: [Recipe].self)
-            let offers: [SupermarketOffer] = try JSONLoader.load("offers", as: [SupermarketOffer].self)
+            let catalog = try loadCatalog()
 
-            guard let prefsData = UserDefaults.standard.data(forKey: "userPreferences"),
-                  let prefs = try? JSONDecoder().decode(UserPreferences.self, from: prefsData) else {
-                lastError = "Save your preferences on the Preferences tab first."
+            guard let prefs = UserPreferences.load(from: defaults) else {
+                lastError = Self.missingPreferencesMessage
                 return
             }
 
-            guard let routineData = UserDefaults.standard.data(forKey: "mealRoutine"),
-                  let routine = try? JSONDecoder().decode(MealRoutine.self, from: routineData) else {
-                lastError = "Set your meal routine (Preferences → Meal Routine) first."
+            guard let routine = MealRoutine.load(from: defaults) else {
+                lastError = Self.missingRoutineMessage
                 return
             }
 
             let plan = try await ai.generateWeeklySuggestions(
                 preferences: prefs,
                 routine: routine,
-                recipes: recipes,
-                weeklyOffers: offers
+                recipes: catalog.recipes,
+                weeklyOffers: catalog.offers
             )
             suggestedPlan = plan
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             if let encoded = try? encoder.encode(plan) {
-                UserDefaults.standard.set(encoded, forKey: Keys.lastPlan)
+                defaults.set(encoded, forKey: Keys.lastPlan)
             }
         } catch {
             lastError = error.localizedDescription
@@ -74,6 +96,6 @@ final class PlanningViewModel: ObservableObject {
 
     func clearPlan() {
         suggestedPlan = nil
-        UserDefaults.standard.removeObject(forKey: Keys.lastPlan)
+        defaults.removeObject(forKey: Keys.lastPlan)
     }
 }

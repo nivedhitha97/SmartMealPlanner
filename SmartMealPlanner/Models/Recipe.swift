@@ -107,6 +107,16 @@ struct Recipe: Identifiable, Codable {
         guard let cookbookURL, let u = URL(string: cookbookURL) else { return nil }
         return u
     }
+
+    /// Whether there's a YouTube or cookbook link to show.
+    var hasReferenceLinks: Bool {
+        youtubeURLParsed != nil || cookbookURLParsed != nil
+    }
+
+    /// Approximate kcal for one serving (ingredient calories are per 100 g).
+    var estimatedCalories: Double {
+        ingredients.reduce(0) { $0 + $1.ingredient.calories * $1.quantity / 100 }
+    }
 }
 
 struct RecipeIngredient: Codable, Identifiable {

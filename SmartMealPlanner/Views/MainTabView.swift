@@ -10,17 +10,22 @@ struct MainTabView: View {
         TabView {
             WeeklyPlanView()
                 .tabItem {
-                    Label("Plan", systemImage: "calendar.badge.clock")
+                    Label("Plan", systemImage: "calendar")
                 }
             WeeklyOffersView()
                 .tabItem {
-                    Label("Offers", systemImage: "tag.fill")
+                    Label("Offers", systemImage: "tag")
                 }
             PreferencesView()
                 .tabItem {
                     Label("Preferences", systemImage: "slider.horizontal.3")
                 }
+            SettingsView()
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape")
+                }
         }
+        .tint(.brandPrimary)
     }
 }
 

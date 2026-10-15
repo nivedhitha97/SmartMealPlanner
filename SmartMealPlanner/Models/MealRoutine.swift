@@ -7,10 +7,33 @@
 
 import Foundation
 
-struct MealRoutine: Codable {
+struct MealRoutine: Codable, Equatable {
     var breakfastType: MealType
     var lunchType: MealType
     var dinnerType: MealType
+
+    /// What the Meal routine screen shows before anything has been saved.
+    static let `default` = MealRoutine(breakfastType: .fixed, lunchType: .outside, dinnerType: .homeCooked)
+
+    static let defaultsKey = "mealRoutine"
+
+    /// "Fixed · Outside · Home Cooked" (breakfast · lunch · dinner).
+    var summary: String {
+        [breakfastType, lunchType, dinnerType].map(\.rawValue).joined(separator: " · ")
+    }
+
+    static func load(from defaults: UserDefaults = .standard) -> MealRoutine? {
+        guard let data = defaults.data(forKey: defaultsKey) else { return nil }
+        return try? JSONDecoder().decode(MealRoutine.self, from: data)
+    }
+
+    /// Returns false if encoding failed and nothing was written.
+    @discardableResult
+    func save(to defaults: UserDefaults = .standard) -> Bool {
+        guard let data = try? JSONEncoder().encode(self) else { return false }
+        defaults.set(data, forKey: Self.defaultsKey)
+        return true
+    }
 }
 
 enum MealType: String, Codable, CaseIterable, Identifiable {

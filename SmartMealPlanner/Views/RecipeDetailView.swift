@@ -8,153 +8,195 @@ import SwiftUI
 struct RecipeDetailView: View {
 
     let recipe: Recipe
+    var slot: MealSlot? = nil
+
+    private let heroHeight: CGFloat = 340
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                heroImage
+            VStack(spacing: -28) {
+                RecipeImage(url: recipe.imageURLParsed, placeholderKey: recipe.name, iconSize: 56)
+                    .frame(height: heroHeight)
+                    .frame(maxWidth: .infinity)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(recipe.name)
-                        .font(.title.bold())
-                    Text(recipe.cuisine)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 24) {
+                    titleBlock
+                    referenceLinks
+                    ingredientsBlock
+                    instructionsBlock
                 }
-
-                referenceLinks
-
-                ingredientsBlock
-
-                instructionsBlock
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
+                .padding(.bottom, 40)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28, style: .continuous)
+                        .fill(Color.bgCanvas)
+                )
             }
-            .padding(.bottom, 32)
         }
+        .scrollIndicators(.hidden)
+        .ignoresSafeArea(edges: .top)
+        .background(Color.bgCanvas.ignoresSafeArea())
         .navigationTitle(recipe.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbarBackground(.hidden, for: .navigationBar)
     }
 
-    @ViewBuilder
-    private var heroImage: some View {
-        if let url = recipe.imageURLParsed {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .empty:
-                    ZStack {
-                        Rectangle().fill(.quaternary)
-                        ProgressView()
-                    }
-                    .frame(height: 220)
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(height: 220)
-                        .clipped()
-                case .failure:
-                    placeholderImage
-                @unknown default:
-                    placeholderImage
+    // MARK: - Sections
+
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text([recipe.cuisine, slot?.rawValue].compactMap { $0 }.joined(separator: " · "))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.brandPrimaryDeep)
+                .padding(.vertical, 5)
+                .padding(.horizontal, 10)
+                .background(Color.brandPrimarySoft, in: Capsule())
+
+            Text(recipe.name)
+                .font(.system(size: 30, weight: .bold))
+                .tracking(-0.6)
+                .foregroundStyle(Color.textPrimary)
+
+            HStack(spacing: 16) {
+                metaItem("list.bullet", "\(recipe.ingredients.count) ingredients")
+                if !recipe.instructions.isEmpty {
+                    metaItem("clock", "\(recipe.instructions.count) steps")
+                }
+                if recipe.estimatedCalories > 0 {
+                    metaItem("flame", "\(Int(recipe.estimatedCalories)) kcal")
                 }
             }
-            .frame(maxWidth: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .padding(.horizontal)
-        } else {
-            placeholderImage
-                .padding(.horizontal)
         }
     }
 
-    private var placeholderImage: some View {
-        ZStack {
-            Rectangle()
-                .fill(.quaternary)
-            Image(systemName: "photo")
-                .font(.largeTitle)
-                .foregroundStyle(.tertiary)
-        }
-        .frame(height: 160)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+    private func metaItem(_ icon: String, _ text: String) -> some View {
+        Label(text, systemImage: icon)
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(Color.textSecondary)
+            .labelStyle(MetaLabelStyle())
     }
 
     @ViewBuilder
     private var referenceLinks: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("References")
-                .font(.headline)
-            if let yt = recipe.youtubeURLParsed {
-                Link(destination: yt) {
-                    Label("Watch on YouTube", systemImage: "play.rectangle.fill")
+        let hasLinks = recipe.hasReferenceLinks
+        VStack(alignment: .leading, spacing: 12) {
+            if hasLinks {
+                HStack(spacing: 12) {
+                    if let yt = recipe.youtubeURLParsed {
+                        referenceButton(url: yt, icon: "play.fill", title: "Watch", subtitle: "YouTube", tint: .accentCoral, background: .accentCoralSoft)
+                    }
+                    if let book = recipe.cookbookURLParsed {
+                        referenceButton(url: book, icon: "book", title: "Cookbook", subtitle: "Source link", tint: .brandPrimaryDeep, background: .brandPrimarySoft)
+                    }
                 }
-                .font(.subheadline.weight(.medium))
-            }
-            if let bookURL = recipe.cookbookURLParsed {
-                Link(destination: bookURL) {
-                    Label("Cookbook / source link", systemImage: "book.fill")
-                }
-                .font(.subheadline.weight(.medium))
             }
             if let ref = recipe.cookbookReference, !ref.isEmpty {
-                Text(ref)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                Label(ref, systemImage: "book.closed")
+                    .font(.footnote)
+                    .foregroundStyle(Color.textSecondary)
+                    .padding(.horizontal, 4)
             }
-            let noRefs = recipe.youtubeURL == nil && recipe.cookbookURL == nil && (recipe.cookbookReference?.isEmpty ?? true)
-            if noRefs {
+            if !hasLinks && (recipe.cookbookReference?.isEmpty ?? true) {
                 Text("No external links provided for this recipe.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(.footnote)
+                    .foregroundStyle(Color.textTertiary)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(RoundedRectangle(cornerRadius: 12).fill(.ultraThinMaterial))
-        .padding(.horizontal)
+    }
+
+    private func referenceButton(url: URL, icon: String, title: String, subtitle: String, tint: Color, background: Color) -> some View {
+        Link(destination: url) {
+            HStack(spacing: 10) {
+                IconTile(systemName: icon, tint: tint, background: Color.bgSurface, size: 34)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(tint)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(Color.textSecondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity)
+            .background(background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
     }
 
     private var ingredientsBlock: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Ingredients")
-                .font(.title2.bold())
-            ForEach(recipe.ingredients) { row in
-                HStack(alignment: .firstTextBaseline) {
-                    Text("•")
-                    Text(row.ingredient.name)
-                    Spacer()
-                    Text("\(Int(row.quantity)) g")
-                        .foregroundStyle(.secondary)
-                        .font(.subheadline)
+            SectionHeader(title: "Ingredients")
+
+            if recipe.ingredients.isEmpty {
+                Text("No ingredients listed.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.textSecondary)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(recipe.ingredients.enumerated()), id: \.element.id) { index, row in
+                        if index > 0 { RowDivider() }
+                        HStack(spacing: 12) {
+                            Circle()
+                                .fill(Color.brandPrimary)
+                                .frame(width: 8, height: 8)
+                            Text(row.ingredient.name)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Color.textPrimary)
+                            Spacer()
+                            Text("\(Int(row.quantity)) g")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                        .padding(.vertical, 13)
+                    }
                 }
-                .font(.body)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 4)
+                .background(Color.bgSurface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.borderSubtle))
             }
         }
-        .padding(.horizontal)
     }
 
     private var instructionsBlock: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Method")
-                .font(.title2.bold())
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader(title: "Method")
             if recipe.instructions.isEmpty {
                 Text("Add step-by-step instructions to this recipe in `recipes.json`.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.textSecondary)
             } else {
                 ForEach(Array(recipe.instructions.enumerated()), id: \.offset) { index, step in
-                    HStack(alignment: .top, spacing: 10) {
-                        Text("\(index + 1).")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 28, alignment: .trailing)
+                    HStack(alignment: .top, spacing: 14) {
+                        Text("\(index + 1)")
+                            .font(.footnote.bold())
+                            .foregroundStyle(.white)
+                            .frame(width: 28, height: 28)
+                            .background(Color.brandPrimary, in: Circle())
                         Text(step)
-                            .font(.body)
+                            .font(.callout)
+                            .lineSpacing(4)
+                            .foregroundStyle(Color.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 3)
                     }
+                    .card(padding: 16, radius: 18)
                 }
             }
         }
-        .padding(.horizontal)
+    }
+}
+
+private struct MetaLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 5) {
+            configuration.icon
+            configuration.title
+        }
     }
 }
 
@@ -162,14 +204,14 @@ struct RecipeDetailView: View {
     NavigationStack {
         RecipeDetailView(recipe: Recipe(
             id: UUID(),
-            name: "Sample",
-            cuisine: "Demo",
+            name: "Herb Omelette",
+            cuisine: "French",
             ingredients: [],
-            instructions: ["Mix", "Cook", "Serve"],
+            instructions: ["Whisk the eggs with a pinch of salt.", "Melt butter in a pan.", "Cook, fold and serve."],
             imageURL: nil,
             youtubeURL: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
             cookbookReference: "Demo Cookbook p. 1",
             cookbookURL: "https://www.apple.com"
-        ))
+        ), slot: .breakfast)
     }
 }

@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Scheme
+   LastUpgradeVersion = "2600"
+   version = "1.7">
+   <BuildAction
+      parallelizeBuildables = "YES"
+      buildImplicitDependencies = "YES"
+      buildArchitectures = "Automatic">
+      <BuildActionEntries>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "F9D452B62F03024500DEB0BB"
+               BuildableName = "SmartMealPlanner.app"
+               BlueprintName = "SmartMealPlanner"
+               ReferencedContainer = "container:SmartMealPlanner.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+      </BuildActionEntries>
+   </BuildAction>
+   <TestAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      shouldUseLaunchSchemeArgsEnv = "YES"
+      shouldAutocreateTestPlan = "YES">
+      <PostActions>
+         <ExecutionAction
+            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+            <ActionContent
+               title = "Update test report"
+               scriptText = '# Record this test run in TestReports/SmartMealPlanner-TestCases.xlsx.&#10;# Runs in the background because Xcode finishes writing the result bundle after this action starts.&#10;# CI records runs in its own workflow step, so skip there. A clean environment keeps build settings out of the log.&#10;[ -n "$CI" ] &amp;&amp; exit 0&#10;mkdir -p "$SRCROOT/TestReports"&#10;nohup env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin /usr/bin/python3 "$SRCROOT/scripts/update_test_report.py" --source xcode --wait-for-new --wait 180 --derived-data "$BUILD_DIR/../.." &gt;&gt; "$SRCROOT/TestReports/update.log" 2&gt;&amp;1 &amp;&#10;'>
+               <EnvironmentBuildable>
+                  <BuildableReference
+                     BuildableIdentifier = "primary"
+                     BlueprintIdentifier = "F9D452B62F03024500DEB0BB"
+                     BuildableName = "SmartMealPlanner.app"
+                     BlueprintName = "SmartMealPlanner"
+                     ReferencedContainer = "container:SmartMealPlanner.xcodeproj">
+                  </BuildableReference>
+               </EnvironmentBuildable>
+            </ActionContent>
+         </ExecutionAction>
+      </PostActions>
+      <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "F9D452D62F03024700DEB0BB"
+               BuildableName = "SmartMealPlannerTests.xctest"
+               BlueprintName = "SmartMealPlannerTests"
+               ReferencedContainer = "container:SmartMealPlanner.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "F9D452E62F03024800DEB0BB"
+               BuildableName = "SmartMealPlannerUITests.xctest"
+               BlueprintName = "SmartMealPlannerUITests"
+               ReferencedContainer = "container:SmartMealPlanner.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+      </Testables>
+   </TestAction>
+   <LaunchAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      launchStyle = "0"
+      useCustomWorkingDirectory = "NO"
+      ignoresPersistentStateOnLaunch = "NO"
+      debugDocumentVersioning = "YES"
+      debugServiceExtension = "internal"
+      allowLocationSimulation = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "F9D452B62F03024500DEB0BB"
+            BuildableName = "SmartMealPlanner.app"
+            BlueprintName = "SmartMealPlanner"
+            ReferencedContainer = "container:SmartMealPlanner.xcodeproj">
+         </BuildableReference>
+      </BuildableProductRunnable>
+   </LaunchAction>
+   <ProfileAction
+      buildConfiguration = "Release"
+      shouldUseLaunchSchemeArgsEnv = "YES"
+      savedToolIdentifier = ""
+      useCustomWorkingDirectory = "NO"
+      debugDocumentVersioning = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "F9D452B62F03024500DEB0BB"
+            BuildableName = "SmartMealPlanner.app"
+            BlueprintName = "SmartMealPlanner"
+            ReferencedContainer = "container:SmartMealPlanner.xcodeproj">
+         </BuildableReference>
+      </BuildableProductRunnable>
+   </ProfileAction>
+   <AnalyzeAction
+      buildConfiguration = "Debug">
+   </AnalyzeAction>
+   <ArchiveAction
+      buildConfiguration = "Release"
+      revealArchiveInOrganizer = "YES">
+   </ArchiveAction>
+</Scheme>
