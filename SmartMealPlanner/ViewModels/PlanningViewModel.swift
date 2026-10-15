@@ -14,17 +14,21 @@ final class PlanningViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var lastError: String?
 
-    /// Recipes and offers the planner chooses from.
+    /// Recipes, offers and ingredient prices the planner chooses from.
     struct Catalog {
         var recipes: [Recipe]
         var offers: [SupermarketOffer]
+        var ingredientPrices: [IngredientPrice] = []
 
-        /// The JSON files bundled with the app.
-        static func bundled() throws -> Catalog {
-            Catalog(
-                recipes: try JSONLoader.load("recipes", as: [Recipe].self),
-                offers: try JSONLoader.load("offers", as: [SupermarketOffer].self)
-            )
+        /// Bundled recipes with the latest offers and prices from the live grocery feed.
+        static func live() async throws -> Catalog {
+            try await live(from: GroceryDataServices.shared)
+        }
+
+        static func live(from service: GroceryDataService) async throws -> Catalog {
+            let recipes = try JSONLoader.load("recipes", as: [Recipe].self)
+            let grocery = await service.latest()
+            return Catalog(recipes: recipes, offers: grocery.offers, ingredientPrices: grocery.prices)
         }
     }
 
@@ -33,7 +37,7 @@ final class PlanningViewModel: ObservableObject {
 
     private let ai: AIPlanningService
     private let defaults: UserDefaults
-    private let loadCatalog: () throws -> Catalog
+    private let loadCatalog: () async throws -> Catalog
 
     enum Keys {
         /// Bumped when `AISuggestedWeekPlan` shape changes (e.g. single-day → full week).
@@ -43,7 +47,7 @@ final class PlanningViewModel: ObservableObject {
     init(
         ai: AIPlanningService,
         defaults: UserDefaults = .standard,
-        loadCatalog: @escaping () throws -> Catalog = Catalog.bundled
+        loadCatalog: @escaping () async throws -> Catalog = Catalog.live
     ) {
         self.ai = ai
         self.defaults = defaults
@@ -64,7 +68,7 @@ final class PlanningViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let catalog = try loadCatalog()
+            let catalog = try await loadCatalog()
 
             guard let prefs = UserPreferences.load(from: defaults) else {
                 lastError = Self.missingPreferencesMessage
@@ -80,7 +84,8 @@ final class PlanningViewModel: ObservableObject {
                 preferences: prefs,
                 routine: routine,
                 recipes: catalog.recipes,
-                weeklyOffers: catalog.offers
+                weeklyOffers: catalog.offers,
+                ingredientPrices: catalog.ingredientPrices
             )
             suggestedPlan = plan
             let encoder = JSONEncoder()

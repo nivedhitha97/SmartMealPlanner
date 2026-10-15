@@ -7,8 +7,10 @@ import SwiftUI
 
 struct WeeklyOffersView: View {
 
+    var service: GroceryDataService = GroceryDataServices.shared
+
     @State private var offers: [SupermarketOffer] = []
-    @State private var loadError: String?
+    @State private var grocery: GroceryData?
     @State private var selectedCategory: String?
     @State private var region = ""
 
@@ -19,12 +21,9 @@ struct WeeklyOffersView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if let loadError {
-                    ContentUnavailableView(
-                        "Could not load offers",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text(loadError)
-                    )
+                if grocery == nil {
+                    ProgressView("Fetching today's prices…")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
@@ -41,12 +40,16 @@ struct WeeklyOffersView: View {
                             }
                             offerGroup("Ending soon", endingSoon)
                             offerGroup(endingSoon.isEmpty ? "All deals" : "More deals", list.otherOffers())
+                            if let stores = grocery?.stores, !stores.isEmpty {
+                                storeUpdates(OffersList.storeStatuses(stores))
+                            }
                         }
                         .padding(.horizontal, 24)
                         .padding(.top, 8)
                         .padding(.bottom, 32)
                     }
                     .scrollIndicators(.hidden)
+                    .refreshable { await loadOffers(forceRefresh: true) }
                 }
             }
             .screenBackground()
@@ -73,6 +76,21 @@ struct WeeklyOffersView: View {
                 Text("· \(offers.count) offers this week")
                     .font(.subheadline)
                     .foregroundStyle(Color.textSecondary)
+            }
+            if let grocery {
+                Label(
+                    OffersList.freshnessText(source: grocery.source, updatedAt: grocery.updatedAt),
+                    systemImage: grocery.source == .live ? "dot.radiowaves.left.and.right" : "wifi.slash"
+                )
+                .font(.footnote)
+                .foregroundStyle(grocery.source == .live ? Color.brandPrimaryDeep : Color.textTertiary)
+                .accessibilityIdentifier("offers.freshness")
+                if let next = OffersList.nextUpdateText(stores: grocery.stores) {
+                    Label(next, systemImage: "calendar")
+                        .font(.footnote)
+                        .foregroundStyle(Color.textTertiary)
+                        .accessibilityIdentifier("offers.nextUpdate")
+                }
             }
         }
     }
@@ -128,14 +146,50 @@ struct WeeklyOffersView: View {
         }
     }
 
-    private func loadOffers() async {
-        loadError = nil
-        region = UserPreferences.loadFromUserDefaults()?.shoppingRegion ?? ""
-        do {
-            offers = try JSONLoader.load("offers", as: [SupermarketOffer].self)
-        } catch {
-            loadError = error.localizedDescription
+    /// Each supermarket's weekly refresh day and whether its data is current.
+    private func storeUpdates(_ statuses: [StoreStatus]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("STORE UPDATES")
+                .font(.footnote.weight(.semibold))
+                .tracking(0.6)
+                .foregroundStyle(Color.textSecondary)
+            VStack(spacing: 0) {
+                ForEach(statuses) { status in
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Image(systemName: status.isWarning ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                            .font(.footnote)
+                            .foregroundStyle(status.isWarning ? Color.accentAmber : Color.brandPrimary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(status.name)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.textPrimary)
+                            Text(status.detail)
+                                .font(.caption)
+                                .foregroundStyle(Color.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 8)
+                        Text(status.schedule)
+                            .font(.caption)
+                            .foregroundStyle(Color.textTertiary)
+                    }
+                    .padding(.vertical, 10)
+                    .accessibilityElement(children: .combine)
+                    if status.id != statuses.last?.id {
+                        Divider()
+                    }
+                }
+            }
+            .card(padding: 14, radius: 20)
         }
+        .accessibilityIdentifier("offers.storeUpdates")
+    }
+
+    private func loadOffers(forceRefresh: Bool = false) async {
+        region = UserPreferences.loadFromUserDefaults()?.shoppingRegion ?? ""
+        let latest = await service.latest(forceRefresh: forceRefresh)
+        offers = latest.offers
+        grocery = latest
     }
 }
 
@@ -171,15 +225,30 @@ private struct OfferCard: View {
                 Text("\(offer.storeName) · \(offer.category)")
                     .font(.footnote)
                     .foregroundStyle(Color.textSecondary)
-                Label("Until \(offer.validUntil.formatted(.dateTime.month(.abbreviated).day()))", systemImage: "clock")
-                    .font(.caption)
-                    .foregroundStyle(Color.textTertiary)
+                if let observedAt = offer.observedAt {
+                    Label("Price drop · seen \(observedAt.formatted(.relative(presentation: .named)))",
+                          systemImage: "arrow.down.right")
+                        .font(.caption)
+                        .foregroundStyle(Color.textTertiary)
+                } else {
+                    Label("Until \(offer.validUntil.formatted(.dateTime.month(.abbreviated).day()))", systemImage: "clock")
+                        .font(.caption)
+                        .foregroundStyle(Color.textTertiary)
+                }
             }
 
             Spacer(minLength: 4)
 
             VStack(alignment: .trailing, spacing: 2) {
-                if let discountPercent = offer.discountPercent {
+                if let dealText = offer.dealText {
+                    Text(dealText)
+                        .font(.caption2.bold())
+                        .foregroundStyle(Color.accentCoral)
+                        .lineLimit(1)
+                        .padding(.vertical, 3)
+                        .padding(.horizontal, 7)
+                        .background(Color.accentCoralSoft, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                } else if let discountPercent = offer.discountPercent {
                     Text("−\(discountPercent)%")
                         .font(.caption2.bold())
                         .foregroundStyle(Color.accentCoral)
@@ -197,6 +266,7 @@ private struct OfferCard: View {
                         .foregroundStyle(Color.textTertiary)
                 }
                 Text("per \(offer.unitLabel)")
+                    .lineLimit(1)
                     .font(.caption2)
                     .foregroundStyle(Color.textTertiary)
             }

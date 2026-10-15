@@ -53,12 +53,14 @@ UI designed in Figma: [Smart Meal Planner – UI Revamp](https://www.figma.com/d
 
 ### Budget-Aware Grocery List
 - Aggregates ingredients across the week into one grocery list
-- Matches items to regional supermarket offers and estimates the weekly spend
+- Prices each ingredient from a matching offer, else today's supermarket prices (typical price per 100 g across stores), else the recipe catalog
+- Each line says where its price came from, e.g. the cheapest product and store
 - Budget card shows progress against the weekly budget
 
-### Regional Supermarket Offers
-- Weekly flyer offers filtered by category, grouped into "Ending soon" and other deals
-- Discount percentage and total savings
+### Live Supermarket Offers
+- This week's offers from Jumbo, Lidl, Dirk, DekaMarkt, Hoogvliet and Poiesz, with their real end dates and deals, plus price drops at Spar
+- Shows whether prices are live, saved from the last download (offline) or the bundled samples, when the next store refresh is, and each store's weekly update day; pull to refresh
+- Filtered by category, recipe ingredients first, with the deal or discount percentage and total savings
 
 ### Settings
 - Light / dark theme choice (System, Light or Dark), remembered between launches
@@ -71,8 +73,65 @@ UI designed in Figma: [Smart Meal Planner – UI Revamp](https://www.figma.com/d
   - Carbohydrates
   - Fat
 
+### Grocery Database
+A SQLite database (`grocery.db`) of Dutch supermarket products, shelf prices with their full history, and weekly offers, kept up to date by `scripts/grocery_db` in GitHub Actions. The app downloads small files exported from it.
+
+**Each supermarket is fetched once a week, on the day its offer week starts.** These days come from the stores' own offer dates and are re-learned after every fetch, so a store that moves its offer week is followed automatically:
+
+| Store | Offer week | Offers from | Shelf prices |
+|---|---|---|---|
+| Albert Heijn | Mon – Sun | – (ah.nl blocks automated requests) | Checkjebon (stale) |
+| Lidl | Mon – Sun | lidl.nl offers API | Checkjebon (stale) |
+| DekaMarkt | Tue – Mon | dekamarkt.nl offers page | Checkjebon (stale) |
+| Jumbo | Wed – Tue | jumbo.com promotions page | Checkjebon |
+| Dirk | Wed – Tue | dirk.nl offers page | Checkjebon (stale) |
+| Hoogvliet | Wed – Tue | hoogvliet.nl offers page | Checkjebon (stale) |
+| Poiesz | Sun – Sat | Poiesz web shop offers page | Checkjebon |
+| Spar, Plus, Vomar | – | – | Checkjebon (Spar current; Plus and Vomar stale) |
+
+- The workflow (`.github/workflows/grocery-feed.yml`) runs every morning, but on days when no store is due it makes **no requests** and publishes nothing. A full week costs about a dozen requests: one per store's offers (three for Lidl) plus one shared [Checkjebon](https://github.com/supermarkt/checkjebon) catalog download on each update day
+- If a store hasn't published its new week yet, it is tried again the next morning (up to three times)
+- Offers keep the store's real start and end dates and deal ("1+1 gratis", "2 voor €5,00"); multi-buy prices are shown per item, and Jumbo's price-less deals are priced from the product's shelf price
+- Checkjebon has stopped updating several stores (Albert Heijn, Plus, Hoogvliet and DekaMarkt prices haven't changed since at least December 2025). The database notices when a store's prices stop changing: stale shelf prices are left out of ingredient prices, and the Offers screen says so
+- The database and the app's files (`offers.json`, `prices.json`, `meta.json`) live on the `grocery-feed` branch (the database gzipped). Nothing needs an API key: the job pushes with its own `GITHUB_TOKEN`
+- Every fetch is logged with its request count (`fetch_log` table); `meta.json` reports requests in the last 7 and 28 days
+
+**The app downloads only when something can have changed.** `meta.json` says when the next store refresh is due; until then the saved copy is used without any request. After that only the 4 KB `meta.json` is checked, and offers and prices are downloaded only if the database was rebuilt. The last good copy is also the offline fallback; with no download at all the app shows the bundled sample offers. Pull to refresh checks straight away. The Offers screen shows the next update and a "Store updates" list with each store's weekly day and whether its data is current.
+
+Run it locally (from `scripts/`):
+
+```
+python3 -m grocery_db update --data ../build/grocery-data           # fetch the stores that are due
+python3 -m grocery_db update --data ../build/grocery-data --all     # fetch every store now
+python3 -m grocery_db status --data ../build/grocery-data           # schedule, last fetch, stale stores
+python3 -m grocery_db sync --full --data ../build/grocery-data      # send everything to Supabase (needs the two env vars)
+python3 -m unittest discover -s grocery_db/tests -t .               # tests
+```
+
+To try the app against a local copy, serve the folder (`python3 -m http.server 8000` in `build/grocery-data`) and launch the app with `-GroceryFeedBaseURL http://127.0.0.1:8000/`.
+
+### Browse and Edit the Database (Supabase)
+The database is mirrored to [Supabase](https://supabase.com) (hosted Postgres, free tier), whose **Table Editor** shows every table as a searchable, sortable, filterable spreadsheet at a URL, and lets you edit it.
+
+- Tables: `stores` (weekly schedule), `products` (all shelf prices), `price_history`, `offers`, `fetch_log`; views `offers_this_week` and `requests_per_week`
+- **Editable columns** (everything else is rewritten by the weekly update):
+  - `products.price_override` (+ `override_note`): use this price instead of the store's
+  - `offers.offer_price_override`, `offers.hidden`: correct an offer's price, or leave it out of the app
+  - `stores.manual_update_weekday` (0 = Monday): fetch the store on this day instead
+- Edits are applied the next morning (the daily run reads them even when no store is due) and are never overwritten by later fetches. Clearing an override undoes it
+- Only you and the update job can see the data: row level security is on and nothing is granted to the public key. The app keeps downloading the exported files, so it never needs Supabase keys
+
+**Setup (once):**
+1. Create a free project at [supabase.com](https://supabase.com/dashboard) (region: Frankfurt or another EU region).
+2. In **SQL Editor → New query**, paste [`scripts/grocery_db/supabase_schema.sql`](scripts/grocery_db/supabase_schema.sql) and run it.
+3. In **Project Settings → API**, copy the **Project URL** and the **service_role** key (secret; never put it in the app or the repo).
+4. Add them as repository secrets (GitHub → Settings → Secrets and variables → Actions): `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`, or run `gh secret set SUPABASE_URL` and `gh secret set SUPABASE_SERVICE_KEY`, which prompt for the value.
+5. Run the **Grocery database** workflow (Actions tab → Run workflow). The first run sends the whole database (~107,000 products); later runs send only new and changed rows.
+
+Then open **Table Editor** in the Supabase dashboard. Free projects pause after a week without requests; the daily run keeps it active.
+
 ### Recipe Data Handling
-- Recipes and offers loaded from local JSON files
+- Recipes loaded from bundled JSON
 - Recipe detail with photo, YouTube and cookbook links
 - Data modeled using `Codable` for safe and maintainable parsing
 
@@ -90,11 +149,12 @@ SmartMealPlanner
 ├── Models                          Codable data types
 │   ├── Recipe.swift, Ingredient.swift, MealPlan.swift
 │   ├── MealRoutine.swift, UserPreferences.swift      (incl. UserDefaults load/save)
-│   ├── SupermarketOffer.swift, AISuggestedWeekPlan.swift
+│   ├── SupermarketOffer.swift, IngredientPrice.swift, AISuggestedWeekPlan.swift
 │   └── DailyMealLog.swift                            (nutrition totals)
 │
 ├── Services
 │   ├── AIPlanningService.swift     Planner protocol + on-device heuristic planner
+│   ├── GroceryDataService.swift    Live offers and prices: download, disk cache, bundled fallback
 │   ├── PostcodeLocationService.swift
 │   └── JSONLoader.swift
 │
@@ -115,10 +175,15 @@ SmartMealPlanner
 │   └── DesignSystem/Theme.swift    Color tokens and shared components
 │
 └── Data
-    └── recipes.json, offers.json, ingredients.json
+    └── recipes.json, offers.json (offline sample), ingredients.json
 
 SmartMealPlannerTests               Unit tests (Swift Testing), one suite per screen
 SmartMealPlannerUITests             UI tests (XCTest) that drive the running app
+scripts/grocery_db/                 Grocery database: store fetchers, weekly schedule, SQLite, export
+│   ├── stores/                     One fetcher per supermarket + Checkjebon catalog
+│   ├── schedule.py, db.py, export.py, matching.py
+│   ├── supabase.py, supabase_schema.sql   Mirror for browsing and manual edits
+│   └── tests/                      Python unit tests (run in grocery-feed.yml)
 scripts/update_test_report.py       Sends each test run to the test report Google Sheet
 docs/test-report/Code.gs            Apps Script that records runs in the sheet
 ```
@@ -172,18 +237,23 @@ Unit tests live in `SmartMealPlannerTests` and use Swift Testing. Each screen's 
 | Suite | Covers |
 |---|---|
 | Weekly plan screen | Budget card maths and copy, day picker opening on today, empty-slot labels, grocery preview and checklist |
-| Planning view model | Missing preferences / routine errors, generating and caching a plan, restoring it on relaunch, clearing it, planner and catalog failures |
-| Plan generation | 7-day structure, diet / allergy / dislike / cuisine filtering, meal-type rules, grocery aggregation, regional offer matching, nutrition totals |
+| Planning view model | Missing preferences / routine errors, generating and caching a plan, restoring it on relaunch, clearing it, planner and catalog failures, live prices reaching the planner |
+| Plan generation | 7-day structure, diet / allergy / dislike / cuisine filtering, meal-type rules, grocery aggregation, regional and national offer matching, live ingredient prices, nutrition totals |
+| Live grocery data | No request before the next store refresh, only meta.json when the feed is unchanged, downloading a rebuilt feed (stubbed network), offline fallback to the cached feed and then the bundled offers, server errors, broken feeds, freshness line |
 | Recipe detail screen | Calorie estimate, reference links, photo URL handling, meat and animal-product detection |
-| Offers screen | Category filter, "Ending soon" grouping, total savings, discount badge, store initials |
+| Offers screen | Category filter, "Ending soon" grouping (live price drops excluded), ordering, total savings, discount badge, store initials, next-update line, store update statuses |
 | Preferences form / storage | Loading and saving preferences, postcode validation and region rules, older saved data |
 | Meal routine screen | Default routine, saving and loading, corrupt data |
 | Settings screen | Appearance options and colour schemes, version string, launch flags |
 | App icon | Light / dark / tinted icons present and 1024×1024; light icon has no alpha; dark and tinted have transparent backgrounds; dark artwork is bright enough; tinted icon is grayscale with the leaf cut out of the badge |
 
+### Grocery database tests
+
+`scripts/grocery_db/tests` (Python `unittest`, run by the grocery workflow before every update) covers the weekly schedule (which store is due when, retries, learning a store's offer day), each store parser on samples of its real page data, deal and per-item price maths, price history, and an end-to-end run with the network faked that checks a second run on the same day makes no requests.
+
 ### UI tests
 
-UI tests live in `SmartMealPlannerUITests` and use XCUITest to drive the running app. Each test launches the app with `-uiTestingResetState` (start with no saved data) and `-uiTestingSkipSplash`.
+UI tests live in `SmartMealPlannerUITests` and use XCUITest to drive the running app. Each test launches the app with `-uiTestingResetState` (start with no saved data), `-uiTestingSkipSplash` and `-uiTestingBundledData` (use the bundled sample offers, so results don't depend on the network or today's prices).
 
 | Test class | Covers |
 |---|---|
@@ -231,8 +301,8 @@ The script reads the result bundle and posts it to an Apps Script web app attach
 ## Scalability & Future Enhancements
 
 - Monthly meal planning
-- Live supermarket offers (scraped flyers or an API) instead of bundled sample data
-- Supermarket price comparison across stores
+- Albert Heijn bonus offers and current shelf prices for the stores Checkjebon no longer updates (needs a source that isn't blocked)
+- Supermarket price comparison per store in the grocery list
 - Nutrition visualization using Swift Charts
 - Backend/API integration (Firebase / Supabase)
 - AI-assisted recipe recommendations

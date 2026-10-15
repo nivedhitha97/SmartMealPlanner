@@ -79,6 +79,20 @@ enum Fixtures {
         )
     }
 
+    static func ingredientPrice(_ name: String, per100g: Double, store: String = "Lidl") -> IngredientPrice {
+        IngredientPrice(
+            ingredientName: name,
+            pricePer100g: per100g,
+            cheapestStore: store,
+            cheapestProduct: "\(name) 500 g",
+            cheapestPrice: per100g * 4,
+            cheapestSize: "500 g",
+            cheapestPricePer100g: per100g * 0.8,
+            storeCount: 6,
+            productCount: 20
+        )
+    }
+
     static func preferences(
         diet: String = "Non-Vegetarian",
         cuisines: [String] = [],

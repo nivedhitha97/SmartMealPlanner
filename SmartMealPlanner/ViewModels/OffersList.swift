@@ -21,17 +21,23 @@ struct OffersList {
         Array(Set(offers.map(\.category))).sorted()
     }
 
-    /// Offers in the selected category, soonest to expire first.
+    /// Offers in the selected category, soonest to expire first. Offers ending together show
+    /// recipe ingredients first, then the biggest saving.
     var filtered: [SupermarketOffer] {
         offers
             .filter { selectedCategory == nil || $0.category == selectedCategory }
-            .sorted { $0.validUntil < $1.validUntil }
+            .sorted { a, b in
+                if a.validUntil != b.validUntil { return a.validUntil < b.validUntil }
+                if (a.ingredientName != nil) != (b.ingredientName != nil) { return a.ingredientName != nil }
+                return (a.savings ?? 0) > (b.savings ?? 0)
+            }
     }
 
-    /// Filtered offers that are still valid and expire within `endingSoonDays`.
+    /// Filtered flyer offers that are still valid and expire within `endingSoonDays`.
+    /// Live price drops have no known end date, so they never count as ending soon.
     func endingSoon(now: Date = Date(), calendar: Calendar = .current) -> [SupermarketOffer] {
         let cutoff = calendar.date(byAdding: .day, value: Self.endingSoonDays, to: now) ?? now
-        return filtered.filter { $0.validUntil >= now && $0.validUntil <= cutoff }
+        return filtered.filter { !$0.isLivePriceDrop && $0.validUntil >= now && $0.validUntil <= cutoff }
     }
 
     /// Filtered offers that aren't ending soon.
@@ -44,6 +50,62 @@ struct OffersList {
     var totalSavings: Double {
         offers.compactMap(\.savings).reduce(0, +)
     }
+
+    /// Which stores refresh next: "Next update: Poiesz on Sunday". Nil when nothing is scheduled.
+    static func nextUpdateText(stores: [StoreSchedule], now: Date = Date()) -> String? {
+        let upcoming = stores.compactMap { store in store.nextUpdateAt.map { (store, $0) } }
+        guard let soonest = upcoming.map(\.1).min() else { return nil }
+        let next = upcoming.filter { abs($0.1.timeIntervalSince(soonest)) < 60 * 60 }.map(\.0)
+        let names = ListFormatter.localizedString(byJoining: next.map(\.name).sorted())
+        let when = soonest <= now ? "today" : "on \(next[0].updateDay)"
+        return "Next update: \(names) \(when)"
+    }
+
+    /// One line per store for the "Store updates" section, stores with problems last.
+    static func storeStatuses(_ stores: [StoreSchedule], now: Date = Date()) -> [StoreStatus] {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.dateTimeStyle = .named
+        return stores.map { store in
+            let updated = store.lastUpdatedAt.map { "updated \(formatter.localizedString(for: $0, relativeTo: now))" }
+            var detail = [store.fetchesOffers ? "Offers" : "Shelf prices only", updated].compactMap { $0 }
+                .joined(separator: " · ")
+            var warning = false
+            if store.lastError != nil {
+                detail = "Last update failed; trying again"
+                warning = true
+            } else if store.pricesAreCurrent == false && !store.fetchesOffers {
+                detail = "Prices out of date: the source stopped updating this store"
+                warning = true
+            }
+            return StoreStatus(id: store.id, name: store.name, schedule: "Every \(store.updateDay)",
+                               detail: detail, isWarning: warning)
+        }
+        .sorted { ($0.isWarning ? 1 : 0, $0.name) < ($1.isWarning ? 1 : 0, $1.name) }
+    }
+
+    /// Short line under the title saying whether these are live prices and how fresh they are.
+    static func freshnessText(source: GroceryDataSource, updatedAt: Date?, now: Date = Date()) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.dateTimeStyle = .named
+        let age = updatedAt.map { formatter.localizedString(for: $0, relativeTo: now) }
+        switch source {
+        case .live:
+            return age.map { "Live prices · updated \($0)" } ?? "Live prices"
+        case .cached:
+            return age.map { "Offline · prices from \($0)" } ?? "Offline · saved prices"
+        case .bundled:
+            return "Offline · sample offers"
+        }
+    }
+}
+
+struct StoreStatus: Identifiable, Equatable {
+    let id: String
+    let name: String
+    /// "Every Wednesday"
+    let schedule: String
+    let detail: String
+    let isWarning: Bool
 }
 
 extension SupermarketOffer {
