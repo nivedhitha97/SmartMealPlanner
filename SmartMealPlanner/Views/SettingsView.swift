@@ -4,11 +4,18 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct SettingsView: View {
 
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
     @EnvironmentObject private var shopping: ShoppingListStore
+    @Environment(\.openURL) private var openURL
+
+    @State private var alertsEnabled = OfferAlertScheduler.shared.isEnabled
+    @State private var alertStoreIDs: Set<String> = []
+    @State private var storeSchedules: [StoreSchedule] = []
+    @State private var notificationsDenied = false
 
     private static let weekFormatter: DateIntervalFormatter = {
         let formatter = DateIntervalFormatter()
@@ -24,6 +31,7 @@ struct SettingsView: View {
                         .padding(.bottom, 8)
 
                     profileCard
+                    offerAlertsCard
                     appearanceCard
                     aboutCard
                 }
@@ -35,6 +43,7 @@ struct SettingsView: View {
             .screenBackground()
             .navigationTitle("Settings")
             .toolbar(.hidden, for: .navigationBar)
+            .task { await loadStoreSchedules() }
         }
     }
 
@@ -124,6 +133,89 @@ struct SettingsView: View {
         }
         .padding(.vertical, 10)
         .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - Offer alerts
+
+    private var offerStores: [StoreSchedule] {
+        storeSchedules.filter(\.fetchesOffers).sorted { $0.name < $1.name }
+    }
+
+    /// A weekly notification on each chosen store's update day, when its new offers are in.
+    private var offerAlertsCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            CardHeader(icon: "bell.badge.fill", tint: .accentAmber, tintBackground: .accentAmberSoft,
+                       title: "Offer alerts", subtitle: "When a store's new offers are in")
+            Toggle("Notify me", isOn: Binding(get: { alertsEnabled }, set: { setAlerts($0) }))
+                .font(.subheadline.weight(.medium))
+                .tint(.brandPrimary)
+                .accessibilityIdentifier("settings.offerAlerts")
+            if notificationsDenied {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Notifications are turned off for Smart Meal Planner in iOS Settings.")
+                        .font(.footnote)
+                        .foregroundStyle(Color.accentCoral)
+                    Button("Open iOS Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                    }
+                    .font(.footnote.weight(.semibold))
+                }
+            }
+            if alertsEnabled {
+                VStack(spacing: 0) {
+                    ForEach(offerStores) { store in
+                        RowDivider()
+                        Toggle(isOn: Binding(get: { alertStoreIDs.contains(store.id) },
+                                             set: { setAlert($0, for: store) })) {
+                            HStack(spacing: 10) {
+                                StoreBadge(store: store.name, size: 24)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(store.name)
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundStyle(Color.textPrimary)
+                                    Text("Every \(store.updateDay) at \(OfferAlert.hour):00")
+                                        .font(.caption)
+                                        .foregroundStyle(Color.textSecondary)
+                                }
+                            }
+                        }
+                        .tint(.brandPrimary)
+                        .padding(.vertical, 8)
+                        .accessibilityIdentifier("settings.offerAlerts.\(store.id)")
+                    }
+                }
+            }
+        }
+        .card()
+    }
+
+    private func loadStoreSchedules() async {
+        let live = await GroceryDataServices.shared.latest().stores
+        storeSchedules = live.isEmpty ? GroceryDataServices.defaultStoreSchedules : live
+        alertStoreIDs = OfferAlertScheduler.shared.storeIDs(for: storeSchedules, nearbyChains: nearbyChains)
+    }
+
+    private var nearbyChains: Set<String>? { UserPreferences.loadFromUserDefaults()?.nearbyChains }
+
+    private func setAlerts(_ on: Bool) {
+        Task {
+            let scheduler = OfferAlertScheduler.shared
+            if on {
+                let granted = await scheduler.requestPermission()
+                notificationsDenied = !granted
+                guard granted else { alertsEnabled = false; return }
+            }
+            alertsEnabled = on
+            scheduler.isEnabled = on
+            await scheduler.reschedule(stores: storeSchedules, nearbyChains: nearbyChains)
+        }
+    }
+
+    private func setAlert(_ on: Bool, for store: StoreSchedule) {
+        if on { alertStoreIDs.insert(store.id) } else { alertStoreIDs.remove(store.id) }
+        let scheduler = OfferAlertScheduler.shared
+        scheduler.chosenStoreIDs = alertStoreIDs
+        Task { await scheduler.reschedule(stores: storeSchedules, nearbyChains: nearbyChains) }
     }
 
     private var appearanceCard: some View {

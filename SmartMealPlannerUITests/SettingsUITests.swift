@@ -81,4 +81,21 @@ final class SettingsUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 0.6)
         return app.screenLuminance(at: point ?? backgroundPoint)
     }
+
+    func testOfferAlertsCanBeTurnedOnPerStore() {
+        let app = XCUIApplication.launchForTesting()
+        app.openTab("Settings")
+        let toggle = app.switches["settings.offerAlerts"]
+        app.scrollTo(toggle)
+        toggle.switches.firstMatch.tap()
+
+        // iOS asks for permission the first time; allow it (in the test simulator).
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.buttons["Allow"]
+        if allow.waitForExistence(timeout: 5) { allow.tap() }
+
+        let jumbo = app.switches["settings.offerAlerts.jumbo"]
+        XCTAssertTrue(jumbo.waitForExistence(timeout: 5), "A switch per store with offers")
+        XCTAssertTrue(app.element(containing: "Every Wednesday").exists, "Jumbo's alert day")
+    }
 }

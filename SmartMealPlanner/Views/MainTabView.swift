@@ -46,6 +46,18 @@ struct MainTabView: View {
         .onChange(of: planning.suggestedPlan?.id) {
             shopping.change { $0.syncPlan(planning.suggestedPlan) }
         }
+        // Keep the weekly offer alerts in step with the stores' current update days.
+        .task {
+            let scheduler = OfferAlertScheduler.shared
+            guard scheduler.isEnabled else { return }
+            let live = await GroceryDataServices.shared.latest().stores
+            let stores = live.isEmpty ? GroceryDataServices.defaultStoreSchedules : live
+            await scheduler.reschedule(stores: stores, nearbyChains: UserPreferences.loadFromUserDefaults()?.nearbyChains)
+        }
+        // Tapping an offer alert opens the Offers tab.
+        .onReceive(NotificationCenter.default.publisher(for: OfferAlertDelegate.openOffers)) { _ in
+            selection = .offers
+        }
     }
 }
 

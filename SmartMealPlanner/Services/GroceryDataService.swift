@@ -71,6 +71,15 @@ enum GroceryDataServices {
         ? BundledGroceryDataService()
         : RemoteGroceryDataService()
 
+    /// The stores' offer days as the grocery database found them, for use before the live schedule has loaded.
+    static let defaultStoreSchedules: [StoreSchedule] = [
+        ("dekamarkt", "DekaMarkt", "Tuesday"), ("dirk", "Dirk", "Wednesday"), ("hoogvliet", "Hoogvliet", "Wednesday"),
+        ("jumbo", "Jumbo", "Wednesday"), ("lidl", "Lidl", "Monday"), ("poiesz", "Poiesz", "Sunday"),
+    ].map { id, name, day in
+        StoreSchedule(id: id, name: name, updateDay: day, fetchesOffers: true, lastUpdatedAt: nil, nextUpdateAt: nil,
+                      pricesChangedAt: nil, pricesAreCurrent: nil, lastError: nil)
+    }
+
     /// The sample offers in Data/offers.json.
     static func bundledOffers() -> [SupermarketOffer] {
         (try? JSONLoader.load("offers", as: [SupermarketOffer].self)) ?? []
@@ -80,7 +89,8 @@ enum GroceryDataServices {
 /// Only the bundled sample offers, with no ingredient prices.
 final class BundledGroceryDataService: GroceryDataService {
     func latest(forceRefresh: Bool) async -> GroceryData {
-        GroceryData(offers: GroceryDataServices.bundledOffers(), prices: [], updatedAt: nil, source: .bundled)
+        GroceryData(offers: GroceryDataServices.bundledOffers(), prices: [], updatedAt: nil, source: .bundled,
+                    stores: GroceryDataServices.defaultStoreSchedules)
     }
 }
 
