@@ -25,6 +25,7 @@ struct PreferencesForm: Equatable {
     /// because the region is then re-derived from the postcode.
     var legacyRegion = ""
     var breakfastRecipePreference: BreakfastRecipePreference = .includeRecipes
+    var people = 1
 
     init() {}
 
@@ -37,6 +38,7 @@ struct PreferencesForm: Equatable {
         postcode = preferences.postcode
         legacyRegion = preferences.postcode.isEmpty ? preferences.shoppingRegion : ""
         breakfastRecipePreference = preferences.breakfastRecipePreference
+        people = preferences.people
     }
 
     mutating func toggleCuisine(_ cuisine: String) {
@@ -62,7 +64,8 @@ struct PreferencesForm: Equatable {
             budgetWeekly: weeklyBudget,
             shoppingRegion: location?.shoppingRegion ?? (hasPostcode ? "" : legacyRegion),
             postcode: location?.postcode ?? "",
-            breakfastRecipePreference: breakfastRecipePreference
+            breakfastRecipePreference: breakfastRecipePreference,
+            people: people
         )
     }
 

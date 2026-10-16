@@ -8,6 +8,8 @@ import SwiftUI
 struct RecipeDetailView: View {
 
     let recipe: Recipe
+    /// Ingredient amounts are shown for this many people (from Preferences).
+    var people: Int = UserPreferences.savedPeople()
     var slot: MealSlot? = nil
 
     private let heroHeight: CGFloat = 340
@@ -61,6 +63,7 @@ struct RecipeDetailView: View {
                 .foregroundStyle(Color.textPrimary)
 
             HStack(spacing: 16) {
+                metaItem("person.2", people == 1 ? "1 person" : "\(people) people")
                 metaItem("list.bullet", "\(recipe.ingredients.count) ingredients")
                 if !recipe.instructions.isEmpty {
                     metaItem("clock", "\(recipe.instructions.count) steps")
@@ -129,7 +132,9 @@ struct RecipeDetailView: View {
 
     private var ingredientsBlock: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Ingredients")
+            SectionHeader(title: "Ingredients",
+                          subtitle: people == recipe.servings ? nil
+                              : "For \(people == 1 ? "1 person" : "\(people) people") (recipe serves \(recipe.servings))")
 
             if recipe.ingredients.isEmpty {
                 Text("No ingredients listed.")
@@ -147,7 +152,7 @@ struct RecipeDetailView: View {
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(Color.textPrimary)
                             Spacer()
-                            Text("\(Int(row.quantity)) g")
+                            Text("\(Int(recipe.quantity(of: row, forPeople: people).rounded())) g")
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(Color.textSecondary)
                         }

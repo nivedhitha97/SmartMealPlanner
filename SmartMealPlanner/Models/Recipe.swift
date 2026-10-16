@@ -10,6 +10,8 @@ struct Recipe: Identifiable, Codable {
     let name: String
     let cuisine: String
     let ingredients: [RecipeIngredient]
+    /// How many people the ingredient amounts are for.
+    var servings: Int
     var instructions: [String]
     var imageURL: String?
     var youtubeURL: String?
@@ -19,7 +21,7 @@ struct Recipe: Identifiable, Codable {
     var cookbookURL: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, cuisine, ingredients, instructions
+        case id, name, cuisine, ingredients, servings, instructions
         case imageURL, youtubeURL, cookbookReference, cookbookURL
     }
 
@@ -28,6 +30,7 @@ struct Recipe: Identifiable, Codable {
         name: String,
         cuisine: String,
         ingredients: [RecipeIngredient],
+        servings: Int = 1,
         instructions: [String] = [],
         imageURL: String? = nil,
         youtubeURL: String? = nil,
@@ -38,6 +41,7 @@ struct Recipe: Identifiable, Codable {
         self.name = name
         self.cuisine = cuisine
         self.ingredients = ingredients
+        self.servings = max(1, servings)
         self.instructions = instructions
         self.imageURL = imageURL
         self.youtubeURL = youtubeURL
@@ -51,6 +55,7 @@ struct Recipe: Identifiable, Codable {
         name = try c.decode(String.self, forKey: .name)
         cuisine = try c.decode(String.self, forKey: .cuisine)
         ingredients = try c.decode([RecipeIngredient].self, forKey: .ingredients)
+        servings = max(1, try c.decodeIfPresent(Int.self, forKey: .servings) ?? 1)
         instructions = try c.decodeIfPresent([String].self, forKey: .instructions) ?? []
         imageURL = try c.decodeIfPresent(String.self, forKey: .imageURL)
         youtubeURL = try c.decodeIfPresent(String.self, forKey: .youtubeURL)
@@ -64,6 +69,7 @@ struct Recipe: Identifiable, Codable {
         try c.encode(name, forKey: .name)
         try c.encode(cuisine, forKey: .cuisine)
         try c.encode(ingredients, forKey: .ingredients)
+        try c.encode(servings, forKey: .servings)
         try c.encode(instructions, forKey: .instructions)
         try c.encodeIfPresent(imageURL, forKey: .imageURL)
         try c.encodeIfPresent(youtubeURL, forKey: .youtubeURL)
@@ -115,7 +121,12 @@ struct Recipe: Identifiable, Codable {
 
     /// Approximate kcal for one serving (ingredient calories are per 100 g).
     var estimatedCalories: Double {
-        ingredients.reduce(0) { $0 + $1.ingredient.calories * $1.quantity / 100 }
+        ingredients.reduce(0) { $0 + $1.ingredient.calories * $1.quantity / 100 } / Double(servings)
+    }
+
+    /// Grams of an ingredient row needed to cook this recipe for `people`.
+    func quantity(of row: RecipeIngredient, forPeople people: Int) -> Double {
+        row.quantity * Double(max(1, people)) / Double(servings)
     }
 }
 

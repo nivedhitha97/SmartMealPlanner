@@ -69,7 +69,7 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
         for recipe in weeklyMealPlan.allPlannedRecipes {
             for row in recipe.ingredients {
                 let name = row.ingredient.name
-                gramsByIngredient[name, default: 0] += row.quantity
+                gramsByIngredient[name, default: 0] += recipe.quantity(of: row, forPeople: preferences.people)
             }
         }
 

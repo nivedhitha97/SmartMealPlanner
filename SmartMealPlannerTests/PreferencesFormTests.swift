@@ -74,6 +74,16 @@ struct PreferencesFormTests {
         #expect(saved.shoppingRegion.isEmpty)
     }
 
+    @Test func peopleCountRoundTripsThroughTheForm() {
+        var form = PreferencesForm()
+        #expect(form.people == 1, "one person by default")
+        form.people = 4
+
+        let saved = form.makePreferences(location: nil)
+        #expect(saved.people == 4)
+        #expect(PreferencesForm(preferences: saved).people == 4)
+    }
+
     @Test func postcodeIsSavedEvenBeforeItsLookupFinishes() {
         var form = PreferencesForm()
         form.postcode = "1062jb"

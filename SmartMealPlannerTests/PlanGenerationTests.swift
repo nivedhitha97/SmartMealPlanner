@@ -170,6 +170,28 @@ struct PlanGenerationTests {
         #expect(plan.aiSummary.contains("5 meals are left open"), "the notes say why the other lunches are empty")
     }
 
+    @Test func groceryAmountsScaleToThePeopleInPreferences() async throws {
+        var family = Fixtures.preferences()
+        family.people = 3
+        let plan = try await LocalHeuristicAIPlanner().generateWeeklySuggestions(
+            preferences: family, routine: lunchOnly, recipes: [greekSalad], weeklyOffers: []
+        )
+
+        let tomato = try #require(plan.groceryLines.first { $0.ingredientName == "Tomato" })
+        #expect(tomato.totalGrams == 900, "150 g × 2 lunches × 3 people")
+        #expect(abs(tomato.estimatedLinePrice - 0.4 * 9) < 0.0001, "the cost scales with it")
+    }
+
+    @Test func recipeAmountsAreForItsServingsAndScaleToPeople() {
+        let stew = Recipe(id: UUID(), name: "Stew", cuisine: "Dutch",
+                          ingredients: [RecipeIngredient(ingredient: lentils, quantity: 400)], servings: 4)
+        let row = stew.ingredients[0]
+
+        #expect(stew.quantity(of: row, forPeople: 1) == 100)
+        #expect(stew.quantity(of: row, forPeople: 6) == 600)
+        #expect(abs(stew.estimatedCalories - 350) < 0.0001, "calories are per serving: 100 g × 3.5 kcal/g")
+    }
+
     @Test func unmatchedIngredientsArePricedFromTheCatalog() async throws {
         let plan = try await LocalHeuristicAIPlanner().generateWeeklySuggestions(
             preferences: Fixtures.preferences(), routine: lunchOnly, recipes: [greekSalad], weeklyOffers: []

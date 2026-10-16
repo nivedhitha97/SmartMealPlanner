@@ -34,8 +34,11 @@ final class WeeklyPlanUITests: XCTestCase {
     func testSettingUpAndGeneratingAPlanShowsMealsAndRecipes() {
         let app = XCUIApplication.launchForTesting()
 
-        // Preferences: vegetarian (default) and Italian food, then save.
+        // Preferences: two people, vegetarian (default) and Italian food, then save.
         app.openTab("Preferences")
+        let people = app.steppers["preferences.people"]
+        XCTAssertTrue(people.waitForExistence(timeout: 5))
+        people.buttons.element(boundBy: 1).tap()  // increment
         let italian = app.button(containing: "Italian")
         app.scrollTo(italian)
         italian.tap()
@@ -76,6 +79,7 @@ final class WeeklyPlanUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Ingredients"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Method"].exists)
         XCTAssertTrue(app.element(containing: "Italian").exists, "Recipe should match the chosen cuisine")
+        XCTAssertTrue(app.element(containing: "2 people").exists, "Amounts are for the people in Preferences")
     }
 
     func testPickingAnotherDayShowsThatDaysMeals() {

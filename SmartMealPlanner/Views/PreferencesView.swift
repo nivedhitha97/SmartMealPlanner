@@ -25,6 +25,7 @@ struct PreferencesView: View {
                         .padding(.bottom, 8)
 
                     dietCard
+                    peopleCard
                     breakfastCard
                     cuisinesCard
                     exclusionsCard
@@ -113,6 +114,27 @@ struct PreferencesView: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var peopleCard: some View {
+        HStack(spacing: 12) {
+            CardHeader(icon: "person.2.fill", tint: .accentCoral, tintBackground: .accentCoralSoft,
+                       title: "People", subtitle: "Scales recipes and groceries")
+            Stepper(value: $form.people, in: UserPreferences.peopleRange) {
+                Text("\(form.people)")
+                    .font(.title2.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.textPrimary)
+                    .contentTransition(.numericText(value: Double(form.people)))
+                    .animation(.snappy, value: form.people)
+                    .frame(minWidth: 28, alignment: .trailing)
+            }
+            .fixedSize()
+            .accessibilityLabel("People")
+            .accessibilityValue("\(form.people)")
+            .accessibilityIdentifier("preferences.people")
+        }
+        .card()
     }
 
     private var cuisinesCard: some View {

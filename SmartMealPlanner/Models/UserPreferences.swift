@@ -37,6 +37,10 @@ struct UserPreferences: Codable, Equatable {
     var postcode: String
     /// When `granolaMuesliOnly`, the planner never assigns a catalog recipe to breakfast.
     var breakfastRecipePreference: BreakfastRecipePreference
+    /// How many people the meals are for; recipe amounts and the grocery list scale to it.
+    var people: Int
+
+    static let peopleRange = 1...10
 
     init(
         dietType: String,
@@ -46,7 +50,8 @@ struct UserPreferences: Codable, Equatable {
         budgetWeekly: Double,
         shoppingRegion: String = "",
         postcode: String = "",
-        breakfastRecipePreference: BreakfastRecipePreference = .includeRecipes
+        breakfastRecipePreference: BreakfastRecipePreference = .includeRecipes,
+        people: Int = 1
     ) {
         self.dietType = dietType
         self.cuisines = cuisines
@@ -56,10 +61,12 @@ struct UserPreferences: Codable, Equatable {
         self.shoppingRegion = shoppingRegion
         self.postcode = postcode
         self.breakfastRecipePreference = breakfastRecipePreference
+        self.people = Self.peopleRange.clamped(people)
     }
 
     enum CodingKeys: String, CodingKey {
         case dietType, cuisines, dislikes, allergies, budgetWeekly, shoppingRegion, postcode, breakfastRecipePreference
+        case people
     }
 
     init(from decoder: Decoder) throws {
@@ -73,6 +80,8 @@ struct UserPreferences: Codable, Equatable {
         postcode = try c.decodeIfPresent(String.self, forKey: .postcode) ?? ""
         breakfastRecipePreference = try c.decodeIfPresent(BreakfastRecipePreference.self, forKey: .breakfastRecipePreference)
             ?? .includeRecipes
+        // Saved before the people count existed: one person.
+        people = Self.peopleRange.clamped(try c.decodeIfPresent(Int.self, forKey: .people) ?? 1)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -85,9 +94,15 @@ struct UserPreferences: Codable, Equatable {
         try c.encode(shoppingRegion, forKey: .shoppingRegion)
         try c.encode(postcode, forKey: .postcode)
         try c.encode(breakfastRecipePreference, forKey: .breakfastRecipePreference)
+        try c.encode(people, forKey: .people)
     }
 
     static let defaultsKey = "userPreferences"
+
+    /// People the meals are for, from saved preferences (1 if none are saved).
+    static func savedPeople(in defaults: UserDefaults = .standard) -> Int {
+        load(from: defaults)?.people ?? 1
+    }
 
     static func loadFromUserDefaults() -> UserPreferences? {
         load(from: .standard)
@@ -107,5 +122,12 @@ struct UserPreferences: Codable, Equatable {
         guard let data = try? JSONEncoder().encode(self) else { return false }
         defaults.set(data, forKey: Self.defaultsKey)
         return true
+    }
+}
+
+extension ClosedRange where Bound == Int {
+    /// The value moved into the range.
+    func clamped(_ value: Int) -> Int {
+        Swift.min(Swift.max(value, lowerBound), upperBound)
     }
 }
