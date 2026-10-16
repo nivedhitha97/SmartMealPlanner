@@ -57,6 +57,13 @@ struct RecipeDetailView: View {
                 .padding(.horizontal, 10)
                 .background(Color.brandPrimarySoft, in: Capsule())
 
+            if recipe.isAIGenerated {
+                Label("AI-generated: check ingredients for allergens", systemImage: "sparkles")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.accentAmber)
+                    .accessibilityIdentifier("recipe.aiGenerated")
+            }
+
             Text(recipe.name)
                 .font(.system(size: 30, weight: .bold))
                 .tracking(-0.6)

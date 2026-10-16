@@ -41,6 +41,8 @@ struct UserPreferences: Codable, Equatable {
     var people: Int
     /// Supermarkets within 2 km of the postcode, nearest first; empty when unknown (offers then come from all stores).
     var nearbyStores: [NearbyStore]
+    /// Add recipes written by the on-device AI for these preferences to the built-in ones.
+    var discoverRecipes: Bool
 
     /// The chains near the postcode, or nil when none are known (so every store counts).
     var nearbyChains: Set<String>? {
@@ -59,7 +61,8 @@ struct UserPreferences: Codable, Equatable {
         postcode: String = "",
         breakfastRecipePreference: BreakfastRecipePreference = .includeRecipes,
         people: Int = 1,
-        nearbyStores: [NearbyStore] = []
+        nearbyStores: [NearbyStore] = [],
+        discoverRecipes: Bool = false
     ) {
         self.dietType = dietType
         self.cuisines = cuisines
@@ -71,11 +74,12 @@ struct UserPreferences: Codable, Equatable {
         self.breakfastRecipePreference = breakfastRecipePreference
         self.people = Self.peopleRange.clamped(people)
         self.nearbyStores = nearbyStores
+        self.discoverRecipes = discoverRecipes
     }
 
     enum CodingKeys: String, CodingKey {
         case dietType, cuisines, dislikes, allergies, budgetWeekly, shoppingRegion, postcode, breakfastRecipePreference
-        case people, nearbyStores
+        case people, nearbyStores, discoverRecipes
     }
 
     init(from decoder: Decoder) throws {
@@ -92,6 +96,7 @@ struct UserPreferences: Codable, Equatable {
         // Saved before the people count existed: one person.
         people = Self.peopleRange.clamped(try c.decodeIfPresent(Int.self, forKey: .people) ?? 1)
         nearbyStores = try c.decodeIfPresent([NearbyStore].self, forKey: .nearbyStores) ?? []
+        discoverRecipes = try c.decodeIfPresent(Bool.self, forKey: .discoverRecipes) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -106,6 +111,7 @@ struct UserPreferences: Codable, Equatable {
         try c.encode(breakfastRecipePreference, forKey: .breakfastRecipePreference)
         try c.encode(people, forKey: .people)
         try c.encode(nearbyStores, forKey: .nearbyStores)
+        try c.encode(discoverRecipes, forKey: .discoverRecipes)
     }
 
     static let defaultsKey = "userPreferences"

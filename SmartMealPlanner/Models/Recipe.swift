@@ -23,10 +23,12 @@ struct Recipe: Identifiable, Codable {
     var cookbookReference: String?
     /// Publisher, bookstore, or recipe permalink.
     var cookbookURL: String?
+    /// Written by the on-device AI (Recipe discovery) rather than bundled with the app.
+    var isAIGenerated: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, name, cuisine, ingredients, servings, prepMinutes, cookMinutes, instructions
-        case imageURL, youtubeURL, cookbookReference, cookbookURL
+        case imageURL, youtubeURL, cookbookReference, cookbookURL, isAIGenerated
     }
 
     init(
@@ -41,7 +43,8 @@ struct Recipe: Identifiable, Codable {
         imageURL: String? = nil,
         youtubeURL: String? = nil,
         cookbookReference: String? = nil,
-        cookbookURL: String? = nil
+        cookbookURL: String? = nil,
+        isAIGenerated: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -55,6 +58,7 @@ struct Recipe: Identifiable, Codable {
         self.youtubeURL = youtubeURL
         self.cookbookReference = cookbookReference
         self.cookbookURL = cookbookURL
+        self.isAIGenerated = isAIGenerated
     }
 
     init(from decoder: Decoder) throws {
@@ -71,6 +75,7 @@ struct Recipe: Identifiable, Codable {
         youtubeURL = try c.decodeIfPresent(String.self, forKey: .youtubeURL)
         cookbookReference = try c.decodeIfPresent(String.self, forKey: .cookbookReference)
         cookbookURL = try c.decodeIfPresent(String.self, forKey: .cookbookURL)
+        isAIGenerated = try c.decodeIfPresent(Bool.self, forKey: .isAIGenerated) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -87,6 +92,7 @@ struct Recipe: Identifiable, Codable {
         try c.encodeIfPresent(youtubeURL, forKey: .youtubeURL)
         try c.encodeIfPresent(cookbookReference, forKey: .cookbookReference)
         try c.encodeIfPresent(cookbookURL, forKey: .cookbookURL)
+        if isAIGenerated { try c.encode(isAIGenerated, forKey: .isAIGenerated) }
     }
 
     var containsMeat: Bool {

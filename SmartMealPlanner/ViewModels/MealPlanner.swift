@@ -56,7 +56,8 @@ final class MealPlanner {
         recipe.name.lowercased()
     }
 
-    private func filterRecipes(
+    /// Recipes that fit the diet, avoid allergies and dislikes, and match the chosen cuisines.
+    func filterRecipes(
         _ recipes: [Recipe],
         _ preferences: UserPreferences
     ) -> [Recipe] {
