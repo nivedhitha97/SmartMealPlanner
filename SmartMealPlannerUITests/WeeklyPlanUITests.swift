@@ -80,6 +80,9 @@ final class WeeklyPlanUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Method"].exists)
         XCTAssertTrue(app.element(containing: "Italian").exists, "Recipe should match the chosen cuisine")
         XCTAssertTrue(app.element(containing: "2 people").exists, "Amounts are for the people in Preferences")
+        let times = app.element(withID: "recipe.times")
+        XCTAssertTrue(times.exists, "Prep, cooking and total time are shown")
+        XCTAssertTrue(times.label.contains("Prep") && times.label.contains("Cook"))
     }
 
     func testPickingAnotherDayShowsThatDaysMeals() {

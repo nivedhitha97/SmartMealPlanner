@@ -62,17 +62,46 @@ struct RecipeDetailView: View {
                 .tracking(-0.6)
                 .foregroundStyle(Color.textPrimary)
 
+            if recipe.totalMinutes != nil {
+                timesRow
+            }
+
             HStack(spacing: 16) {
                 metaItem("person.2", people == 1 ? "1 person" : "\(people) people")
                 metaItem("list.bullet", "\(recipe.ingredients.count) ingredients")
-                if !recipe.instructions.isEmpty {
-                    metaItem("clock", "\(recipe.instructions.count) steps")
-                }
                 if recipe.estimatedCalories > 0 {
                     metaItem("flame", "\(Int(recipe.estimatedCalories)) kcal")
                 }
             }
         }
+    }
+
+    /// Total, prep and cooking time.
+    private var timesRow: some View {
+        HStack(spacing: 0) {
+            timeItem("Total", recipe.totalMinutes, icon: "clock.fill", emphasised: true)
+            Divider().frame(height: 32)
+            timeItem("Prep", recipe.prepMinutes, icon: "knife")
+            Divider().frame(height: 32)
+            timeItem("Cook", recipe.cookMinutes, icon: "flame")
+        }
+        .padding(.vertical, 10)
+        .background(Color.bgSurface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.borderSubtle))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("recipe.times")
+    }
+
+    private func timeItem(_ title: String, _ minutes: Int?, icon: String, emphasised: Bool = false) -> some View {
+        VStack(spacing: 3) {
+            Label(title, systemImage: icon)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Color.textSecondary)
+            Text(minutes.map { $0 == 0 && title == "Cook" ? "No cooking" : Recipe.durationText($0) } ?? "–")
+                .font(.subheadline.weight(emphasised ? .bold : .semibold))
+                .foregroundStyle(emphasised ? Color.brandPrimaryDeep : Color.textPrimary)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private func metaItem(_ icon: String, _ text: String) -> some View {

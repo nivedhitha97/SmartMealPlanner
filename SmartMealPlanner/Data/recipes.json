@@ -3,6 +3,9 @@
     "id": "A1B2C3D4-1111-2222-3333-444455556666",
     "name": "Chicken Rice Bowl",
     "cuisine": "Asian",
+    "servings": 1,
+    "prepMinutes": 10,
+    "cookMinutes": 20,
     "instructions": [
       "Season diced chicken with salt and pepper; sear in a hot pan until golden and cooked through.",
       "Cook rice according to package directions; fluff with a fork.",
@@ -45,6 +48,9 @@
     "id": "B2C3D4E5-2222-3333-4444-555566667777",
     "name": "Tomato Basil Pasta",
     "cuisine": "Italian",
+    "servings": 1,
+    "prepMinutes": 10,
+    "cookMinutes": 15,
     "instructions": [
       "Boil pasta in salted water until al dente; reserve a splash of cooking water.",
       "Warm olive oil, add halved tomatoes, cook until they burst slightly.",
@@ -87,6 +93,9 @@
     "id": "C3D4E5F6-3333-4444-5555-666677770001",
     "name": "Greek Village Salad",
     "cuisine": "Greek",
+    "servings": 1,
+    "prepMinutes": 15,
+    "cookMinutes": 0,
     "instructions": [
       "Chop cucumber, tomato, and red onion into chunky pieces.",
       "Combine with olives and feta; dress with olive oil, lemon, oregano, salt, and pepper.",
@@ -142,6 +151,9 @@
     "id": "D4E5F6A7-4444-5555-6666-777788880002",
     "name": "Red Lentil Dal",
     "cuisine": "Indian",
+    "servings": 1,
+    "prepMinutes": 10,
+    "cookMinutes": 30,
     "instructions": [
       "Rinse red lentils; simmer with water until soft, about 15 minutes.",
       "Fry cumin, turmeric, and garlic in oil; stir into lentils.",
@@ -184,6 +196,9 @@
     "id": "E5F6A7B8-5555-6666-7777-888899990003",
     "name": "Mushroom Risotto",
     "cuisine": "Italian",
+    "servings": 1,
+    "prepMinutes": 10,
+    "cookMinutes": 30,
     "instructions": [
       "Sauté mushrooms in butter until golden; set aside.",
       "Toast arborio rice, add warm stock a ladle at a time, stirring until creamy.",
@@ -239,6 +254,9 @@
     "id": "F6A7B8C9-6666-7777-8888-999900010004",
     "name": "Pan-Seared Salmon",
     "cuisine": "Dutch",
+    "servings": 1,
+    "prepMinutes": 5,
+    "cookMinutes": 15,
     "instructions": [
       "Pat salmon dry; season skin and flesh with salt.",
       "Crisp skin in a hot oiled pan 4–5 minutes, flip briefly to finish.",
@@ -281,6 +299,9 @@
     "id": "A7B8C9D0-7777-8888-9999-000011110005",
     "name": "Thai Vegetable Stir-Fry",
     "cuisine": "Asian",
+    "servings": 1,
+    "prepMinutes": 15,
+    "cookMinutes": 10,
     "instructions": [
       "Prep all vegetables before heating the wok.",
       "Stir-fry aromatics, then harder vegetables, then leafy greens.",
@@ -323,6 +344,9 @@
     "id": "B8C9D0E1-8888-9999-0000-111122220006",
     "name": "Herb Omelette",
     "cuisine": "French",
+    "servings": 1,
+    "prepMinutes": 5,
+    "cookMinutes": 5,
     "instructions": [
       "Whisk eggs with salt, pepper, and chopped herbs.",
       "Melt butter in a nonstick pan over medium heat; pour eggs in.",
@@ -365,6 +389,9 @@
     "id": "C9D0E1F2-9999-0000-1111-222233330007",
     "name": "Black Bean Tacos",
     "cuisine": "Mexican",
+    "servings": 1,
+    "prepMinutes": 10,
+    "cookMinutes": 10,
     "instructions": [
       "Warm drained black beans with cumin, garlic, and a splash of water.",
       "Char corn tortillas in a dry pan or over a flame.",
