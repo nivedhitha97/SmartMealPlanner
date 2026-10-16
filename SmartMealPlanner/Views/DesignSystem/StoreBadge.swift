@@ -55,7 +55,7 @@ struct StoreBadge: View {
     }
 }
 
-/// A filter chip for a store: its badge and name.
+/// A filter chip for a store: its logo in place of the name (VoiceOver reads the name).
 struct StoreChip: View {
     let store: String
     let isSelected: Bool
@@ -63,18 +63,13 @@ struct StoreChip: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 7) {
-                StoreBadge(store: store, size: 20)
-                Text(store)
-                    .font(.subheadline.weight(isSelected ? .semibold : .medium))
-            }
-            .padding(.vertical, 7)
-            .padding(.leading, 8)
-            .padding(.trailing, 14)
-            .foregroundStyle(isSelected ? Color.white : Color.textPrimary)
-            .background(isSelected ? Color.brandPrimary : Color.bgSurface, in: Capsule())
-            .overlay(Capsule().strokeBorder(isSelected ? Color.clear : Color.borderSubtle, lineWidth: 1))
-            .contentShape(Capsule())
+            StoreBadge(store: store, size: 26)
+                .padding(5)
+                .background(isSelected ? Color.brandPrimarySoft : Color.bgSurface, in: Capsule())
+                .overlay(Capsule().strokeBorder(isSelected ? Color.brandPrimary : Color.borderSubtle,
+                                                lineWidth: isSelected ? 2 : 1))
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .animation(.snappy(duration: 0.2), value: isSelected)

@@ -232,7 +232,7 @@ private struct OfferCard: View {
     let quantityInList: Int
     let onAdd: () -> Void
 
-    /// The product photo, or the store's badge while it loads, if it fails or if there is none.
+    /// The product photo, or a placeholder while it loads, if it fails or if there is none.
     @ViewBuilder
     private var thumbnail: some View {
         if let imageURL = offer.imageURL {
@@ -246,17 +246,22 @@ private struct OfferCard: View {
                         .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .accessibilityHidden(true)
                 } else {
-                    initials
+                    photoPlaceholder
                 }
             }
         } else {
-            initials
+            photoPlaceholder
         }
     }
 
-    /// The store's badge, shown while the photo loads or when there is none.
-    private var initials: some View {
-        StoreBadge(store: offer.storeName, size: 52)
+    /// A neutral placeholder while the photo loads or when there is none.
+    private var photoPlaceholder: some View {
+        Image(systemName: "photo")
+            .font(.system(size: 20))
+            .foregroundStyle(Color.textTertiary)
+            .frame(width: 52, height: 52)
+            .background(Color.bgMuted, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .accessibilityHidden(true)
     }
 
     /// "+" on the photo; once added it shows how many are on the list, and tapping adds one more.
