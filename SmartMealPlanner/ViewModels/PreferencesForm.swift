@@ -48,9 +48,12 @@ struct PreferencesForm: Equatable {
     }
 
     /// Builds the preferences to save.
-    /// - Parameter location: the result of looking up `postcode`, or nil if there is none (yet).
+    /// - Parameter location: the result of looking up `postcode`, or nil if the lookup hasn't finished (or there is
+    ///   no postcode). A valid postcode is saved either way: its region comes from the postcode itself, only the
+    ///   city needs the lookup.
     func makePreferences(location: PostcodeLocation?) -> UserPreferences {
         let hasPostcode = !postcode.trimmingCharacters(in: .whitespaces).isEmpty
+        let location = location ?? Self.offlineLocation(for: postcode)
         return UserPreferences(
             dietType: dietType,
             cuisines: selectedCuisines.sorted(),
@@ -61,6 +64,14 @@ struct PreferencesForm: Equatable {
             postcode: location?.postcode ?? "",
             breakfastRecipePreference: breakfastRecipePreference
         )
+    }
+
+    /// The location of a valid postcode without the online city lookup.
+    static func offlineLocation(for raw: String) -> PostcodeLocation? {
+        guard let postcode = PostcodeLocationService.normalize(raw.trimmingCharacters(in: .whitespaces)) else {
+            return nil
+        }
+        return PostcodeLocation(postcode: postcode, city: nil, regionId: PostcodeLocationService.regionId(forPostcode: postcode))
     }
 
     /// Message to show under the postcode field, or nil while the field is empty, still being typed, or valid.

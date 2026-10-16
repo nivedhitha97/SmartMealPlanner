@@ -13,6 +13,9 @@ struct PreferencesView: View {
     @State private var postcodeError: String?
     @State private var routineSummary: String?
     @State private var didSave = false
+    /// Saved preferences are loaded once; later appearances (e.g. back from Meal routine) keep unsaved edits.
+    @State private var hasLoaded = false
+    @State private var savedWhileLookingUp = false
 
     var body: some View {
         NavigationStack {
@@ -33,7 +36,8 @@ struct PreferencesView: View {
                             .contentTransition(.symbolEffect(.replace))
                     }
                     .buttonStyle(.primary)
-                    .disabled(isLookingUpPostcode || postcodeError != nil)
+                    .disabled(postcodeError != nil)
+                    .accessibilityIdentifier("preferences.save")
                     .sensoryFeedback(.success, trigger: didSave) { _, new in new }
                     .padding(.top, 4)
                 }
@@ -47,7 +51,10 @@ struct PreferencesView: View {
             .navigationTitle("Preferences")
             .toolbar(.hidden, for: .navigationBar)
             .onAppear {
-                loadPreferences()
+                if !hasLoaded {
+                    loadPreferences()
+                    hasLoaded = true
+                }
                 loadRoutineSummary()
             }
         }
@@ -243,6 +250,9 @@ struct PreferencesView: View {
     // MARK: - Persistence
 
     private func savePreferences() {
+        // A postcode whose lookup is still running is saved with its region now; the city follows when the
+        // lookup finishes (see resolvePostcode).
+        savedWhileLookingUp = isLookingUpPostcode
         if form.makePreferences(location: location).save() {
             didSave = true
             Task {
@@ -277,6 +287,10 @@ struct PreferencesView: View {
             let resolved = try await PostcodeLocationService.resolve(trimmed)
             guard !Task.isCancelled else { return }
             location = resolved
+            if savedWhileLookingUp {  // fill in the city on what was already saved
+                form.makePreferences(location: resolved).save()
+                savedWhileLookingUp = false
+            }
         } catch {
             postcodeError = error.localizedDescription
         }

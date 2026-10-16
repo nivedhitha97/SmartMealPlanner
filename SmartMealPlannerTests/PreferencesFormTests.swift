@@ -74,6 +74,26 @@ struct PreferencesFormTests {
         #expect(saved.shoppingRegion.isEmpty)
     }
 
+    @Test func postcodeIsSavedEvenBeforeItsLookupFinishes() {
+        var form = PreferencesForm()
+        form.postcode = "1062jb"
+
+        let saved = form.makePreferences(location: nil)
+
+        #expect(saved.postcode == "1062 JB")
+        #expect(saved.shoppingRegion == "NL-North", "region comes from the postcode; the city follows later")
+    }
+
+    @Test func invalidPostcodeIsNotSaved() {
+        var form = PreferencesForm()
+        form.postcode = "0123AB"
+
+        let saved = form.makePreferences(location: nil)
+
+        #expect(saved.postcode.isEmpty)
+        #expect(saved.shoppingRegion.isEmpty)
+    }
+
     @Test func resolvedPostcodeSetsRegionAndNormalizedPostcode() {
         var form = PreferencesForm()
         form.postcode = "1012ab"
@@ -92,17 +112,15 @@ struct PreferencesFormTests {
         #expect(form.makePreferences(location: offline).shoppingRegion == "NL-North")
     }
 
-    @Test func typedPostcodeWithoutALookupResultSavesNoRegion() {
+    @Test func typedPostcodeReplacesTheOldRegionEvenBeforeItsLookupFinishes() {
         var form = PreferencesForm(preferences: legacyPreferences(region: "Amsterdam"))
         form.postcode = "3511 AX"
 
         let saved = form.makePreferences(location: nil)
 
-        #expect(saved.shoppingRegion.isEmpty, "The old region text must not be saved against a new postcode")
-        #expect(saved.postcode.isEmpty)
+        #expect(saved.postcode == "3511 AX")
+        #expect(saved.shoppingRegion == "NL-West", "the old region is replaced by the postcode's own region")
     }
-
-    // MARK: - Loading
 
     @Test func loadingFillsTheFormFromSavedPreferences() {
         let saved = UserPreferences(

@@ -61,6 +61,16 @@ extension XCUIApplication {
         XCTAssertTrue(element.isHittable, "Could not scroll to \(element)", file: file, line: line)
     }
 
+    /// Swipes down (towards the top of the screen) until `element` can be tapped.
+    func scrollUpTo(_ element: XCUIElement, maxSwipes: Int = 8, file: StaticString = #filePath, line: UInt = #line) {
+        var swipes = 0
+        while !(element.exists && element.isHittable) && swipes < maxSwipes {
+            swipeDown()
+            swipes += 1
+        }
+        XCTAssertTrue(element.isHittable, "Could not scroll up to \(element)", file: file, line: line)
+    }
+
     /// Relative luminance (0 = black, 1 = white) of the screen at a point, in points from the top left.
     /// Used to check that the light / dark theme actually rendered.
     func screenLuminance(at point: CGPoint) -> CGFloat {
