@@ -140,7 +140,8 @@ struct RecipeDetailView: View {
     }
 
     private func referenceButton(url: URL, icon: String, title: String, subtitle: String, tint: Color, background: Color) -> some View {
-        Link(destination: url) {
+        // YouTube links open in the YouTube app when it's installed, otherwise in Safari.
+        Button { ExternalLinks.open(url) } label: {
             HStack(spacing: 10) {
                 IconTile(systemName: icon, tint: tint, background: Color.bgSurface, size: 34)
                 VStack(alignment: .leading, spacing: 1) {
@@ -157,6 +158,9 @@ struct RecipeDetailView: View {
             .frame(maxWidth: .infinity)
             .background(background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(.isLink)
+        .accessibilityIdentifier("recipe.link.\(title)")
     }
 
     private var ingredientsBlock: some View {

@@ -83,6 +83,13 @@ final class WeeklyPlanUITests: XCTestCase {
         let times = app.element(withID: "recipe.times")
         XCTAssertTrue(times.exists, "Prep, cooking and total time are shown")
         XCTAssertTrue(times.label.contains("Prep") && times.label.contains("Cook"))
+
+        // No YouTube app on the simulator, so the video link falls back to Safari.
+        let watch = app.buttons["recipe.link.Watch"]
+        app.scrollTo(watch)
+        watch.tap()
+        let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
+        XCTAssertTrue(safari.wait(for: .runningForeground, timeout: 10), "YouTube link opens in Safari without the app")
     }
 
     func testPickingAnotherDayShowsThatDaysMeals() {
