@@ -1,0 +1,39 @@
+# Runs the Postman checks for the grocery feed (docs/api) with Newman: schemas, data sanity and security
+# (HTTPS, headers, no leaked secrets, no writes, Supabase refusing requests without a key).
+
+name: API checks
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"   # Mondays, after the morning grocery update
+  workflow_dispatch:
+  push:
+    branches: [ "develop" ]
+    paths: [ "docs/api/**", ".github/workflows/api-checks.yml" ]
+  pull_request:
+    branches: [ "develop" ]
+    paths: [ "docs/api/**", ".github/workflows/api-checks.yml" ]
+
+jobs:
+  newman:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v5
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+    - name: Run the Postman collection
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      run: |
+        npx --yes newman@6.2.1 run docs/api/SmartMealPlanner.postman_collection.json \
+          -e docs/api/feed.postman_environment.json \
+          --env-var "supabaseUrl=${SUPABASE_URL}" \
+          --reporters cli,junit --reporter-junit-export newman-results.xml
+    - name: Keep the results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: newman-results
+        path: newman-results.xml
