@@ -143,6 +143,9 @@ struct GroceryListView: View {
                 VStack(spacing: 8) {
                     ForEach(groups) { group in
                         HStack {
+                            if group.store != ShoppingList.anyStore {
+                                StoreBadge(store: group.store, size: 18)
+                            }
                             Text(group.store)
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(Color.textPrimary)
@@ -170,8 +173,14 @@ struct GroceryListView: View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
                 ForEach(list.filters, id: \.self) { option in
-                    Chip(title: option.title, isSelected: filter == option) {
-                        withAnimation(.snappy) { filter = option }
+                    if case .store(let store) = option, store != ShoppingList.anyStore {
+                        StoreChip(store: store, isSelected: filter == option) {
+                            withAnimation(.snappy) { filter = option }
+                        }
+                    } else {
+                        Chip(title: option.title, isSelected: filter == option) {
+                            withAnimation(.snappy) { filter = option }
+                        }
                     }
                 }
             }
@@ -186,7 +195,10 @@ struct GroceryListView: View {
 
     private func storeSection(_ group: StoreGroup) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
+            HStack(spacing: 8) {
+                if group.store != ShoppingList.anyStore {
+                    StoreBadge(store: group.store, size: 18)
+                }
                 Text(group.store.uppercased())
                     .font(.footnote.weight(.semibold))
                     .tracking(0.6)

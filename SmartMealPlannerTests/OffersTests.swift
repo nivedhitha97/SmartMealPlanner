@@ -149,13 +149,36 @@ struct OffersTests {
         #expect(Fixtures.offer(product: "Chicken", price: 4.99, regularPrice: regularPrice).discountPercent == nil)
     }
 
+    // MARK: - Store badges
+
     @Test(arguments: [
         ("Albert Heijn", "AH"),
-        ("Jumbo", "J"),
+        ("JUMBO", "J"),
         ("lidl", "L"),
-        ("Albert Heijn To Go", "AH"),
+        ("Plus", "P+"),
+        ("DekaMarkt", "DM"),
     ])
-    func storeAvatarShowsUpToTwoInitials(store: String, initials: String) {
-        #expect(Fixtures.offer(store: store, product: "Item", price: 1).storeInitials == initials)
+    func knownStoresGetTheirBrandMonogram(store: String, monogram: String) {
+        let brand = StoreBrand.forStore(store)
+        #expect(brand.monogram == monogram)
+        #expect(brand.background != .bgMuted, "known stores have their brand colour")
+    }
+
+    @Test func unknownStoresGetNeutralInitials() {
+        #expect(StoreBrand.forStore("Albert Heijn To Go").monogram == "AH")
+        #expect(StoreBrand.forStore("Ekoplaza").background == .bgMuted)
+        #expect(StoreBrand.forStore("").monogram == "?")
+    }
+
+    @Test func everyStoreInTheFeedHasABrand() {
+        let feedStores = ["Albert Heijn", "Jumbo", "Lidl", "Dirk", "DekaMarkt", "Hoogvliet", "Poiesz", "Plus", "Spar", "Vomar"]
+        #expect(feedStores.allSatisfy { StoreBrand.forStore($0).background != .bgMuted })
+    }
+
+    @Test func offersCanBeFilteredByStoreAndListTheirStores() {
+        let list = OffersList(offers: all, selectedCategory: nil, selectedStore: "Albert Heijn")
+        #expect(Set(names(list.filtered)) == ["Pasta", "Chicken"])
+        #expect(list.stores == ["Albert Heijn", "Jumbo", "Lidl", "Plus"])
+        #expect(list.categories == ["Meat", "Pantry"], "categories of the selected store only")
     }
 }

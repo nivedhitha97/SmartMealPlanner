@@ -127,7 +127,7 @@ struct WeeklyOffersView: View {
                     selectedStore = nil
                 }
                 ForEach(list.stores, id: \.self) { store in
-                    Chip(title: store, isSelected: selectedStore == store) {
+                    StoreChip(store: store, isSelected: selectedStore == store) {
                         selectedStore = store
                         if let category = selectedCategory, !list.categories.contains(category) {
                             selectedCategory = nil  // that category has no offers at this store
@@ -232,18 +232,7 @@ private struct OfferCard: View {
     let quantityInList: Int
     let onAdd: () -> Void
 
-    private var avatarColors: (Color, Color) {
-        let palette: [(Color, Color)] = [
-            (.brandPrimarySoft, .brandPrimaryDeep),
-            (.accentCoralSoft, .accentCoral),
-            (.accentAmberSoft, .accentAmber),
-            (.bgMuted, .textSecondary)
-        ]
-        let sum = offer.storeName.unicodeScalars.reduce(0) { $0 + Int($1.value) }
-        return palette[sum % palette.count]
-    }
-
-    /// The product photo, or the store's initials while it loads, if it fails or if there is none.
+    /// The product photo, or the store's badge while it loads, if it fails or if there is none.
     @ViewBuilder
     private var thumbnail: some View {
         if let imageURL = offer.imageURL {
@@ -265,12 +254,9 @@ private struct OfferCard: View {
         }
     }
 
+    /// The store's badge, shown while the photo loads or when there is none.
     private var initials: some View {
-        Text(offer.storeInitials)
-            .font(.callout.bold())
-            .foregroundStyle(avatarColors.1)
-            .frame(width: 52, height: 52)
-            .background(avatarColors.0, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        StoreBadge(store: offer.storeName, size: 52)
     }
 
     /// "+" on the photo; once added it shows how many are on the list, and tapping adds one more.

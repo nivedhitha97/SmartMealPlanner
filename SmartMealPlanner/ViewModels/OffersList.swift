@@ -123,10 +123,4 @@ extension SupermarketOffer {
         guard let regularPrice, regularPrice > 0, regularPrice > offerPrice else { return nil }
         return Int(((regularPrice - offerPrice) / regularPrice * 100).rounded())
     }
-
-    /// Up to two initials for the store avatar: "Albert Heijn" → "AH", "Jumbo" → "J".
-    var storeInitials: String {
-        let words = storeName.split(separator: " ")
-        return String(words.prefix(2).compactMap(\.first)).uppercased()
-    }
 }
