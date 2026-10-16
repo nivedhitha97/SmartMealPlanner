@@ -118,7 +118,7 @@ struct RecipeDetailView: View {
             if hasLinks {
                 HStack(spacing: 12) {
                     if let yt = recipe.youtubeURLParsed {
-                        referenceButton(url: yt, icon: "play.fill", title: "Watch", subtitle: "YouTube", tint: .accentCoral, background: .accentCoralSoft)
+                        referenceButton(url: yt, icon: "play.fill", title: "Watch", subtitle: "Videos on YouTube", tint: .accentCoral, background: .accentCoralSoft)
                     }
                     if let book = recipe.cookbookURLParsed {
                         referenceButton(url: book, icon: "book", title: "Cookbook", subtitle: "Source link", tint: .brandPrimaryDeep, background: .brandPrimarySoft)

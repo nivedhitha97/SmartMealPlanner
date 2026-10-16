@@ -98,6 +98,10 @@ struct RecipeDetailTests {
         for recipe in recipes {
             #expect(recipe.prepMinutes != nil && recipe.cookMinutes != nil, "\(recipe.name) has prep and cook times")
             #expect(recipe.servings >= 1)
+            if let video = recipe.youtubeURLParsed {
+                #expect(YouTubeLink.isYouTube(video), "\(recipe.name)'s video link goes to YouTube")
+                #expect(video.path == "/results", "a search for the recipe, which can't go dead like a single video")
+            }
         }
     }
 }
