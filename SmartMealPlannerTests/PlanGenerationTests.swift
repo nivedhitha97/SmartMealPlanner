@@ -92,25 +92,55 @@ struct PlanGenerationTests {
 
     // MARK: - Meal selection
 
-    @Test func fixedMealsUseTheFirstMatchingRecipeEveryDay() {
+    /// Twelve distinct dishes: enough for 21 meals at no more than twice a week each, even when Fixed uses them
+    /// strictly in order (each dish fills two days, three a day).
+    private var manyDishes: [Recipe] {
+        (1...12).map { Fixtures.recipe("Dish \($0)", cuisine: "Greek", ingredients: [(tomato, 100)]) }
+    }
+
+    private func expectVarietyRules(_ plan: WeeklyMealPlan, sourceLocation: SourceLocation = #_sourceLocation) {
+        for day in plan.days {
+            let names = [day.breakfast, day.lunch, day.dinner].compactMap { $0?.name }
+            #expect(Set(names).count == names.count, "no dish twice on \(day.date)", sourceLocation: sourceLocation)
+        }
+        let counts = Dictionary(plan.allPlannedRecipes.map { ($0.name, 1) }, uniquingKeysWith: +)
+        #expect(counts.values.allSatisfy { $0 <= MealPlanner.maxTimesPerWeek }, "at most twice a week: \(counts)",
+                sourceLocation: sourceLocation)
+    }
+
+    @Test(arguments: [MealType.fixed, .homeCooked, .flexible])
+    func noDishIsRepeatedOnADayOrMoreThanTwiceAWeek(type: MealType) {
+        let routine = MealRoutine(breakfastType: type, lunchType: type, dinnerType: type)
+        let plan = weekPlan(manyDishes, Fixtures.preferences(), routine: routine)
+
+        #expect(plan.allPlannedRecipes.count == 21, "twelve dishes are enough to fill every meal")
+        expectVarietyRules(plan)
+    }
+
+    @Test func fixedMealsKeepTheFirstChoiceAsLongAsTheLimitAllows() {
+        let plan = weekPlan([greekSalad, lentilDal, chickenBowl], Fixtures.preferences(), routine: lunchOnly)
+
+        #expect(plan.days.map { $0.lunch?.name } == ["Greek Salad", "Greek Salad", "Lentil Dal", "Lentil Dal",
+                                                    "Chicken Bowl", "Chicken Bowl", nil])
+    }
+
+    @Test func tooFewDishesLeaveSlotsEmptyRatherThanRepeating() {
         let plan = weekPlan([greekSalad, lentilDal], Fixtures.preferences())
 
-        for day in plan.days {
-            #expect(day.breakfast?.name == "Greek Salad")
-            #expect(day.lunch?.name == "Greek Salad")
-            #expect(day.dinner?.name == "Greek Salad")
-        }
+        #expect(plan.allPlannedRecipes.count == 4, "two dishes × twice a week")
+        expectVarietyRules(plan)
+        #expect(MealPlanner.unplannedMeals(in: plan, routine: allFixed, preferences: Fixtures.preferences()) == 17)
     }
 
     @Test func outsideMealsGetNoRecipe() {
-        let plan = weekPlan([greekSalad], Fixtures.preferences(), routine: lunchOnly)
+        let plan = weekPlan(manyDishes, Fixtures.preferences(), routine: lunchOnly)
 
         #expect(plan.days.allSatisfy { $0.breakfast == nil && $0.dinner == nil })
-        #expect(plan.days.allSatisfy { $0.lunch?.name == "Greek Salad" })
+        #expect(plan.days.allSatisfy { $0.lunch != nil })
     }
 
     @Test func granolaPreferenceLeavesBreakfastEmptyButPlansOtherMeals() {
-        let plan = weekPlan([greekSalad], Fixtures.preferences(breakfast: .granolaMuesliOnly))
+        let plan = weekPlan(manyDishes, Fixtures.preferences(breakfast: .granolaMuesliOnly))
 
         #expect(plan.days.allSatisfy { $0.breakfast == nil })
         #expect(plan.days.allSatisfy { $0.lunch != nil && $0.dinner != nil })
@@ -121,8 +151,9 @@ struct PlanGenerationTests {
         let routine = MealRoutine(breakfastType: .outside, lunchType: type, dinnerType: type)
         let plan = weekPlan([chickenBowl, greekSalad, lentilDal], Fixtures.preferences(diet: "Vegetarian"), routine: routine)
 
-        #expect(plan.allPlannedRecipes.count == 14)
-        #expect(plannedNames(plan).isSubset(of: ["Greek Salad", "Lentil Dal"]))
+        #expect(plan.allPlannedRecipes.count == 4, "two vegetarian dishes, twice a week each")
+        #expect(plannedNames(plan) == ["Greek Salad", "Lentil Dal"])
+        expectVarietyRules(plan)
     }
 
     // MARK: - Grocery list and offers
@@ -134,8 +165,31 @@ struct PlanGenerationTests {
 
         let lines = Dictionary(uniqueKeysWithValues: plan.groceryLines.map { ($0.ingredientName, $0) })
         #expect(plan.groceryLines.map(\.ingredientName) == ["Feta Cheese", "Tomato"], "Sorted by name")
-        #expect(lines["Tomato"]?.totalGrams == 1050, "150 g × 7 lunches")
-        #expect(lines["Feta Cheese"]?.totalGrams == 420, "60 g × 7 lunches")
+        #expect(lines["Tomato"]?.totalGrams == 300, "150 g × 2 lunches (a dish is planned at most twice a week)")
+        #expect(lines["Feta Cheese"]?.totalGrams == 120, "60 g × 2 lunches")
+        #expect(plan.aiSummary.contains("5 meals are left open"), "the notes say why the other lunches are empty")
+    }
+
+    @Test func groceryAmountsScaleToThePeopleInPreferences() async throws {
+        var family = Fixtures.preferences()
+        family.people = 3
+        let plan = try await LocalHeuristicAIPlanner().generateWeeklySuggestions(
+            preferences: family, routine: lunchOnly, recipes: [greekSalad], weeklyOffers: []
+        )
+
+        let tomato = try #require(plan.groceryLines.first { $0.ingredientName == "Tomato" })
+        #expect(tomato.totalGrams == 900, "150 g × 2 lunches × 3 people")
+        #expect(abs(tomato.estimatedLinePrice - 0.4 * 9) < 0.0001, "the cost scales with it")
+    }
+
+    @Test func recipeAmountsAreForItsServingsAndScaleToPeople() {
+        let stew = Recipe(id: UUID(), name: "Stew", cuisine: "Dutch",
+                          ingredients: [RecipeIngredient(ingredient: lentils, quantity: 400)], servings: 4)
+        let row = stew.ingredients[0]
+
+        #expect(stew.quantity(of: row, forPeople: 1) == 100)
+        #expect(stew.quantity(of: row, forPeople: 6) == 600)
+        #expect(abs(stew.estimatedCalories - 350) < 0.0001, "calories are per serving: 100 g × 3.5 kcal/g")
     }
 
     @Test func unmatchedIngredientsArePricedFromTheCatalog() async throws {
@@ -145,7 +199,7 @@ struct PlanGenerationTests {
 
         let tomatoLine = try #require(plan.groceryLines.first { $0.ingredientName == "Tomato" })
         #expect(tomatoLine.matchedOffer == nil)
-        #expect(abs(tomatoLine.estimatedLinePrice - 0.4 * (1050 / 100)) < 0.0001)
+        #expect(abs(tomatoLine.estimatedLinePrice - 0.4 * (300 / 100)) < 0.0001)
         #expect(abs(plan.estimatedGroceryTotal - plan.groceryLines.map(\.estimatedLinePrice).reduce(0, +)) < 0.0001)
     }
 
@@ -170,7 +224,7 @@ struct PlanGenerationTests {
         )
 
         let tomatoLine = try #require(plan.groceryLines.first { $0.ingredientName == "Tomato" })
-        #expect(abs(tomatoLine.estimatedLinePrice - 0.41 * (1050 / 100)) < 0.0001)
+        #expect(abs(tomatoLine.estimatedLinePrice - 0.41 * (300 / 100)) < 0.0001)
         #expect(tomatoLine.rationale.hasPrefix("Live price"))
         #expect(tomatoLine.rationale.contains("Dirk"))
         let fetaLine = try #require(plan.groceryLines.first { $0.ingredientName == "Feta Cheese" })

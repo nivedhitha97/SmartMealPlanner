@@ -23,6 +23,13 @@ struct OffersList {
         Array(Set(offers.filter { selectedStore == nil || $0.storeName == selectedStore }.map(\.category))).sorted()
     }
 
+    /// Offers from the given chains only (case-insensitive); all offers when `chains` is nil.
+    static func nearby(_ offers: [SupermarketOffer], chains: Set<String>?) -> [SupermarketOffer] {
+        guard let chains else { return offers }
+        let lowered = Set(chains.map { $0.lowercased() })
+        return offers.filter { lowered.contains($0.storeName.lowercased()) }
+    }
+
     /// Stores for the store filter, alphabetical.
     var stores: [String] {
         Array(Set(offers.map(\.storeName))).sorted()
@@ -122,11 +129,5 @@ extension SupermarketOffer {
     var discountPercent: Int? {
         guard let regularPrice, regularPrice > 0, regularPrice > offerPrice else { return nil }
         return Int(((regularPrice - offerPrice) / regularPrice * 100).rounded())
-    }
-
-    /// Up to two initials for the store avatar: "Albert Heijn" → "AH", "Jumbo" → "J".
-    var storeInitials: String {
-        let words = storeName.split(separator: " ")
-        return String(words.prefix(2).compactMap(\.first)).uppercased()
     }
 }

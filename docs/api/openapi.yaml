@@ -1,0 +1,157 @@
+openapi: 3.1.0
+info:
+  title: SmartMealPlanner grocery feed
+  version: "1.0"
+  summary: Weekly Dutch supermarket offers and ingredient prices for the SmartMealPlanner app.
+  description: |
+    Read-only JSON files exported from the grocery database (`scripts/grocery_db`) and published to the
+    `grocery-feed` branch by the **Grocery database** GitHub Actions workflow. Each supermarket is fetched once a
+    week, on the day its offer week starts; the files only change after such a fetch (or after manual edits in the
+    Supabase mirror).
+
+    **Clients should download only when the feed can have changed:** read `meta.json`, and download offers and
+    prices again only after `nextUpdateAt` *and* when `generatedAt` differs from the copy already held.
+
+    No authentication: the data is public. Writes are not possible (the host refuses them).
+  license:
+    name: Data from store websites and Checkjebon (MIT); for personal use
+    url: https://github.com/supermarkt/checkjebon/blob/main/LICENSE
+servers:
+  - url: https://raw.githubusercontent.com/nivedhitha97/SmartMealPlanner/grocery-feed
+    description: Published feed (GitHub, HTTPS only)
+# Public, read-only data: no authentication.
+security: []
+tags:
+  - name: Feed
+    description: The three files the app downloads
+paths:
+  /meta.json:
+    get:
+      tags: [Feed]
+      operationId: getMeta
+      summary: When the feed was built, when it next changes, and each store's schedule
+      responses:
+        "200":
+          description: Feed metadata
+          headers:
+            Cache-Control: { description: "max-age=300 (5 minutes)", schema: { type: string } }
+          content:
+            text/plain:
+              schema: { $ref: "#/components/schemas/Meta" }
+        "404":
+          description: Not published yet (the feed is built by the first workflow run)
+  /offers.json:
+    get:
+      tags: [Feed]
+      operationId: getOffers
+      summary: This week's offers from the supermarkets, valid now or starting within a day
+      responses:
+        "200":
+          description: Offers, recipe ingredients first, then by end date and biggest saving
+          content:
+            text/plain:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Offer" }
+        "404":
+          description: Not published yet (the feed is built by the first workflow run)
+  /prices.json:
+    get:
+      tags: [Feed]
+      operationId: getIngredientPrices
+      summary: Typical current price per 100 g of every recipe ingredient
+      responses:
+        "200":
+          description: One entry per ingredient with shelf prices from stores whose prices are current
+          content:
+            text/plain:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/IngredientPrice" }
+        "404":
+          description: Not published yet (the feed is built by the first workflow run)
+components:
+  schemas:
+    Timestamp:
+      type: string
+      format: date-time
+      description: UTC, e.g. 2026-10-15T13:28:12Z
+      pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    Meta:
+      type: object
+      required: [generatedAt, source, offerCount, priceCount, productCount, requests, stores]
+      properties:
+        generatedAt: { $ref: "#/components/schemas/Timestamp" }
+        nextUpdateAt:
+          description: Earliest next store fetch; nothing new is published before this.
+          oneOf: [{ $ref: "#/components/schemas/Timestamp" }, { type: "null" }]
+        source: { type: string }
+        offerCount: { type: integer, minimum: 0 }
+        priceCount: { type: integer, minimum: 0 }
+        productCount: { type: integer, minimum: 0, description: Catalog products in the database }
+        requests:
+          type: object
+          description: Requests the update job made to supermarkets and Checkjebon
+          required: [thisRun, last7Days, last28Days]
+          properties:
+            thisRun: { type: integer, minimum: 0 }
+            last7Days: { type: integer, minimum: 0 }
+            last28Days: { type: integer, minimum: 0 }
+        stores:
+          type: array
+          items: { $ref: "#/components/schemas/StoreSchedule" }
+    StoreSchedule:
+      type: object
+      required: [id, name, updateDay, fetchesOffers]
+      properties:
+        id: { type: string, examples: [jumbo] }
+        name: { type: string, examples: [Jumbo] }
+        updateDay:
+          type: string
+          enum: [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
+          description: The day the store starts its offer week and is fetched
+        updateDaySource: { type: string, enum: [configured, learned, manual] }
+        note: { type: [string, "null"] }
+        fetchesOffers: { type: boolean, description: Offers come from the store itself (else shelf prices only) }
+        lastUpdatedAt: { oneOf: [{ $ref: "#/components/schemas/Timestamp" }, { type: "null" }] }
+        nextUpdateAt: { oneOf: [{ $ref: "#/components/schemas/Timestamp" }, { type: "null" }] }
+        pricesChangedAt:
+          description: Last time any of the store's shelf prices changed; null when not in the last month
+          oneOf: [{ $ref: "#/components/schemas/Timestamp" }, { type: "null" }]
+        pricesAreCurrent: { type: [boolean, "null"] }
+        lastError: { type: [string, "null"] }
+    Offer:
+      type: object
+      required: [id, storeName, productName, category, offerPrice, unitLabel, validUntil, regionId]
+      properties:
+        id: { type: string, format: uuid, description: "Stable per store, offer and start date" }
+        storeName: { type: string, examples: [Jumbo] }
+        productName: { type: string }
+        category:
+          type: string
+          enum: [Meat, Fish, Dairy, Produce, Bakery, Pantry, Drinks, Snacks, Groceries]
+        offerPrice: { type: number, exclusiveMinimum: 0, description: Price per item in euros (multi-buy deals divided per item) }
+        regularPrice: { type: [number, "null"], description: "Usual price per item, when known" }
+        unitLabel: { type: string, examples: ["500 g", item] }
+        validUntil: { $ref: "#/components/schemas/Timestamp" }
+        observedAt:
+          description: Set for price drops (no known end date) instead of store offers
+          oneOf: [{ $ref: "#/components/schemas/Timestamp" }, { type: "null" }]
+        regionId: { type: string, const: NL, description: National offers }
+        notes: { type: [string, "null"] }
+        dealText: { type: [string, "null"], examples: ["1+1 gratis", "2 voor €5,00"] }
+        ingredientName: { type: [string, "null"], description: "The recipe ingredient this product is, when recognised" }
+        imageURL: { type: [string, "null"], format: uri, description: Product photo (~300 px) hosted by the store }
+    IngredientPrice:
+      type: object
+      required: [ingredientName, pricePer100g, cheapestStore, cheapestProduct, cheapestPrice, cheapestPricePer100g, storeCount, productCount]
+      properties:
+        ingredientName: { type: string, examples: [Chicken Breast] }
+        pricePer100g: { type: number, exclusiveMinimum: 0, description: Median of each store's cheapest matching product }
+        cheapestStore: { type: string }
+        cheapestProduct: { type: string }
+        cheapestPrice: { type: number, exclusiveMinimum: 0 }
+        cheapestSize: { type: string }
+        cheapestPricePer100g: { type: number, exclusiveMinimum: 0 }
+        storeCount: { type: integer, minimum: 1 }
+        productCount: { type: integer, minimum: 1 }

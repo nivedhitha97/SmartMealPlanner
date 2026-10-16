@@ -69,4 +69,31 @@ final class PreferencesStorageTests {
 
         #expect(routine.summary == "Fixed · Outside · Home Cooked")
     }
+
+    // MARK: - People
+
+    @Test func peopleCountIsSavedAndLoaded() {
+        let storage = IsolatedDefaults()
+        var preferences = Fixtures.preferences()
+        preferences.people = 4
+        preferences.save(to: storage.defaults)
+
+        #expect(UserPreferences.load(from: storage.defaults)?.people == 4)
+        #expect(UserPreferences.savedPeople(in: storage.defaults) == 4)
+    }
+
+    @Test func preferencesSavedBeforePeopleExistedMeanOnePerson() throws {
+        let storage = IsolatedDefaults()
+        let old = #"{"dietType":"Vegan","cuisines":[],"dislikes":[],"allergies":[],"budgetWeekly":60}"#
+        storage.defaults.set(Data(old.utf8), forKey: UserPreferences.defaultsKey)
+
+        #expect(try #require(UserPreferences.load(from: storage.defaults)).people == 1)
+        #expect(UserPreferences.savedPeople(in: IsolatedDefaults().defaults) == 1, "nothing saved: one person")
+    }
+
+    @Test(arguments: [(0, 1), (3, 3), (25, 10)])
+    func peopleCountStaysInRange(input: Int, expected: Int) {
+        #expect(UserPreferences(dietType: "Vegan", cuisines: [], dislikes: [], allergies: [], budgetWeekly: 50,
+                                people: input).people == expected)
+    }
 }
