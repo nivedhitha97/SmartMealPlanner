@@ -48,7 +48,7 @@ final class WeeklyPlanUITests: XCTestCase {
 
         // Meal routine: cook lunch and dinner at home.
         let routineLink = app.buttons["preferences.routineLink"]
-        app.scrollTo(routineLink)
+        app.reveal(routineLink)
         routineLink.tap()
         XCTAssertTrue(app.staticTexts["Meal routine"].waitForExistence(timeout: 5))
 
@@ -85,7 +85,7 @@ final class WeeklyPlanUITests: XCTestCase {
         app.scrollTo(save)
         save.tap()
         let routineLink = app.buttons["preferences.routineLink"]
-        app.scrollTo(routineLink)
+        app.reveal(routineLink)
         routineLink.tap()
         app.buttons["Save routine"].tap()
 

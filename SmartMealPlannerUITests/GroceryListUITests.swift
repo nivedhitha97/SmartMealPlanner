@@ -103,7 +103,7 @@ final class GroceryListUITests: XCTestCase {
         app.scrollTo(save)
         save.tap()
         let routineLink = app.buttons["preferences.routineLink"]
-        app.scrollTo(routineLink)
+        app.reveal(routineLink)
         routineLink.tap()
         app.buttons["Save routine"].tap()
 

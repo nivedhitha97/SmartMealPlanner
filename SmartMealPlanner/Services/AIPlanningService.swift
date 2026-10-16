@@ -101,6 +101,7 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
         let summary = makeSummary(
             preferences: preferences,
             weeklyMealPlan: weeklyMealPlan,
+            unplannedMeals: MealPlanner.unplannedMeals(in: weeklyMealPlan, routine: routine, preferences: preferences),
             offerCount: scopedOffers.count,
             livePriceCount: lines.filter { line in
                 line.matchedOffer == nil
@@ -182,6 +183,7 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
     private func makeSummary(
         preferences: UserPreferences,
         weeklyMealPlan: WeeklyMealPlan,
+        unplannedMeals: Int,
         offerCount: Int,
         livePriceCount: Int,
         estimatedTotal: Double
@@ -203,12 +205,16 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
         case .includeRecipes:
             breakfastNote = ""
         }
+        // No dish is planned twice a day or more than MealPlanner.maxTimesPerWeek times a week.
+        let varietyNote = unplannedMeals > 0
+            ? " \(unplannedMeals) meals are left open so no dish repeats more than \(MealPlanner.maxTimesPerWeek)× a week; add cuisines for more choice."
+            : ""
         let priceNote = livePriceCount > 0
             ? " (\(livePriceCount) ingredients priced from today's supermarket prices)"
             : ""
         return """
         Analyzed \(offerCount) regional offers for \(region). Full-week plan: \(homeMeals) home-cooked meals across 7 days \
-        (\(uniqueNames.count) different recipes). Highlights: \(mealText).\(breakfastNote) \
+        (\(uniqueNames.count) different recipes). Highlights: \(mealText).\(breakfastNote)\(varietyNote) \
         Estimated grocery spend for aggregated ingredients is €\(total) vs. weekly target €\(budget)\(priceNote). \
         Open each day below for full recipes, photos, and video or cookbook links.
         """

@@ -61,6 +61,18 @@ extension XCUIApplication {
         XCTAssertTrue(element.isHittable, "Could not scroll to \(element)", file: file, line: line)
     }
 
+    /// Scrolls whichever way is needed: down first, then back up if the element wasn't below.
+    func reveal(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        var swipes = 0
+        while !(element.exists && element.isHittable) && swipes < 6 {
+            swipeUp()
+            swipes += 1
+        }
+        if !(element.exists && element.isHittable) {
+            scrollUpTo(element, maxSwipes: 12, file: file, line: line)
+        }
+    }
+
     /// Swipes down (towards the top of the screen) until `element` can be tapped.
     func scrollUpTo(_ element: XCUIElement, maxSwipes: Int = 8, file: StaticString = #filePath, line: UInt = #line) {
         var swipes = 0

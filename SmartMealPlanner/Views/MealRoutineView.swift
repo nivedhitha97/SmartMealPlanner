@@ -107,7 +107,7 @@ private struct OptionTile: View {
 
     private var detail: String {
         switch type {
-        case .fixed: return "Same meal daily"
+        case .fixed: return "Your usual meals"
         case .flexible: return "Mix it up"
         case .homeCooked: return "Recipe from plan"
         case .outside: return "Eat out / canteen"
