@@ -57,9 +57,10 @@ final class OffersAndPreferencesUITests: XCTestCase {
         field.tap()
         field.typeText("1062JB\n")  // return closes the keyboard
 
-        // Save straight away, before the postcode lookup has had time to finish.
+        // Save straight away, before the postcode lookup has had time to finish. The nearby-stores list can
+        // appear mid-scroll and push the button down, so allow a few extra swipes.
         let save = app.buttons["preferences.save"]
-        app.scrollTo(save)
+        app.scrollTo(save, maxSwipes: 14)
         save.tap()
         XCTAssertTrue(app.button(containing: "Saved").waitForExistence(timeout: 3), "First tap saves")
 

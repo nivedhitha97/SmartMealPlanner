@@ -59,6 +59,9 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
             }
         }
 
+        // Only offers from supermarkets within 2 km of the postcode, when those are known.
+        let localOffers = OffersList.nearby(scopedOffers, chains: preferences.nearbyChains)
+
         let weeklyMealPlan = mealPlanner.generateWeeklyMealPlan(
             recipes: recipes,
             preferences: preferences,
@@ -75,7 +78,7 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
 
         let lines: [GroceryLineItem] = gramsByIngredient.keys.sorted().map { name in
             let grams = gramsByIngredient[name] ?? 0
-            let offer = bestOffer(forIngredientName: name, in: scopedOffers)
+            let offer = bestOffer(forIngredientName: name, in: localOffers)
             let livePrice = ingredientPrices.first { $0.ingredientName.caseInsensitiveCompare(name) == .orderedSame }
             let price = linePrice(ingredientName: name, grams: grams, offer: offer, livePrice: livePrice, recipes: recipes)
             let rationale: String
@@ -102,14 +105,14 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
             preferences: preferences,
             weeklyMealPlan: weeklyMealPlan,
             unplannedMeals: MealPlanner.unplannedMeals(in: weeklyMealPlan, routine: routine, preferences: preferences),
-            offerCount: scopedOffers.count,
+            offerCount: localOffers.count,
             livePriceCount: lines.filter { line in
                 line.matchedOffer == nil
                     && ingredientPrices.contains { $0.ingredientName.caseInsensitiveCompare(line.ingredientName) == .orderedSame }
             }.count,
             estimatedTotal: total
         )
-        let highlights = scopedOffers
+        let highlights = localOffers
             .sorted { ($0.savings ?? 0) > ($1.savings ?? 0) }
             .prefix(6)
             .map { offer in

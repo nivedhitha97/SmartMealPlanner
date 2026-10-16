@@ -23,6 +23,13 @@ struct OffersList {
         Array(Set(offers.filter { selectedStore == nil || $0.storeName == selectedStore }.map(\.category))).sorted()
     }
 
+    /// Offers from the given chains only (case-insensitive); all offers when `chains` is nil.
+    static func nearby(_ offers: [SupermarketOffer], chains: Set<String>?) -> [SupermarketOffer] {
+        guard let chains else { return offers }
+        let lowered = Set(chains.map { $0.lowercased() })
+        return offers.filter { lowered.contains($0.storeName.lowercased()) }
+    }
+
     /// Stores for the store filter, alphabetical.
     var stores: [String] {
         Array(Set(offers.map(\.storeName))).sorted()

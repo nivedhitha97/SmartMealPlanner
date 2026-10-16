@@ -232,6 +232,7 @@ struct PreferencesView: View {
                 Badge(text: location.regionId, foreground: .brandPrimaryDeep, background: .brandPrimarySoft)
             }
             .accessibilityElement(children: .combine)
+            nearbyStoresList(location)
         } else if !form.legacyRegion.isEmpty {
             Text("Current region: \(form.legacyRegion). Add your postcode to update it.")
                 .font(.footnote)
@@ -240,6 +241,40 @@ struct PreferencesView: View {
             Text("We use your postcode to find supermarket offers near you.")
                 .font(.footnote)
                 .foregroundStyle(Color.textTertiary)
+        }
+    }
+
+    /// The supermarkets within 2 km that offers will come from.
+    @ViewBuilder
+    private func nearbyStoresList(_ location: PostcodeLocation) -> some View {
+        let nearest = NearbyStores.nearestPerChain(location.nearbyStores)
+        if location.latitude != nil {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(nearest.isEmpty
+                     ? "No supermarkets found within \(NearbyStores.distanceText(NearbyStores.radiusMeters)); offers come from all stores."
+                     : "Supermarkets within \(NearbyStores.distanceText(NearbyStores.radiusMeters))")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.textSecondary)
+                FlowLayout {
+                    ForEach(nearest) { store in
+                        HStack(spacing: 6) {
+                            StoreBadge(store: store.chain, size: 18)
+                            Text(store.chain)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(Color.textPrimary)
+                            Text(store.distanceText)
+                                .font(.caption)
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 8)
+                        .background(Color.bgCanvas, in: Capsule())
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+            .padding(.top, 4)
+            .accessibilityIdentifier("preferences.nearbyStores")
         }
     }
 

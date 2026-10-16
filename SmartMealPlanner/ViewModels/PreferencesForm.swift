@@ -65,7 +65,8 @@ struct PreferencesForm: Equatable {
             shoppingRegion: location?.shoppingRegion ?? (hasPostcode ? "" : legacyRegion),
             postcode: location?.postcode ?? "",
             breakfastRecipePreference: breakfastRecipePreference,
-            people: people
+            people: people,
+            nearbyStores: location?.nearbyStores ?? []
         )
     }
 

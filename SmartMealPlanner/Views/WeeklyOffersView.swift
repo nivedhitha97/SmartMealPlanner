@@ -16,9 +16,13 @@ struct WeeklyOffersView: View {
     @State private var selectedCategory: String?
     @State private var selectedStore: String?
     @State private var region = ""
+    /// Chains within 2 km of the saved postcode; nil when unknown.
+    @State private var nearbyChains: Set<String>?
+    @State private var nearMeOnly = true
 
     private var list: OffersList {
-        OffersList(offers: offers, selectedCategory: selectedCategory, selectedStore: selectedStore)
+        OffersList(offers: nearMeOnly ? OffersList.nearby(offers, chains: nearbyChains) : offers,
+                   selectedCategory: selectedCategory, selectedStore: selectedStore)
     }
 
     var body: some View {
@@ -76,10 +80,12 @@ struct WeeklyOffersView: View {
                 Image(systemName: "mappin.and.ellipse")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Color.brandPrimary)
-                Text(region.isEmpty ? "All regions" : region)
+                Text(nearMeOnly && nearbyChains != nil
+                     ? "Within \(NearbyStores.distanceText(NearbyStores.radiusMeters))"
+                     : region.isEmpty ? "All regions" : region)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.brandPrimary)
-                Text("· \(offers.count) offers this week")
+                Text("· \(list.offers.count) offers this week")
                     .font(.subheadline)
                     .foregroundStyle(Color.textSecondary)
             }
@@ -123,6 +129,13 @@ struct WeeklyOffersView: View {
     private var storeFilters: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
+                if nearbyChains != nil {
+                    Chip(title: "Near me", isSelected: nearMeOnly) {
+                        nearMeOnly.toggle()
+                        if let store = selectedStore, !list.stores.contains(store) { selectedStore = nil }
+                    }
+                    .accessibilityIdentifier("offers.nearMe")
+                }
                 Chip(title: "All stores", isSelected: selectedStore == nil) {
                     selectedStore = nil
                 }
@@ -217,7 +230,9 @@ struct WeeklyOffersView: View {
     }
 
     private func loadOffers(forceRefresh: Bool = false) async {
-        region = UserPreferences.loadFromUserDefaults()?.shoppingRegion ?? ""
+        let preferences = UserPreferences.loadFromUserDefaults()
+        region = preferences?.shoppingRegion ?? ""
+        nearbyChains = preferences?.nearbyChains
         let latest = await service.latest(forceRefresh: forceRefresh)
         offers = latest.offers
         grocery = latest

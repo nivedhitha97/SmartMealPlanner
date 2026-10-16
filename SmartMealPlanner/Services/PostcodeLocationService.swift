@@ -16,6 +16,11 @@ struct PostcodeLocation: Equatable {
     let city: String?
     /// Offer region derived from the postcode, e.g. "NL-North".
     let regionId: String
+    /// Where the postcode is (street level for a full postcode); nil when offline.
+    var latitude: Double? = nil
+    var longitude: Double? = nil
+    /// Supermarkets within `NearbyStores.radiusMeters`, nearest first; empty when unknown.
+    var nearbyStores: [NearbyStore] = []
 
     /// Stored as `UserPreferences.shoppingRegion`. The planner matches an offer when this string
     /// contains the offer's `regionId`, so including both city and region matches city-specific
@@ -63,17 +68,19 @@ enum PostcodeLocationService {
         }
     }
 
-    /// Resolves a postcode to a location. The region always comes from the postcode; the city is
-    /// looked up online and left nil if the lookup fails, so this only throws for a malformed postcode.
+    /// Resolves a postcode to a location: its region (from the postcode itself), and online its city, exact
+    /// position and the supermarkets within 2 km. Online parts are left empty if the lookup fails, so this only
+    /// throws for a malformed postcode.
     static func resolve(_ raw: String) async throws -> PostcodeLocation {
         guard let postcode = normalize(raw) else { throw PostcodeLookupError.invalidFormat }
-        let city = await lookUpCity(postcode: postcode)
-        return PostcodeLocation(postcode: postcode, city: city, regionId: regionId(forPostcode: postcode))
-    }
-
-    private static func lookUpCity(postcode: String) async -> String? {
-        guard let request = MKGeocodingRequest(addressString: "\(postcode), Netherlands") else { return nil }
-        guard let items = try? await request.mapItems else { return nil }
-        return items.lazy.compactMap { $0.addressRepresentations?.cityName }.first
+        let region = regionId(forPostcode: postcode)
+        guard let request = MKGeocodingRequest(addressString: "\(postcode), Netherlands"),
+              let item = try? await request.mapItems.first else {
+            return PostcodeLocation(postcode: postcode, city: nil, regionId: region)
+        }
+        let coordinate = item.location.coordinate
+        return PostcodeLocation(postcode: postcode, city: item.addressRepresentations?.cityName, regionId: region,
+                                latitude: coordinate.latitude, longitude: coordinate.longitude,
+                                nearbyStores: await NearbyStores.search(around: coordinate))
     }
 }
