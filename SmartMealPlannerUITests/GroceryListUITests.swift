@@ -116,4 +116,26 @@ final class GroceryListUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Grocery list"].waitForExistence(timeout: 5), "The card opens the List tab")
         XCTAssertTrue(app.element(containing: "From your plan").waitForExistence(timeout: 5))
     }
+
+    func testTickedOffItemsShowAsSpendingInTheProfile() {
+        let app = XCUIApplication.launchForTesting()
+        app.openTab("List")
+        app.buttons["list.addItem"].tap()
+        let name = app.textFields["editor.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.typeText("Weekly shop")
+        let price = app.textFields["editor.price"]
+        price.tap()
+        price.typeText("12")
+        app.buttons["editor.save"].tap()
+        XCTAssertTrue(app.buttons["list.check.Weekly shop"].waitForExistence(timeout: 5))
+        app.buttons["list.check.Weekly shop"].tap()
+
+        app.openTab("Settings")
+        let spent = app.element(withID: "profile.spent")
+        XCTAssertTrue(spent.waitForExistence(timeout: 5))
+        XCTAssertTrue(spent.label.contains("12"), "Spent this week shows the ticked-off item, not \(spent.label)")
+        let saved = app.element(withID: "profile.saved")
+        XCTAssertTrue(saved.label.contains("Saved") && saved.label.contains("38"), "€50 budget − €12: \(saved.label)")
+    }
 }

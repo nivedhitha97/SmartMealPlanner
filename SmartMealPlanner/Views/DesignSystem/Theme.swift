@@ -288,6 +288,7 @@ struct Badge: View {
             if let systemImage {
                 Image(systemName: systemImage)
                     .font(.system(size: 10, weight: .bold))
+                    .accessibilityHidden(true)  // decorative; the text says it all
             }
             Text(text)
                 .font(.caption.weight(.semibold))
@@ -296,6 +297,7 @@ struct Badge: View {
         .padding(.horizontal, 8)
         .foregroundStyle(foreground)
         .background(background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
 

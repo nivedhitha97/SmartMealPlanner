@@ -8,6 +8,13 @@ import SwiftUI
 struct SettingsView: View {
 
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
+    @EnvironmentObject private var shopping: ShoppingListStore
+
+    private static let weekFormatter: DateIntervalFormatter = {
+        let formatter = DateIntervalFormatter()
+        formatter.dateTemplate = "dMMM"
+        return formatter
+    }()
 
     var body: some View {
         NavigationStack {
@@ -16,6 +23,7 @@ struct SettingsView: View {
                     ScreenHeader(title: "Settings")
                         .padding(.bottom, 8)
 
+                    profileCard
                     appearanceCard
                     aboutCard
                 }
@@ -28,6 +36,94 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .toolbar(.hidden, for: .navigationBar)
         }
+    }
+
+    // MARK: - Profile
+
+    /// This week's spending (items ticked off in the grocery list) against the weekly budget, and recent weeks.
+    private var profileCard: some View {
+        let budget = UserPreferences.loadFromUserDefaults()?.budgetWeekly ?? 50
+        let weeks = shopping.list.weeklySpending(budget: budget)
+        return VStack(alignment: .leading, spacing: 16) {
+            CardHeader(icon: "person.crop.circle.fill", tint: .brandPrimary, tintBackground: .brandPrimarySoft,
+                       title: "Profile", subtitle: "Spending from items ticked off in your grocery list")
+            if let thisWeek = weeks.first {
+                thisWeekSummary(thisWeek)
+            }
+            if weeks.count > 1 {
+                VStack(spacing: 0) {
+                    ForEach(Array(weeks.dropFirst())) { week in
+                        RowDivider()
+                        pastWeekRow(week)
+                    }
+                }
+            }
+        }
+        .card()
+    }
+
+    private func thisWeekSummary(_ week: WeekSpending) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Spent this week")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Color.textSecondary)
+                    Text(week.spent.euros)
+                        .font(.system(size: 30, weight: .bold))
+                        .foregroundStyle(Color.textPrimary)
+                        .accessibilityIdentifier("profile.spent")
+                }
+                Spacer()
+                Text("of \(week.budget.eurosRounded)")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.textSecondary)
+            }
+            ProgressView(value: week.progress)
+                .tint(week.isOverBudget ? Color.accentCoral : Color.brandPrimary)
+            if week.purchaseCount > 0 {
+                HStack(spacing: 8) {
+                Badge(text: week.isOverBudget
+                        ? "\((-week.savedAgainstBudget).euros) over budget"
+                        : "Saved \(week.savedAgainstBudget.euros) against your budget",
+                      systemImage: week.isOverBudget ? "exclamationmark.triangle.fill" : "checkmark.seal.fill",
+                      foreground: week.isOverBudget ? .accentCoral : .brandPrimaryDeep,
+                      background: week.isOverBudget ? .accentCoralSoft : .brandPrimarySoft)
+                    .accessibilityIdentifier("profile.saved")
+                if week.offerSavings > 0 {
+                    Badge(text: "\(week.offerSavings.euros) from offers", systemImage: "tag.fill",
+                          foreground: .accentAmber, background: .accentAmberSoft)
+                }
+                }
+            } else {
+                Text("Tick items off in your grocery list as you buy them to track your spending.")
+                    .font(.footnote)
+                    .foregroundStyle(Color.textTertiary)
+            }
+        }
+    }
+
+    private func pastWeekRow(_ week: WeekSpending) -> some View {
+        let end = Calendar.current.date(byAdding: .day, value: 6, to: week.weekStart) ?? week.weekStart
+        return HStack {
+            Text(Self.weekFormatter.string(from: week.weekStart, to: end))
+                .font(.subheadline)
+                .foregroundStyle(Color.textPrimary)
+            Spacer()
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(week.spent.euros)
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.textPrimary)
+                Text(week.purchaseCount == 0 ? "Nothing ticked off"
+                     : week.isOverBudget ? "\((-week.savedAgainstBudget).euros) over"
+                     : "Saved \(week.savedAgainstBudget.euros)")
+                    .font(.caption)
+                    .foregroundStyle(week.isOverBudget ? Color.accentCoral : Color.textSecondary)
+            }
+        }
+        .padding(.vertical, 10)
+        .accessibilityElement(children: .combine)
     }
 
     private var appearanceCard: some View {
@@ -92,4 +188,5 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView()
+        .environmentObject(ShoppingListStore())
 }
