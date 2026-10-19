@@ -13,6 +13,9 @@ struct PreferencesView: View {
     @State private var postcodeError: String?
     @State private var routineSummary: String?
     @State private var didSave = false
+    /// Saved preferences are loaded once; later appearances (e.g. back from Meal routine) keep unsaved edits.
+    @State private var hasLoaded = false
+    @State private var savedWhileLookingUp = false
 
     var body: some View {
         NavigationStack {
@@ -22,8 +25,10 @@ struct PreferencesView: View {
                         .padding(.bottom, 8)
 
                     dietCard
+                    peopleCard
                     breakfastCard
                     cuisinesCard
+                    discoveryCard
                     exclusionsCard
                     budgetCard
                     routineLink
@@ -33,7 +38,8 @@ struct PreferencesView: View {
                             .contentTransition(.symbolEffect(.replace))
                     }
                     .buttonStyle(.primary)
-                    .disabled(isLookingUpPostcode || postcodeError != nil)
+                    .disabled(postcodeError != nil)
+                    .accessibilityIdentifier("preferences.save")
                     .sensoryFeedback(.success, trigger: didSave) { _, new in new }
                     .padding(.top, 4)
                 }
@@ -47,7 +53,10 @@ struct PreferencesView: View {
             .navigationTitle("Preferences")
             .toolbar(.hidden, for: .navigationBar)
             .onAppear {
-                loadPreferences()
+                if !hasLoaded {
+                    loadPreferences()
+                    hasLoaded = true
+                }
                 loadRoutineSummary()
             }
         }
@@ -108,6 +117,27 @@ struct PreferencesView: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
+    private var peopleCard: some View {
+        HStack(spacing: 12) {
+            CardHeader(icon: "person.2.fill", tint: .accentCoral, tintBackground: .accentCoralSoft,
+                       title: "People", subtitle: "Scales recipes and groceries")
+            Stepper(value: $form.people, in: UserPreferences.peopleRange) {
+                Text("\(form.people)")
+                    .font(.title2.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.textPrimary)
+                    .contentTransition(.numericText(value: Double(form.people)))
+                    .animation(.snappy, value: form.people)
+                    .frame(minWidth: 28, alignment: .trailing)
+            }
+            .fixedSize()
+            .accessibilityLabel("People")
+            .accessibilityValue("\(form.people)")
+            .accessibilityIdentifier("preferences.people")
+        }
+        .card()
+    }
+
     private var cuisinesCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             CardHeader(icon: "globe.europe.africa.fill", tint: .accentCoral, tintBackground: .accentCoralSoft, title: "Cuisines", subtitle: "Pick as many as you like")
@@ -117,6 +147,25 @@ struct PreferencesView: View {
                         form.toggleCuisine(cuisine)
                     }
                 }
+            }
+        }
+        .card()
+    }
+
+    /// Recipes written by Apple's on-device AI for these preferences.
+    private var discoveryCard: some View {
+        let availability = RecipeDiscovery.shared.availability
+        return VStack(alignment: .leading, spacing: 10) {
+            Toggle(isOn: $form.discoverRecipes) {
+                CardHeader(icon: "sparkles", tint: .accentAmber, tintBackground: .accentAmberSoft,
+                           title: "Discover new recipes", subtitle: "On-device AI finds recipes for your preferences")
+            }
+            .tint(.brandPrimary)
+            .accessibilityIdentifier("preferences.discoverRecipes")
+            if form.discoverRecipes, case .unavailable(let reason) = availability {
+                Label(reason, systemImage: "info.circle")
+                    .font(.footnote)
+                    .foregroundStyle(Color.textSecondary)
             }
         }
         .card()
@@ -203,6 +252,7 @@ struct PreferencesView: View {
                 Badge(text: location.regionId, foreground: .brandPrimaryDeep, background: .brandPrimarySoft)
             }
             .accessibilityElement(children: .combine)
+            nearbyStoresList(location)
         } else if !form.legacyRegion.isEmpty {
             Text("Current region: \(form.legacyRegion). Add your postcode to update it.")
                 .font(.footnote)
@@ -211,6 +261,40 @@ struct PreferencesView: View {
             Text("We use your postcode to find supermarket offers near you.")
                 .font(.footnote)
                 .foregroundStyle(Color.textTertiary)
+        }
+    }
+
+    /// The supermarkets within 2 km that offers will come from.
+    @ViewBuilder
+    private func nearbyStoresList(_ location: PostcodeLocation) -> some View {
+        let nearest = NearbyStores.nearestPerChain(location.nearbyStores)
+        if location.latitude != nil {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(nearest.isEmpty
+                     ? "No supermarkets found within \(NearbyStores.distanceText(NearbyStores.radiusMeters)); offers come from all stores."
+                     : "Supermarkets within \(NearbyStores.distanceText(NearbyStores.radiusMeters))")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.textSecondary)
+                FlowLayout {
+                    ForEach(nearest) { store in
+                        HStack(spacing: 6) {
+                            StoreBadge(store: store.chain, size: 18)
+                            Text(store.chain)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(Color.textPrimary)
+                            Text(store.distanceText)
+                                .font(.caption)
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 8)
+                        .background(Color.bgCanvas, in: Capsule())
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+            .padding(.top, 4)
+            .accessibilityIdentifier("preferences.nearbyStores")
         }
     }
 
@@ -243,6 +327,9 @@ struct PreferencesView: View {
     // MARK: - Persistence
 
     private func savePreferences() {
+        // A postcode whose lookup is still running is saved with its region now; the city follows when the
+        // lookup finishes (see resolvePostcode).
+        savedWhileLookingUp = isLookingUpPostcode
         if form.makePreferences(location: location).save() {
             didSave = true
             Task {
@@ -277,6 +364,10 @@ struct PreferencesView: View {
             let resolved = try await PostcodeLocationService.resolve(trimmed)
             guard !Task.isCancelled else { return }
             location = resolved
+            if savedWhileLookingUp {  // fill in the city on what was already saved
+                form.makePreferences(location: resolved).save()
+                savedWhileLookingUp = false
+            }
         } catch {
             postcodeError = error.localizedDescription
         }

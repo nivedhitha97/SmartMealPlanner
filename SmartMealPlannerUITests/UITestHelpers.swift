@@ -51,14 +51,45 @@ extension XCUIApplication {
         descendants(matching: .any)[identifier].firstMatch
     }
 
+    /// Whether `element` is on screen and not hidden behind the floating tab bar (XCTest still calls an element
+    /// under the tab bar hittable, but a tap there lands on the tab bar).
+    func canTap(_ element: XCUIElement) -> Bool {
+        guard element.exists, element.isHittable else { return false }
+        let tabBar = tabBars.firstMatch
+        guard tabBar.exists else { return true }
+        return element.frame.maxY <= tabBar.frame.minY
+    }
+
     /// Swipes up until `element` can be tapped.
     func scrollTo(_ element: XCUIElement, maxSwipes: Int = 8, file: StaticString = #filePath, line: UInt = #line) {
         var swipes = 0
-        while !(element.exists && element.isHittable) && swipes < maxSwipes {
+        while !canTap(element) && swipes < maxSwipes {
             swipeUp()
             swipes += 1
         }
-        XCTAssertTrue(element.isHittable, "Could not scroll to \(element)", file: file, line: line)
+        XCTAssertTrue(canTap(element), "Could not scroll to \(element)", file: file, line: line)
+    }
+
+    /// Scrolls whichever way is needed: down first, then back up if the element wasn't below.
+    func reveal(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        var swipes = 0
+        while !canTap(element) && swipes < 6 {
+            swipeUp()
+            swipes += 1
+        }
+        if !canTap(element) {
+            scrollUpTo(element, maxSwipes: 12, file: file, line: line)
+        }
+    }
+
+    /// Swipes down (towards the top of the screen) until `element` can be tapped.
+    func scrollUpTo(_ element: XCUIElement, maxSwipes: Int = 8, file: StaticString = #filePath, line: UInt = #line) {
+        var swipes = 0
+        while !canTap(element) && swipes < maxSwipes {
+            swipeDown()
+            swipes += 1
+        }
+        XCTAssertTrue(canTap(element), "Could not scroll up to \(element)", file: file, line: line)
     }
 
     /// Relative luminance (0 = black, 1 = white) of the screen at a point, in points from the top left.

@@ -34,8 +34,11 @@ final class WeeklyPlanUITests: XCTestCase {
     func testSettingUpAndGeneratingAPlanShowsMealsAndRecipes() {
         let app = XCUIApplication.launchForTesting()
 
-        // Preferences: vegetarian (default) and Italian food, then save.
+        // Preferences: two people, vegetarian (default) and Italian food, then save.
         app.openTab("Preferences")
+        let people = app.steppers["preferences.people"]
+        XCTAssertTrue(people.waitForExistence(timeout: 5))
+        people.buttons.element(boundBy: 1).tap()  // increment
         let italian = app.button(containing: "Italian")
         app.scrollTo(italian)
         italian.tap()
@@ -48,7 +51,7 @@ final class WeeklyPlanUITests: XCTestCase {
 
         // Meal routine: cook lunch and dinner at home.
         let routineLink = app.buttons["preferences.routineLink"]
-        app.scrollTo(routineLink)
+        app.reveal(routineLink)
         routineLink.tap()
         XCTAssertTrue(app.staticTexts["Meal routine"].waitForExistence(timeout: 5))
 
@@ -76,6 +79,17 @@ final class WeeklyPlanUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Ingredients"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Method"].exists)
         XCTAssertTrue(app.element(containing: "Italian").exists, "Recipe should match the chosen cuisine")
+        XCTAssertTrue(app.element(containing: "2 people").exists, "Amounts are for the people in Preferences")
+        let times = app.element(withID: "recipe.times")
+        XCTAssertTrue(times.exists, "Prep, cooking and total time are shown")
+        XCTAssertTrue(times.label.contains("Prep") && times.label.contains("Cook"))
+
+        // No YouTube app on the simulator, so the video link falls back to Safari.
+        let watch = app.buttons["recipe.link.Watch"]
+        app.scrollTo(watch)
+        watch.tap()
+        let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
+        XCTAssertTrue(safari.wait(for: .runningForeground, timeout: 10), "YouTube link opens in Safari without the app")
     }
 
     func testPickingAnotherDayShowsThatDaysMeals() {
@@ -85,7 +99,7 @@ final class WeeklyPlanUITests: XCTestCase {
         app.scrollTo(save)
         save.tap()
         let routineLink = app.buttons["preferences.routineLink"]
-        app.scrollTo(routineLink)
+        app.reveal(routineLink)
         routineLink.tap()
         app.buttons["Save routine"].tap()
 

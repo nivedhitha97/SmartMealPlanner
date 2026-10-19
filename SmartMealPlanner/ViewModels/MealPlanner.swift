@@ -7,7 +7,12 @@ import Foundation
 
 final class MealPlanner {
 
+    /// A dish is planned at most this many times a week (and never twice on the same day).
+    static let maxTimesPerWeek = 2
+
     /// Builds seven consecutive days (from the start of `startingFrom`) using the same routine each day.
+    /// A dish appears at most once a day and at most `maxTimesPerWeek` times a week; a slot is left empty
+    /// when every matching recipe has reached that limit.
     func generateWeeklyMealPlan(
         recipes: [Recipe],
         preferences: UserPreferences,
@@ -17,26 +22,42 @@ final class MealPlanner {
     ) -> WeeklyMealPlan {
         let filtered = filterRecipes(recipes, preferences)
         let weekStart = calendar.startOfDay(for: startingFrom)
+        var timesThisWeek: [String: Int] = [:]
         let days: [DailyMealPlanSlot] = (0..<7).compactMap { offset in
             guard let date = calendar.date(byAdding: .day, value: offset, to: weekStart) else { return nil }
-            let breakfast: Recipe?
-            switch preferences.breakfastRecipePreference {
-            case .granolaMuesliOnly:
-                breakfast = nil
-            case .includeRecipes:
-                breakfast = selectMeal(type: routine.breakfastType, from: filtered)
+            var usedToday: Set<String> = []
+            func pick(_ type: MealType) -> Recipe? {
+                let eligible = filtered.filter {
+                    timesThisWeek[Self.dishKey($0), default: 0] < Self.maxTimesPerWeek && !usedToday.contains(Self.dishKey($0))
+                }
+                guard let recipe = selectMeal(type: type, from: eligible, timesThisWeek: timesThisWeek) else { return nil }
+                timesThisWeek[Self.dishKey(recipe), default: 0] += 1
+                usedToday.insert(Self.dishKey(recipe))
+                return recipe
             }
-            return DailyMealPlanSlot(
-                date: date,
-                breakfast: breakfast,
-                lunch: selectMeal(type: routine.lunchType, from: filtered),
-                dinner: selectMeal(type: routine.dinnerType, from: filtered)
-            )
+            let breakfast = preferences.breakfastRecipePreference == .granolaMuesliOnly ? nil : pick(routine.breakfastType)
+            let lunch = pick(routine.lunchType)
+            let dinner = pick(routine.dinnerType)
+            return DailyMealPlanSlot(date: date, breakfast: breakfast, lunch: lunch, dinner: dinner)
         }
         return WeeklyMealPlan(id: UUID(), weekStart: weekStart, days: days)
     }
 
-    private func filterRecipes(
+    /// Home meals the routine asks for in a week but that got no recipe because every matching dish had
+    /// reached its limit.
+    static func unplannedMeals(in plan: WeeklyMealPlan, routine: MealRoutine, preferences: UserPreferences) -> Int {
+        let wantsBreakfast = preferences.breakfastRecipePreference == .includeRecipes && routine.breakfastType != .outside
+        let wanted = [wantsBreakfast, routine.lunchType != .outside, routine.dinnerType != .outside].filter { $0 }.count
+        return max(0, wanted * plan.days.count - plan.allPlannedRecipes.count)
+    }
+
+    /// Recipes are the same dish when their names match.
+    private static func dishKey(_ recipe: Recipe) -> String {
+        recipe.name.lowercased()
+    }
+
+    /// Recipes that fit the diet, avoid allergies and dislikes, and match the chosen cuisines.
+    func filterRecipes(
         _ recipes: [Recipe],
         _ preferences: UserPreferences
     ) -> [Recipe] {
@@ -83,19 +104,21 @@ final class MealPlanner {
         }
     }
 
+    /// Picks from recipes that are still allowed today. Fixed keeps the first matching recipe until it reaches
+    /// its weekly limit, then the next; home cooked and flexible choose at random among the least-used dishes.
     private func selectMeal(
         type: MealType,
-        from recipes: [Recipe]
+        from recipes: [Recipe],
+        timesThisWeek: [String: Int]
     ) -> Recipe? {
         switch type {
-        case .fixed:
-            return recipes.first
-        case .homeCooked:
-            return recipes.randomElement()
         case .outside:
             return nil
-        case .flexible:
-            return recipes.randomElement()
+        case .fixed:
+            return recipes.first
+        case .homeCooked, .flexible:
+            let fewest = recipes.map { timesThisWeek[Self.dishKey($0), default: 0] }.min()
+            return recipes.filter { timesThisWeek[Self.dishKey($0), default: 0] == fewest }.randomElement()
         }
     }
 }

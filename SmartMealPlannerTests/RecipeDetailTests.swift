@@ -74,4 +74,34 @@ struct RecipeDetailTests {
         #expect(!recipe.containsMeat)
         #expect(!recipe.containsAnimalProducts)
     }
+
+    // MARK: - Times
+
+    @Test func totalTimeIsPrepPlusCookingAndUnknownWhenNeitherIsSet() {
+        let quick = Recipe(id: UUID(), name: "Salad", cuisine: "Greek", ingredients: [], prepMinutes: 15, cookMinutes: 0)
+        let stew = Recipe(id: UUID(), name: "Stew", cuisine: "Dutch", ingredients: [], prepMinutes: 20, cookMinutes: 95)
+        let unknown = Recipe(id: UUID(), name: "Mystery", cuisine: "Dutch", ingredients: [])
+
+        #expect(quick.totalMinutes == 15)
+        #expect(stew.totalMinutes == 115)
+        #expect(unknown.totalMinutes == nil)
+    }
+
+    @Test(arguments: [(5, "5 min"), (60, "1 h"), (115, "1 h 55 min")])
+    func durationsReadNaturally(minutes: Int, text: String) {
+        #expect(Recipe.durationText(minutes) == text)
+    }
+
+    @Test func everyBundledRecipeHasItsTimesAndServings() throws {
+        let recipes = try JSONLoader.load("recipes", as: [Recipe].self)
+        #expect(!recipes.isEmpty)
+        for recipe in recipes {
+            #expect(recipe.prepMinutes != nil && recipe.cookMinutes != nil, "\(recipe.name) has prep and cook times")
+            #expect(recipe.servings >= 1)
+            if let video = recipe.youtubeURLParsed {
+                #expect(YouTubeLink.isYouTube(video), "\(recipe.name)'s video link goes to YouTube")
+                #expect(video.path == "/results", "a search for the recipe, which can't go dead like a single video")
+            }
+        }
+    }
 }

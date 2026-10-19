@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UserNotifications
 
 @main
 struct SmartMealPlannerApp: App {
@@ -22,6 +23,7 @@ struct SmartMealPlannerApp: App {
         }
         _planning = StateObject(wrappedValue: PlanningViewModel(ai: LocalHeuristicAIPlanner()))
         _showSplash = State(initialValue: !LaunchArguments.contains(LaunchArguments.skipSplash))
+        UNUserNotificationCenter.current().delegate = OfferAlertDelegate.shared
     }
 
     var body: some Scene {

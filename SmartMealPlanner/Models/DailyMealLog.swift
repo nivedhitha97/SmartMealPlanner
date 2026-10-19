@@ -23,7 +23,7 @@ struct DailyMealLog: Codable {
         var total: Double = 0
         for recipe in allMeals {
             for row in recipe.ingredients {
-                let scale = row.quantity / 100.0
+                let scale = recipe.quantity(of: row, forPeople: 1) / 100.0  // per person
                 total += value(row.ingredient) * scale
             }
         }
@@ -42,7 +42,7 @@ enum NutritionTotals {
         var cal = 0.0, pro = 0.0, car = 0.0, fat = 0.0
         for recipe in recipes {
             for row in recipe.ingredients {
-                let scale = row.quantity / 100.0
+                let scale = recipe.quantity(of: row, forPeople: 1) / 100.0  // per person
                 cal += row.ingredient.calories * scale
                 pro += row.ingredient.protein * scale
                 car += row.ingredient.carbs * scale

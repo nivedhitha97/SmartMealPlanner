@@ -3,13 +3,16 @@
     "id": "A1B2C3D4-1111-2222-3333-444455556666",
     "name": "Chicken Rice Bowl",
     "cuisine": "Asian",
+    "servings": 1,
+    "prepMinutes": 10,
+    "cookMinutes": 20,
     "instructions": [
       "Season diced chicken with salt and pepper; sear in a hot pan until golden and cooked through.",
       "Cook rice according to package directions; fluff with a fork.",
       "Slice chicken, serve over rice, and add a splash of soy sauce or chili oil if you like."
     ],
     "imageURL": "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=900&q=80",
-    "youtubeURL": "https://www.youtube.com/watch?v=J6N_lEmp4mY",
+    "youtubeURL": "https://www.youtube.com/results?search_query=Chicken+Rice+Bowl+recipe",
     "cookbookReference": "Kenji López-Alt — The Wok, rice bowl chapter",
     "cookbookURL": "https://www.amazon.com/s?k=the+wok+kenji",
     "ingredients": [
@@ -45,13 +48,16 @@
     "id": "B2C3D4E5-2222-3333-4444-555566667777",
     "name": "Tomato Basil Pasta",
     "cuisine": "Italian",
+    "servings": 1,
+    "prepMinutes": 10,
+    "cookMinutes": 15,
     "instructions": [
       "Boil pasta in salted water until al dente; reserve a splash of cooking water.",
       "Warm olive oil, add halved tomatoes, cook until they burst slightly.",
       "Toss pasta with tomatoes, basil, and a little pasta water; finish with parmesan if desired."
     ],
     "imageURL": "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?auto=format&fit=crop&w=900&q=80",
-    "youtubeURL": "https://www.youtube.com/watch?v=wYBJAkXTHOM",
+    "youtubeURL": "https://www.youtube.com/results?search_query=Tomato+Basil+Pasta+recipe",
     "cookbookReference": "Marcella Hazan — Essentials of Classic Italian Cooking",
     "cookbookURL": "https://www.penguinrandomhouse.com/books/196065/essentials-of-classic-italian-cooking-by-marcella-hazan/",
     "ingredients": [
@@ -87,13 +93,16 @@
     "id": "C3D4E5F6-3333-4444-5555-666677770001",
     "name": "Greek Village Salad",
     "cuisine": "Greek",
+    "servings": 1,
+    "prepMinutes": 15,
+    "cookMinutes": 0,
     "instructions": [
       "Chop cucumber, tomato, and red onion into chunky pieces.",
       "Combine with olives and feta; dress with olive oil, lemon, oregano, salt, and pepper.",
       "Let sit 5 minutes so flavors meld before serving."
     ],
     "imageURL": "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=900&q=80",
-    "youtubeURL": "https://www.youtube.com/watch?v=8a51lKt8r5s",
+    "youtubeURL": "https://www.youtube.com/results?search_query=Greek+Village+Salad+recipe",
     "cookbookReference": "Aglaia Kremezi — Mediterranean Vegetarian Feasts",
     "cookbookURL": "https://www.workman.com/products/mediterranean-vegetarian-feasts",
     "ingredients": [
@@ -142,13 +151,16 @@
     "id": "D4E5F6A7-4444-5555-6666-777788880002",
     "name": "Red Lentil Dal",
     "cuisine": "Indian",
+    "servings": 1,
+    "prepMinutes": 10,
+    "cookMinutes": 30,
     "instructions": [
       "Rinse red lentils; simmer with water until soft, about 15 minutes.",
       "Fry cumin, turmeric, and garlic in oil; stir into lentils.",
       "Season with salt; serve with rice or flatbread."
     ],
     "imageURL": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?auto=format&fit=crop&w=900&q=80",
-    "youtubeURL": "https://www.youtube.com/watch?v=0Kz0f0G8X8k",
+    "youtubeURL": "https://www.youtube.com/results?search_query=Red+Lentil+Dal+recipe",
     "cookbookReference": "Madhur Jaffrey — An Invitation to Indian Cooking",
     "cookbookURL": "https://www.penguinrandomhouse.com/books/295083/an-invitation-to-indian-cooking-by-madhur-jaffrey/",
     "ingredients": [
@@ -184,13 +196,16 @@
     "id": "E5F6A7B8-5555-6666-7777-888899990003",
     "name": "Mushroom Risotto",
     "cuisine": "Italian",
+    "servings": 1,
+    "prepMinutes": 10,
+    "cookMinutes": 30,
     "instructions": [
       "Sauté mushrooms in butter until golden; set aside.",
       "Toast arborio rice, add warm stock a ladle at a time, stirring until creamy.",
       "Fold mushrooms back in; finish with parmesan and parsley."
     ],
     "imageURL": "https://images.unsplash.com/photo-1476124369491-e7addf5db179?auto=format&fit=crop&w=900&q=80",
-    "youtubeURL": "https://www.youtube.com/watch?v=4bY62fryfQ4",
+    "youtubeURL": "https://www.youtube.com/results?search_query=Mushroom+Risotto+recipe",
     "cookbookReference": "Jamie Oliver — Jamie's Italy",
     "cookbookURL": "https://www.jamieoliver.com/",
     "ingredients": [
@@ -239,13 +254,16 @@
     "id": "F6A7B8C9-6666-7777-8888-999900010004",
     "name": "Pan-Seared Salmon",
     "cuisine": "Dutch",
+    "servings": 1,
+    "prepMinutes": 5,
+    "cookMinutes": 15,
     "instructions": [
       "Pat salmon dry; season skin and flesh with salt.",
       "Crisp skin in a hot oiled pan 4–5 minutes, flip briefly to finish.",
       "Serve with steamed greens and lemon."
     ],
     "imageURL": "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=900&q=80",
-    "youtubeURL": "https://www.youtube.com/watch?v=3wd0K1R4N7Y",
+    "youtubeURL": "https://www.youtube.com/results?search_query=Pan-Seared+Salmon+recipe",
     "cookbookReference": "Nigel Slater — Appetite",
     "cookbookURL": "https://www.penguin.co.uk/books/103/1030511/appetite/9781841156495.html",
     "ingredients": [
@@ -281,13 +299,16 @@
     "id": "A7B8C9D0-7777-8888-9999-000011110005",
     "name": "Thai Vegetable Stir-Fry",
     "cuisine": "Asian",
+    "servings": 1,
+    "prepMinutes": 15,
+    "cookMinutes": 10,
     "instructions": [
       "Prep all vegetables before heating the wok.",
       "Stir-fry aromatics, then harder vegetables, then leafy greens.",
       "Add soy and lime; toss quickly and serve over rice."
     ],
     "imageURL": "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=900&q=80",
-    "youtubeURL": "https://www.youtube.com/watch?v=H3RBSwS6S8Q",
+    "youtubeURL": "https://www.youtube.com/results?search_query=Thai+Vegetable+Stir-Fry+recipe",
     "cookbookReference": "Pok Pok — Thai street food basics",
     "cookbookURL": "https://www.pokpokrestaurants.com/",
     "ingredients": [
@@ -323,13 +344,16 @@
     "id": "B8C9D0E1-8888-9999-0000-111122220006",
     "name": "Herb Omelette",
     "cuisine": "French",
+    "servings": 1,
+    "prepMinutes": 5,
+    "cookMinutes": 5,
     "instructions": [
       "Whisk eggs with salt, pepper, and chopped herbs.",
       "Melt butter in a nonstick pan over medium heat; pour eggs in.",
       "Gently push edges, tilt pan, fold when barely set."
     ],
     "imageURL": "https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=900&q=80",
-    "youtubeURL": "https://www.youtube.com/watch?v=yydZbJOU2pA",
+    "youtubeURL": "https://www.youtube.com/results?search_query=Herb+Omelette+recipe",
     "cookbookReference": "Jacques Pépin — Complete Techniques",
     "cookbookURL": "https://www.jacquespepin.com/",
     "ingredients": [
@@ -365,13 +389,16 @@
     "id": "C9D0E1F2-9999-0000-1111-222233330007",
     "name": "Black Bean Tacos",
     "cuisine": "Mexican",
+    "servings": 1,
+    "prepMinutes": 10,
+    "cookMinutes": 10,
     "instructions": [
       "Warm drained black beans with cumin, garlic, and a splash of water.",
       "Char corn tortillas in a dry pan or over a flame.",
       "Fill tortillas with beans, salsa, lime, and cilantro."
     ],
     "imageURL": "https://images.unsplash.com/photo-1565299585323-38d6b0865b47?auto=format&fit=crop&w=900&q=80",
-    "youtubeURL": "https://www.youtube.com/watch?v=Z6yUnN7FGLI",
+    "youtubeURL": "https://www.youtube.com/results?search_query=Black+Bean+Tacos+recipe",
     "cookbookReference": "Rick Bayless — Mexico One Plate at a Time",
     "cookbookURL": "https://www.rickbayless.com/",
     "ingredients": [

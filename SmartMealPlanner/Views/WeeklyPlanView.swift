@@ -331,10 +331,12 @@ struct WeeklyPlanView: View {
                     .background(Color.bgMuted, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     slotLabel(slot.rawValue, style: .muted)
-                    Text(WeeklyPlanContent.emptySlotTitle(slot: slot, breakfastPreference: breakfastPreference))
+                    Text(WeeklyPlanContent.emptySlotTitle(slot: slot, breakfastPreference: breakfastPreference,
+                                                          mealType: WeeklyPlanContent.mealType(for: slot, in: MealRoutine.load())))
                         .font(.cardTitle)
                         .foregroundStyle(Color.textSecondary)
-                    Text(WeeklyPlanContent.emptySlotDetail(slot: slot, breakfastPreference: breakfastPreference))
+                    Text(WeeklyPlanContent.emptySlotDetail(slot: slot, breakfastPreference: breakfastPreference,
+                                                           mealType: WeeklyPlanContent.mealType(for: slot, in: MealRoutine.load())))
                         .font(.footnote)
                         .foregroundStyle(Color.textTertiary)
                 }

@@ -25,6 +25,8 @@ struct ShoppingListItem: Identifiable, Codable, Hashable {
     var storeName: String?
     /// Price per item; nil when unknown.
     var price: Double?
+    /// The usual price per item when `price` is an offer price, for counting offer savings.
+    var regularPrice: Double?
     var quantity = 1
     /// Pack size or amount, e.g. "500 g" or "1050 g".
     var amountText: String?
@@ -60,6 +62,33 @@ enum ShoppingListFilter: Hashable {
     }
 }
 
+/// An item ticked off as bought: what was paid and saved, and when.
+struct Purchase: Codable, Hashable, Identifiable {
+    /// The shopping list item's id.
+    var id: UUID
+    var name: String
+    var storeName: String?
+    var amount: Double
+    /// Saved compared with the regular price (offers only).
+    var offerSaving: Double
+    var date: Date
+}
+
+/// Spending in one week (Monday to Sunday) against the weekly budget.
+struct WeekSpending: Identifiable, Equatable {
+    var id: Date { weekStart }
+    let weekStart: Date
+    let spent: Double
+    let offerSavings: Double
+    let budget: Double
+    let purchaseCount: Int
+
+    /// Budget left over (negative when over budget).
+    var savedAgainstBudget: Double { budget - spent }
+    var isOverBudget: Bool { spent > budget }
+    var progress: Double { budget > 0 ? min(spent / budget, 1) : 0 }
+}
+
 struct StoreGroup: Identifiable, Equatable {
     var id: String { store }
     let store: String
@@ -73,20 +102,38 @@ struct ShoppingList: Codable, Equatable {
     private(set) var items: [ShoppingListItem] = []
     /// The plan the `.plan` items came from.
     private(set) var planID: UUID?
+    /// Everything ticked off as bought, newest last; kept for `purchaseHistoryWeeks`.
+    private(set) var purchases: [Purchase] = []
+
+    static let purchaseHistoryWeeks = 26
+
+    init() {}
+
+    enum CodingKeys: String, CodingKey {
+        case items, planID, purchases
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        items = try c.decodeIfPresent([ShoppingListItem].self, forKey: .items) ?? []
+        planID = try c.decodeIfPresent(UUID.self, forKey: .planID)
+        // Lists saved before purchases were recorded have no history.
+        purchases = try c.decodeIfPresent([Purchase].self, forKey: .purchases) ?? []
+    }
 
     // MARK: - Offers
 
-    /// Adds an offer, or one more of it if it's already on the list.
+    /// Adds an offer, or one more of it if it's already on the list (and not yet bought).
     mutating func add(_ offer: SupermarketOffer) {
-        if let index = items.firstIndex(where: { $0.offerID == offer.id }) {
+        if let index = items.firstIndex(where: { $0.offerID == offer.id && !$0.isChecked }) {
             items[index].quantity += 1
-            items[index].isChecked = false
             return
         }
         items.append(ShoppingListItem(
             name: offer.productName,
             storeName: offer.storeName,
             price: offer.offerPrice,
+            regularPrice: offer.regularPrice,
             amountText: offer.unitLabel == "item" ? nil : offer.unitLabel,
             source: .offer,
             offerID: offer.id,
@@ -95,9 +142,9 @@ struct ShoppingList: Codable, Equatable {
         ))
     }
 
-    /// How many of this offer are on the list (0 if none).
+    /// How many of this offer are on the list and not yet bought (0 if none).
     func quantity(of offer: SupermarketOffer) -> Int {
-        items.first { $0.offerID == offer.id }?.quantity ?? 0
+        items.first { $0.offerID == offer.id && !$0.isChecked }?.quantity ?? 0
     }
 
     // MARK: - Editing
@@ -122,15 +169,49 @@ struct ShoppingList: Codable, Equatable {
         if edited.name.isEmpty { edited.name = items[index].name }
         edited.storeName = Self.normalisedStore(item.storeName)
         items[index] = edited
+        if edited.isChecked, let purchase = purchases.firstIndex(where: { $0.id == edited.id }) {
+            let date = purchases[purchase].date  // a corrected price or quantity updates what was spent
+            purchases[purchase] = Self.purchase(of: edited, at: date)
+        }
     }
 
     mutating func remove(_ ids: Set<UUID>) {
         items.removeAll { ids.contains($0.id) }
     }
 
-    mutating func toggleChecked(_ id: UUID) {
+    /// Ticks an item off as bought (recording the purchase) or un-ticks it (removing the record).
+    mutating func toggleChecked(_ id: UUID, at date: Date = Date()) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         items[index].isChecked.toggle()
+        purchases.removeAll { $0.id == id }
+        if items[index].isChecked {
+            purchases.append(Self.purchase(of: items[index], at: date))
+            let cutoff = date.addingTimeInterval(-Double(Self.purchaseHistoryWeeks) * 7 * 86_400)
+            purchases.removeAll { $0.date < cutoff }
+        }
+    }
+
+    private static func purchase(of item: ShoppingListItem, at date: Date) -> Purchase {
+        let saving = max(0, (item.regularPrice ?? 0) - (item.price ?? 0)) * Double(item.quantity)
+        return Purchase(id: item.id, name: item.name, storeName: item.storeName, amount: item.lineTotal,
+                        offerSaving: item.regularPrice == nil ? 0 : saving, date: date)
+    }
+
+    // MARK: - Spending
+
+    /// Spending per week (Monday to Sunday) for the last `weeks` weeks, this week first.
+    func weeklySpending(budget: Double, weeks: Int = 4, now: Date = Date(), calendar: Calendar = .current) -> [WeekSpending] {
+        var calendar = calendar
+        calendar.firstWeekday = 2  // weeks start on Monday
+        guard let thisWeek = calendar.dateInterval(of: .weekOfYear, for: now)?.start else { return [] }
+        return (0..<weeks).compactMap { back in
+            guard let start = calendar.date(byAdding: .weekOfYear, value: -back, to: thisWeek),
+                  let end = calendar.date(byAdding: .weekOfYear, value: 1, to: start) else { return nil }
+            let inWeek = purchases.filter { $0.date >= start && $0.date < end }
+            return WeekSpending(weekStart: start, spent: inWeek.map(\.amount).reduce(0, +),
+                                offerSavings: inWeek.map(\.offerSaving).reduce(0, +), budget: budget,
+                                purchaseCount: inWeek.count)
+        }
     }
 
     mutating func removeChecked() {

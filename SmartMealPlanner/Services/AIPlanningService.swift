@@ -59,6 +59,9 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
             }
         }
 
+        // Only offers from supermarkets within 2 km of the postcode, when those are known.
+        let localOffers = OffersList.nearby(scopedOffers, chains: preferences.nearbyChains)
+
         let weeklyMealPlan = mealPlanner.generateWeeklyMealPlan(
             recipes: recipes,
             preferences: preferences,
@@ -69,13 +72,13 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
         for recipe in weeklyMealPlan.allPlannedRecipes {
             for row in recipe.ingredients {
                 let name = row.ingredient.name
-                gramsByIngredient[name, default: 0] += row.quantity
+                gramsByIngredient[name, default: 0] += recipe.quantity(of: row, forPeople: preferences.people)
             }
         }
 
         let lines: [GroceryLineItem] = gramsByIngredient.keys.sorted().map { name in
             let grams = gramsByIngredient[name] ?? 0
-            let offer = bestOffer(forIngredientName: name, in: scopedOffers)
+            let offer = bestOffer(forIngredientName: name, in: localOffers)
             let livePrice = ingredientPrices.first { $0.ingredientName.caseInsensitiveCompare(name) == .orderedSame }
             let price = linePrice(ingredientName: name, grams: grams, offer: offer, livePrice: livePrice, recipes: recipes)
             let rationale: String
@@ -101,14 +104,15 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
         let summary = makeSummary(
             preferences: preferences,
             weeklyMealPlan: weeklyMealPlan,
-            offerCount: scopedOffers.count,
+            unplannedMeals: MealPlanner.unplannedMeals(in: weeklyMealPlan, routine: routine, preferences: preferences),
+            offerCount: localOffers.count,
             livePriceCount: lines.filter { line in
                 line.matchedOffer == nil
                     && ingredientPrices.contains { $0.ingredientName.caseInsensitiveCompare(line.ingredientName) == .orderedSame }
             }.count,
             estimatedTotal: total
         )
-        let highlights = scopedOffers
+        let highlights = localOffers
             .sorted { ($0.savings ?? 0) > ($1.savings ?? 0) }
             .prefix(6)
             .map { offer in
@@ -182,6 +186,7 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
     private func makeSummary(
         preferences: UserPreferences,
         weeklyMealPlan: WeeklyMealPlan,
+        unplannedMeals: Int,
         offerCount: Int,
         livePriceCount: Int,
         estimatedTotal: Double
@@ -203,12 +208,16 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
         case .includeRecipes:
             breakfastNote = ""
         }
+        // No dish is planned twice a day or more than MealPlanner.maxTimesPerWeek times a week.
+        let varietyNote = unplannedMeals > 0
+            ? " \(unplannedMeals) meals are left open so no dish repeats more than \(MealPlanner.maxTimesPerWeek)× a week; add cuisines for more choice."
+            : ""
         let priceNote = livePriceCount > 0
             ? " (\(livePriceCount) ingredients priced from today's supermarket prices)"
             : ""
         return """
         Analyzed \(offerCount) regional offers for \(region). Full-week plan: \(homeMeals) home-cooked meals across 7 days \
-        (\(uniqueNames.count) different recipes). Highlights: \(mealText).\(breakfastNote) \
+        (\(uniqueNames.count) different recipes). Highlights: \(mealText).\(breakfastNote)\(varietyNote) \
         Estimated grocery spend for aggregated ingredients is €\(total) vs. weekly target €\(budget)\(priceNote). \
         Open each day below for full recipes, photos, and video or cookbook links.
         """

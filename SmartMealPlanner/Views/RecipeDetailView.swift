@@ -8,6 +8,8 @@ import SwiftUI
 struct RecipeDetailView: View {
 
     let recipe: Recipe
+    /// Ingredient amounts are shown for this many people (from Preferences).
+    var people: Int = UserPreferences.savedPeople()
     var slot: MealSlot? = nil
 
     private let heroHeight: CGFloat = 340
@@ -55,21 +57,58 @@ struct RecipeDetailView: View {
                 .padding(.horizontal, 10)
                 .background(Color.brandPrimarySoft, in: Capsule())
 
+            if recipe.isAIGenerated {
+                Label("AI-generated: check ingredients for allergens", systemImage: "sparkles")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.accentAmber)
+                    .accessibilityIdentifier("recipe.aiGenerated")
+            }
+
             Text(recipe.name)
                 .font(.system(size: 30, weight: .bold))
                 .tracking(-0.6)
                 .foregroundStyle(Color.textPrimary)
 
+            if recipe.totalMinutes != nil {
+                timesRow
+            }
+
             HStack(spacing: 16) {
+                metaItem("person.2", people == 1 ? "1 person" : "\(people) people")
                 metaItem("list.bullet", "\(recipe.ingredients.count) ingredients")
-                if !recipe.instructions.isEmpty {
-                    metaItem("clock", "\(recipe.instructions.count) steps")
-                }
                 if recipe.estimatedCalories > 0 {
                     metaItem("flame", "\(Int(recipe.estimatedCalories)) kcal")
                 }
             }
         }
+    }
+
+    /// Total, prep and cooking time.
+    private var timesRow: some View {
+        HStack(spacing: 0) {
+            timeItem("Total", recipe.totalMinutes, icon: "clock.fill", emphasised: true)
+            Divider().frame(height: 32)
+            timeItem("Prep", recipe.prepMinutes, icon: "knife")
+            Divider().frame(height: 32)
+            timeItem("Cook", recipe.cookMinutes, icon: "flame")
+        }
+        .padding(.vertical, 10)
+        .background(Color.bgSurface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.borderSubtle))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("recipe.times")
+    }
+
+    private func timeItem(_ title: String, _ minutes: Int?, icon: String, emphasised: Bool = false) -> some View {
+        VStack(spacing: 3) {
+            Label(title, systemImage: icon)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Color.textSecondary)
+            Text(minutes.map { $0 == 0 && title == "Cook" ? "No cooking" : Recipe.durationText($0) } ?? "–")
+                .font(.subheadline.weight(emphasised ? .bold : .semibold))
+                .foregroundStyle(emphasised ? Color.brandPrimaryDeep : Color.textPrimary)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private func metaItem(_ icon: String, _ text: String) -> some View {
@@ -86,7 +125,7 @@ struct RecipeDetailView: View {
             if hasLinks {
                 HStack(spacing: 12) {
                     if let yt = recipe.youtubeURLParsed {
-                        referenceButton(url: yt, icon: "play.fill", title: "Watch", subtitle: "YouTube", tint: .accentCoral, background: .accentCoralSoft)
+                        referenceButton(url: yt, icon: "play.fill", title: "Watch", subtitle: "Videos on YouTube", tint: .accentCoral, background: .accentCoralSoft)
                     }
                     if let book = recipe.cookbookURLParsed {
                         referenceButton(url: book, icon: "book", title: "Cookbook", subtitle: "Source link", tint: .brandPrimaryDeep, background: .brandPrimarySoft)
@@ -108,7 +147,8 @@ struct RecipeDetailView: View {
     }
 
     private func referenceButton(url: URL, icon: String, title: String, subtitle: String, tint: Color, background: Color) -> some View {
-        Link(destination: url) {
+        // YouTube links open in the YouTube app when it's installed, otherwise in Safari.
+        Button { ExternalLinks.open(url) } label: {
             HStack(spacing: 10) {
                 IconTile(systemName: icon, tint: tint, background: Color.bgSurface, size: 34)
                 VStack(alignment: .leading, spacing: 1) {
@@ -125,11 +165,16 @@ struct RecipeDetailView: View {
             .frame(maxWidth: .infinity)
             .background(background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(.isLink)
+        .accessibilityIdentifier("recipe.link.\(title)")
     }
 
     private var ingredientsBlock: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Ingredients")
+            SectionHeader(title: "Ingredients",
+                          subtitle: people == recipe.servings ? nil
+                              : "For \(people == 1 ? "1 person" : "\(people) people") (recipe serves \(recipe.servings))")
 
             if recipe.ingredients.isEmpty {
                 Text("No ingredients listed.")
@@ -147,7 +192,7 @@ struct RecipeDetailView: View {
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(Color.textPrimary)
                             Spacer()
-                            Text("\(Int(row.quantity)) g")
+                            Text("\(Int(recipe.quantity(of: row, forPeople: people).rounded())) g")
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(Color.textSecondary)
                         }

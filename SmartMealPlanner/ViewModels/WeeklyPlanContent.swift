@@ -56,13 +56,35 @@ enum WeeklyPlanContent {
     }
 
     /// Title for a slot that has no recipe.
-    static func emptySlotTitle(slot: MealSlot, breakfastPreference: BreakfastRecipePreference) -> String {
-        isGranolaSlot(slot, breakfastPreference) ? "Granola / muesli" : "Outside / flexible"
+    static func emptySlotTitle(slot: MealSlot, breakfastPreference: BreakfastRecipePreference,
+                               mealType: MealType? = nil) -> String {
+        if isGranolaSlot(slot, breakfastPreference) { return "Granola / muesli" }
+        return wantsRecipe(mealType) ? "No recipe left" : "Outside / flexible"
     }
 
     /// Detail line for a slot that has no recipe.
-    static func emptySlotDetail(slot: MealSlot, breakfastPreference: BreakfastRecipePreference) -> String {
-        isGranolaSlot(slot, breakfastPreference) ? "Buy granola or muesli separately" : "No recipe needed"
+    static func emptySlotDetail(slot: MealSlot, breakfastPreference: BreakfastRecipePreference,
+                                mealType: MealType? = nil) -> String {
+        if isGranolaSlot(slot, breakfastPreference) { return "Buy granola or muesli separately" }
+        return wantsRecipe(mealType)
+            ? "Matching dishes are already planned \(MealPlanner.maxTimesPerWeek)× this week. Add cuisines for more variety."
+            : "No recipe needed"
+    }
+
+    /// The routine's meal type for a slot.
+    static func mealType(for slot: MealSlot, in routine: MealRoutine?) -> MealType? {
+        guard let routine else { return nil }
+        switch slot {
+        case .breakfast: return routine.breakfastType
+        case .lunch: return routine.lunchType
+        case .dinner: return routine.dinnerType
+        }
+    }
+
+    /// Whether the routine wanted a recipe for this slot (so an empty slot means none was left).
+    private static func wantsRecipe(_ mealType: MealType?) -> Bool {
+        guard let mealType else { return false }
+        return mealType != .outside
     }
 
     static func isGranolaSlot(_ slot: MealSlot, _ breakfastPreference: BreakfastRecipePreference) -> Bool {
