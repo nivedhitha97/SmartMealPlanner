@@ -1,7 +1,7 @@
 """When each store is fetched.
 
 A store is fetched once per offer week, on the day its week starts (from FETCH_HOUR, Amsterdam time). The
-workflow runs every morning, but on days when no store is due it makes no requests at all. If a store hasn't
+workflow runs every morning; on days when no store is due it only makes the small daily Open Prices check. If a store hasn't
 published its new week yet, it is tried again the next morning, up to MAX_ATTEMPTS times.
 """
 

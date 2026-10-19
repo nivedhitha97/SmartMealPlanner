@@ -7,7 +7,7 @@ dates (see schedule.learn_weekday), so a store that moves its offer week is foll
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from . import detailresult, hoogvliet, jumbo, lidl, poiesz
+from . import detailresult, hoogvliet, jumbo, lidl, openprices, poiesz
 
 MON, TUE, WED, THU, FRI, SAT, SUN = range(7)
 
@@ -20,11 +20,13 @@ class Store:
     weekday_note: str
     fetch_offers: Optional[Callable] = None   # web.Http -> [records.Offer]
     catalog: bool = True                       # shelf prices from Checkjebon
+    daily_offers: Optional[Callable] = None    # crowdsourced offers, checked every day: web.Http -> [records.Offer]
 
 
 STORES = [
-    Store("ah", "Albert Heijn", MON, "Bonus week runs Monday to Sunday (AH blocks automated requests, so "
-          "only Checkjebon's catalog is used)"),
+    Store("ah", "Albert Heijn", MON, "Bonus week runs Monday to Sunday (AH blocks automated requests, so offers "
+          "come from shopper-reported Open Prices data, checked daily, and shelf prices from Checkjebon)",
+          daily_offers=openprices.fetch_ah_offers),
     Store("jumbo", "Jumbo", WED, "Offers run Wednesday to Tuesday (from jumbo.com promotion dates)",
           jumbo.fetch_offers),
     Store("lidl", "Lidl", MON, "Offers run Monday to Sunday (from lidl.nl offer dates)", lidl.fetch_offers),

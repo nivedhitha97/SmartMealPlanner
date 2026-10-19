@@ -4,6 +4,11 @@ from grocery_db import export
 
 
 class DealTests(unittest.TestCase):
+    def test_offers_reported_on_open_prices_are_credited(self):
+        self.assertEqual(export._source("https://prices.openfoodfacts.org/prices/36400"), "Open Prices")
+        self.assertIsNone(export._source("https://www.lidl.nl/p/kipfilet/p101"))
+        self.assertIsNone(export._source(None))
+
     def test_deal_text_is_normalised_and_non_deals_dropped(self):
         self.assertEqual(export.clean_deal("1 + 1 Gratis"), "1+1 gratis")
         self.assertEqual(export.clean_deal("25% KORTING"), "25% korting")
