@@ -132,7 +132,7 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
         )
     }
 
-    private func bestOffer(forIngredientName name: String, in offers: [SupermarketOffer]) -> SupermarketOffer? {
+    func bestOffer(forIngredientName name: String, in offers: [SupermarketOffer]) -> SupermarketOffer? {
         guard !offers.isEmpty else { return nil }
         // Live feed offers say which ingredient they are; take the cheapest of those.
         let tagged = offers.filter { $0.ingredientName?.caseInsensitiveCompare(name) == .orderedSame }

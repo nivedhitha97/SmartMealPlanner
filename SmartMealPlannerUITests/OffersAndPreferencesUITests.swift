@@ -29,6 +29,30 @@ final class OffersAndPreferencesUITests: XCTestCase {
         XCTAssertTrue(app.element(containing: "Broccoli 500g").waitForExistence(timeout: 3), "All shows every offer again")
     }
 
+    func testAddingAnAlbertHeijnBonusDealShowsItInOffers() {
+        let app = XCUIApplication.launchForTesting()
+        app.openTab("Offers")
+        let addDeal = app.buttons["offers.addDeal"]
+        XCTAssertTrue(addDeal.waitForExistence(timeout: 5), "Albert Heijn Bonus card shows")
+        XCTAssertTrue(app.buttons["offers.ah.openBonus"].exists)
+        app.reveal(addDeal)
+        addDeal.tap()
+
+        let save = app.buttons["addDeal.save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 3))
+        XCTAssertFalse(save.isEnabled, "needs a name and a price first")
+        app.textFields["addDeal.name"].typeText("AH Halfvolle melk")
+        let price = app.textFields["addDeal.price"]
+        price.tap()
+        price.typeText("0.99")
+        XCTAssertTrue(save.isEnabled)
+        save.tap()
+
+        let added = app.element(containing: "AH Halfvolle melk")
+        XCTAssertTrue(added.waitForExistence(timeout: 3), "the deal is in the offers list")
+        XCTAssertTrue(app.element(containing: "Added by you").exists)
+    }
+
     func testInvalidPostcodeShowsAnError() {
         let app = XCUIApplication.launchForTesting()
         let field = postcodeField(in: app)

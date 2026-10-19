@@ -28,7 +28,8 @@ final class PlanningViewModel: ObservableObject {
         static func live(from service: GroceryDataService) async throws -> Catalog {
             let recipes = try JSONLoader.load("recipes", as: [Recipe].self)
             let grocery = await service.latest()
-            return Catalog(recipes: recipes, offers: grocery.offers, ingredientPrices: grocery.prices)
+            let offers = MyOffersStore.merged(grocery.offers, with: MyOffersStore.saved())
+            return Catalog(recipes: recipes, offers: offers, ingredientPrices: grocery.prices)
         }
     }
 

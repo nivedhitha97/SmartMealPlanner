@@ -2,7 +2,7 @@
 //  ExternalLinksTests.swift
 //  SmartMealPlannerTests
 //
-//  YouTube links open in the YouTube app when it's installed, otherwise in Safari.
+//  YouTube links open in the YouTube app when it's installed, AH's Bonus page in the AH app; otherwise Safari.
 //
 
 import Foundation
@@ -70,5 +70,22 @@ struct ExternalLinksTests {
         #expect(YouTubeLink.appLink(for: short).absoluteString == "https://www.youtube.com/watch?v=J6N_lEmp4mY&t=42")
         #expect(YouTubeLink.appLink(for: video) == video, "watch links are already right")
         #expect(!YouTubeLink.isYouTube(URL(string: "https://vimeo.com/123")!))
+    }
+
+    @Test func albertHeijnBonusOpensInTheAHAppElseSafari() {
+        let withApp = FakeURLOpener(appInstalled: true)
+        ExternalLinks.open(AlbertHeijn.bonusURL, application: withApp)
+        #expect(withApp.opened.map(\.universalLinksOnly) == [true])
+
+        let withoutApp = FakeURLOpener(appInstalled: false)
+        ExternalLinks.open(AlbertHeijn.bonusURL, application: withoutApp)
+        #expect(withoutApp.opened.map(\.universalLinksOnly) == [true, false])
+        #expect(withoutApp.opened.last?.url == AlbertHeijn.bonusURL)
+    }
+
+    @Test func onlyAHHostsCountAsAlbertHeijn() {
+        #expect(ExternalLinks.isAlbertHeijn(URL(string: "https://www.ah.nl/bonus")!))
+        #expect(ExternalLinks.isAlbertHeijn(URL(string: "https://ah.nl")!))
+        #expect(!ExternalLinks.isAlbertHeijn(URL(string: "https://blah.nl/bonus")!))
     }
 }

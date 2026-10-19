@@ -65,4 +65,5 @@ struct MainTabView: View {
     MainTabView()
         .environmentObject(PlanningViewModel(ai: LocalHeuristicAIPlanner()))
         .environmentObject(ShoppingListStore())
+        .environmentObject(MyOffersStore())
 }

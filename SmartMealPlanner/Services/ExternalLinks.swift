@@ -2,7 +2,8 @@
 //  ExternalLinks.swift
 //  SmartMealPlanner
 //
-//  Opening links outside the app: YouTube videos go to the YouTube app when it's installed, else to Safari.
+//  Opening links outside the app: YouTube videos go to the YouTube app when it's installed, and Albert Heijn's
+//  Bonus page to the AH app; either falls back to Safari.
 //
 
 import Foundation
@@ -35,14 +36,26 @@ enum ExternalLinks {
     /// Opens a URL: a YouTube link opens in the YouTube app if it's installed (iOS hands the link to the app that
     /// claims it, with no Info.plist query schemes needed) and otherwise in Safari; any other link opens normally.
     static func open(_ url: URL, application: URLOpening = UIApplication.shared) {
-        guard YouTubeLink.isYouTube(url) else {
+        if YouTubeLink.isYouTube(url) {
+            openInApp(YouTubeLink.appLink(for: url), else: url, application: application)
+        } else if isAlbertHeijn(url) {
+            openInApp(url, else: url, application: application)
+        } else {
             application.open(url, options: [:], completionHandler: nil)
-            return
         }
-        let appLink = YouTubeLink.appLink(for: url)
+    }
+
+    /// ah.nl and its subdomains, which the AH app claims (not e.g. "blah.nl").
+    static func isAlbertHeijn(_ url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        return host == "ah.nl" || host.hasSuffix(".ah.nl")
+    }
+
+    /// Opens `appLink` in the app that claims it as a universal link; if none does, opens `fallback` in Safari.
+    private static func openInApp(_ appLink: URL, else fallback: URL, application: URLOpening) {
         application.open(appLink, options: [.universalLinksOnly: true]) { openedInApp in
             if !openedInApp {
-                application.open(url, options: [:], completionHandler: nil)
+                application.open(fallback, options: [:], completionHandler: nil)
             }
         }
     }

@@ -10,6 +10,7 @@ struct WeeklyOffersView: View {
     var service: GroceryDataService = GroceryDataServices.shared
 
     @EnvironmentObject private var shopping: ShoppingListStore
+    @EnvironmentObject private var myOffers: MyOffersStore
 
     @State private var offers: [SupermarketOffer] = []
     @State private var grocery: GroceryData?
@@ -19,10 +20,18 @@ struct WeeklyOffersView: View {
     /// Chains within 2 km of the saved postcode; nil when unknown.
     @State private var nearbyChains: Set<String>?
     @State private var nearMeOnly = true
+    @State private var addingDeal = false
 
     private var list: OffersList {
-        OffersList(offers: nearMeOnly ? OffersList.nearby(offers, chains: nearbyChains) : offers,
-                   selectedCategory: selectedCategory, selectedStore: selectedStore)
+        let all = MyOffersStore.merged(offers, with: myOffers.offers)
+        return OffersList(offers: nearMeOnly ? OffersList.nearby(all, chains: nearbyChains) : all,
+                          selectedCategory: selectedCategory, selectedStore: selectedStore)
+    }
+
+    /// AH's Bonus card shows unless the stores near the postcode are known and AH isn't one of them.
+    private var showsAlbertHeijn: Bool {
+        guard let nearbyChains, nearMeOnly else { return true }
+        return nearbyChains.contains { $0.caseInsensitiveCompare(AlbertHeijn.name) == .orderedSame }
     }
 
     var body: some View {
@@ -37,6 +46,7 @@ struct WeeklyOffersView: View {
                             header
                             let endingSoon = list.endingSoon()
                             if list.totalSavings > 0 { savingsBanner }
+                            if showsAlbertHeijn { albertHeijnCard }
                             VStack(alignment: .leading, spacing: 10) {
                                 storeFilters
                                 categoryFilters
@@ -53,6 +63,13 @@ struct WeeklyOffersView: View {
                             if let stores = grocery?.stores, !stores.isEmpty {
                                 storeUpdates(OffersList.storeStatuses(stores))
                             }
+                            if list.offers.contains(where: { $0.source == SupermarketOffer.openPrices }) {
+                                Text("Prices marked Open Prices were reported by shoppers. © Open Food Facts contributors, ODbL.")
+                                    .font(.caption2)
+                                    .foregroundStyle(Color.textTertiary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .accessibilityIdentifier("offers.openPricesCredit")
+                            }
                         }
                         .padding(.horizontal, 24)
                         .padding(.top, 8)
@@ -65,6 +82,9 @@ struct WeeklyOffersView: View {
             .screenBackground()
             .toolbar(.hidden, for: .navigationBar)
             .task { await loadOffers() }
+            .sheet(isPresented: $addingDeal) {
+                AddOfferView { myOffers.add($0) }
+            }
         }
     }
 
@@ -123,6 +143,45 @@ struct WeeklyOffersView: View {
         }
         .padding(16)
         .background(Color.accentAmberSoft, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    /// Albert Heijn doesn't let apps read its Bonus offers: open AH's own Bonus page, then add the deals worth having.
+    private var albertHeijnCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                StoreBadge(store: AlbertHeijn.name, size: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Albert Heijn Bonus")
+                        .font(.cardTitle)
+                        .foregroundStyle(Color.textPrimary)
+                    Text("AH doesn't share its offers with apps. Check this week's Bonus and add the deals you want.")
+                        .font(.footnote)
+                        .foregroundStyle(Color.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            HStack(spacing: 10) {
+                Button {
+                    ExternalLinks.open(AlbertHeijn.bonusURL)
+                } label: {
+                    Label("Open Bonus", systemImage: "arrow.up.right.square")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("offers.ah.openBonus")
+                Button {
+                    addingDeal = true
+                } label: {
+                    Label("Add a deal", systemImage: "plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("offers.addDeal")
+            }
+            .font(.subheadline.weight(.semibold))
+            .tint(Color.brandPrimary)
+        }
+        .card(padding: 16, radius: 20)
     }
 
     /// One chip per supermarket; "All stores" clears it.
@@ -184,6 +243,13 @@ struct WeeklyOffersView: View {
                 ForEach(items) { offer in
                     OfferCard(offer: offer, quantityInList: shopping.list.quantity(of: offer)) {
                         shopping.change { $0.add(offer) }
+                    }
+                    .contextMenu {
+                        if offer.isAddedByYou {
+                            Button("Delete deal", systemImage: "trash", role: .destructive) {
+                                myOffers.remove(id: offer.id)
+                            }
+                        }
                     }
                 }
             }
@@ -322,6 +388,15 @@ private struct OfferCard: View {
                 Text("\(offer.storeName) · \(offer.category)")
                     .font(.footnote)
                     .foregroundStyle(Color.textSecondary)
+                if offer.isAddedByYou {
+                    Label("Added by you", systemImage: "person.crop.circle.badge.plus")
+                        .font(.caption)
+                        .foregroundStyle(Color.brandPrimaryDeep)
+                } else if offer.source == SupermarketOffer.openPrices {
+                    Label("Reported on Open Prices", systemImage: "person.2")
+                        .font(.caption)
+                        .foregroundStyle(Color.textTertiary)
+                }
                 if let observedAt = offer.observedAt {
                     Label("Price drop · seen \(observedAt.formatted(.relative(presentation: .named)))",
                           systemImage: "arrow.down.right")
@@ -376,4 +451,5 @@ private struct OfferCard: View {
 #Preview {
     WeeklyOffersView()
         .environmentObject(ShoppingListStore())
+        .environmentObject(MyOffersStore())
 }
