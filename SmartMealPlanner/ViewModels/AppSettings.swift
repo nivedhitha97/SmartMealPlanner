@@ -74,8 +74,13 @@ enum LaunchArguments {
     static let splashSeconds = "-uiTestingSplashSeconds"
     /// Use the bundled sample offers instead of the live grocery feed, so results don't depend on the network.
     static let bundledData = "-uiTestingBundledData"
+    /// Followed by a number of seconds: wait that long before looking up a typed postcode, so a UI test can
+    /// save while the lookup is still running without the nearby-stores list appearing mid-scroll.
+    static let postcodeLookupSeconds = "-uiTestingPostcodeLookupSeconds"
 
     static let defaultSplashSeconds = 1.4
+    /// The pause after the last keystroke before a postcode is looked up.
+    static let defaultPostcodeLookupSeconds = 0.4
 
     static func contains(_ argument: String, in arguments: [String] = ProcessInfo.processInfo.arguments) -> Bool {
         arguments.contains(argument)
@@ -83,10 +88,20 @@ enum LaunchArguments {
 
     /// How long the splash screen stays up.
     static func splashDuration(in arguments: [String] = ProcessInfo.processInfo.arguments) -> Double {
-        guard let index = arguments.firstIndex(of: splashSeconds),
+        seconds(after: splashSeconds, in: arguments) ?? defaultSplashSeconds
+    }
+
+    /// How long to wait before looking up a typed postcode.
+    static func postcodeLookupDelay(in arguments: [String] = ProcessInfo.processInfo.arguments) -> Double {
+        seconds(after: postcodeLookupSeconds, in: arguments) ?? defaultPostcodeLookupSeconds
+    }
+
+    /// The non-negative number following `flag`, if there is one.
+    private static func seconds(after flag: String, in arguments: [String]) -> Double? {
+        guard let index = arguments.firstIndex(of: flag),
               arguments.indices.contains(index + 1),
               let seconds = Double(arguments[index + 1]), seconds >= 0 else {
-            return defaultSplashSeconds
+            return nil
         }
         return seconds
     }

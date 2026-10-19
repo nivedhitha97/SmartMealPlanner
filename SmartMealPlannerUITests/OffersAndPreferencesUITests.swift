@@ -76,15 +76,15 @@ final class OffersAndPreferencesUITests: XCTestCase {
     }
 
     func testFirstSaveKeepsThePostcodeAndChoices() {
-        let app = XCUIApplication.launchForTesting()
+        // The lookup waits 30 s, so the save below always happens while it is still running (the original bug)
+        // and the nearby-stores list can't appear mid-scroll and push the button out of reach.
+        let app = XCUIApplication.launchForTesting(extraArguments: [LaunchFlag.postcodeLookupSeconds, "30"])
         let field = postcodeField(in: app)
         field.tap()
         field.typeText("1062JB\n")  // return closes the keyboard
 
-        // Save straight away, before the postcode lookup has had time to finish. The nearby-stores list can
-        // appear mid-scroll and push the button down, so allow a few extra swipes.
         let save = app.buttons["preferences.save"]
-        app.scrollTo(save, maxSwipes: 14)
+        app.scrollTo(save)
         save.tap()
         XCTAssertTrue(app.button(containing: "Saved").waitForExistence(timeout: 3), "First tap saves")
 

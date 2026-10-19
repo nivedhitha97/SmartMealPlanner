@@ -13,6 +13,7 @@ enum LaunchFlag {
     static let skipSplash = "-uiTestingSkipSplash"
     static let splashSeconds = "-uiTestingSplashSeconds"
     static let bundledData = "-uiTestingBundledData"
+    static let postcodeLookupSeconds = "-uiTestingPostcodeLookupSeconds"
 }
 
 extension XCUIApplication {
