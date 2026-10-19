@@ -66,6 +66,7 @@ jobs:
     - name: Send results to the test report sheet
       if: always()
       continue-on-error: true
+      timeout-minutes: 5   # reporting is optional; a stuck upload or result read must not hold the job open
       env:
         TEST_REPORT_URL: ${{ secrets.TEST_REPORT_URL }}
         TEST_REPORT_TOKEN: ${{ secrets.TEST_REPORT_TOKEN }}

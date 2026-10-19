@@ -63,6 +63,15 @@ struct AppSettingsTests {
         #expect(LaunchArguments.splashDuration(in: arguments) == expected)
     }
 
+    @Test(arguments: [
+        ([], 0.4),
+        (["-uiTestingPostcodeLookupSeconds", "20"], 20.0),
+        (["-uiTestingPostcodeLookupSeconds", "later"], 0.4),
+    ] as [([String], Double)])
+    func postcodeLookupDelayCanBeOverriddenForUITests(arguments: [String], expected: Double) {
+        #expect(LaunchArguments.postcodeLookupDelay(in: arguments) == expected)
+    }
+
     @Test func launchFlagsAreDetected() {
         let arguments = ["SmartMealPlanner", LaunchArguments.skipSplash]
 

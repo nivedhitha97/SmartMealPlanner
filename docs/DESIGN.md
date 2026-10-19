@@ -58,15 +58,15 @@ dates (re-learned after every fetch; overridable in Supabase):
 
 | Store | Offer week | Offers from | Shelf prices |
 |---|---|---|---|
-| Albert Heijn | Mon–Sun | – (ah.nl blocks automated requests) | Checkjebon (stale) |
+| Albert Heijn | Mon–Sun | Open Prices (shopper-reported, checked daily) and deals you add from AH's Bonus page | Checkjebon (stale) |
 | Lidl | Mon–Sun | lidl.nl offers API | Checkjebon (stale) |
 | DekaMarkt | Tue–Mon | dekamarkt.nl offers page | Checkjebon (stale) |
 | Jumbo, Dirk, Hoogvliet | Wed–Tue | their offers pages | Checkjebon (current for Jumbo) |
 | Poiesz | Sun–Sat | Poiesz web shop offers page | Checkjebon |
 | Spar, Plus, Vomar | – | – | Checkjebon (current for Spar) |
 
-- The workflow runs every morning but makes **no requests** on days when no store is due; a full week is about a
-  dozen requests. A store that hasn't published its week yet is retried the next morning (up to three times).
+- The workflow runs every morning. On days when no store is due it only checks Open Prices for Albert Heijn
+  (about 2 requests); a full week is about two dozen requests. A store that hasn't published its week yet is retried the next morning (up to three times).
 - Offers keep real dates, deals (multi-buy priced per item; Jumbo's price-less deals priced from shelf prices) and a
   ~300 px product photo hosted by the store.
 - Stores whose shelf prices stopped changing are flagged stale and left out of ingredient prices.
@@ -95,6 +95,7 @@ repository secrets. The first run sends everything; later runs only new and chan
 |---|---|
 | Weekly per-store fetching instead of daily | Stores change offers once a week; fetching on that day cuts requests to about a dozen a week |
 | Free, permission-light data sources | No paid APIs or keys in the app. Store websites and Checkjebon (MIT) for personal use; AH is not scraped because it blocks automated access |
+| Albert Heijn through Open Prices and your own deals | Open Prices (Open Food Facts, ODbL) is free, open and legal but crowdsourced, so it has only a few AH discounts a week. It is checked once a day (about 2 requests), outside the weekly schedule. The app links to AH's own Bonus page and lets you add deals from it, stored only on the phone |
 | Store badges instead of logo files | Brand-coloured monograms drawn by the app: no logo artwork to license, nothing to download or block |
 | Apple Maps for location and nearby stores | Free, no key, accurate to street level for full Dutch postcodes |
 | Local notifications instead of push | Offer days are known in advance, so the phone can schedule alerts itself: no server or push certificate |

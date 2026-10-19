@@ -14,6 +14,7 @@ FRESH_DAYS = 45          # shelf prices unchanged for longer than this are treat
 DROP_WINDOW_DAYS = 21    # price drops: compared with the highest price in this window
 MIN_DROP_RATIO, MIN_DROP_EUROS = 0.10, 0.20
 MAX_PRICE_DROPS = 40
+OPEN_PRICES_URL = "https://prices.openfoodfacts.org/"
 
 _STOP_WORDS = {"alle", "jumbo", "en", "of", "met", "de", "het", "een", "van", "voor", "per", "pak", "pakken"}
 
@@ -73,8 +74,13 @@ def store_offers(db, stores, fresh, now):
             key=f"{row['store_id']}:{row['offer_key']}:{row['valid_from']}",
             store=stores[row["store_id"]]["name"], title=title, price=price, regular=regular, size=size,
             valid_until=row["valid_to"], deal=_deal_label(deal, row["offer_price"]), category=row["category"],
-            image_url=row["image_url"]))
+            image_url=row["image_url"], source=_source(row["url"])))
     return result
+
+
+def _source(url):
+    """Who reported an offer, when it isn't the store itself (Open Prices data must be credited, ODbL)."""
+    return "Open Prices" if (url or "").startswith(OPEN_PRICES_URL) else None
 
 
 def clean_deal(text):
@@ -194,7 +200,7 @@ def _cheapest_match(title, size, index):
 
 
 def _offer_json(key, store, title, price, regular, size, valid_until, deal, category, observed_at=None,
-                image_url=None):
+                image_url=None, source=None):
     return {
         "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"smartmealplanner:{key}")).upper(),
         "storeName": store,
@@ -210,6 +216,7 @@ def _offer_json(key, store, title, price, regular, size, valid_until, deal, cate
         "dealText": deal,
         "ingredientName": ingredient_for(title),
         "imageURL": image_url,
+        "source": source,
     }
 
 

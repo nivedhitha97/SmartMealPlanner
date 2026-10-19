@@ -35,6 +35,11 @@
 - **Near me:** only stores within 2 km of your postcode (on by default when known)
 - **Store filter** shown as each store's logo badge, plus category filter; "Ending soon" and "More deals"
 - **+ on each offer** adds it to the grocery list (shows the quantity; tap again for one more)
+- **Albert Heijn Bonus:** AH doesn't let apps read its offers, so the card opens AH's own Bonus page (in the AH app
+  when installed, else Safari) and **Add a deal** saves the deals you want, marked "Added by you". They run until
+  Sunday (AH's Bonus week) unless you change the date, can be linked to a recipe ingredient so the planner uses the
+  price, and stay on the phone. Long-press one to delete it.
+- AH discounts that shoppers report on **Open Prices** appear as "Reported on Open Prices", with the ODbL credit
 - Freshness line (live, offline copy, or samples), the next store update, and a **Store updates** list with each
   store's weekly day and whether its data is current; pull to refresh
 

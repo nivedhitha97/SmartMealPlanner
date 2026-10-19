@@ -14,7 +14,7 @@ info:
 
     No authentication: the data is public. Writes are not possible (the host refuses them).
   license:
-    name: Data from store websites and Checkjebon (MIT); for personal use
+    name: "Data from store websites, Checkjebon (MIT) and Open Prices (ODbL, © Open Food Facts contributors); for personal use"
     url: https://github.com/supermarkt/checkjebon/blob/main/LICENSE
 servers:
   - url: https://raw.githubusercontent.com/nivedhitha97/SmartMealPlanner/grocery-feed
@@ -142,6 +142,10 @@ components:
         dealText: { type: [string, "null"], examples: ["1+1 gratis", "2 voor €5,00"] }
         ingredientName: { type: [string, "null"], description: "The recipe ingredient this product is, when recognised" }
         imageURL: { type: [string, "null"], format: uri, description: Product photo (~300 px) hosted by the store }
+        source:
+          type: [string, "null"]
+          enum: [Open Prices, null]
+          description: "Who reported the offer when it isn't the store itself. Open Prices data (Albert Heijn's) must be credited: © Open Food Facts contributors, ODbL"
     IngredientPrice:
       type: object
       required: [ingredientName, pricePer100g, cheapestStore, cheapestProduct, cheapestPrice, cheapestPricePer100g, storeCount, productCount]

@@ -1,10 +1,11 @@
 """Store parsers, on small samples shaped like each site's real data."""
 
+import datetime as dt
 import json
 import unittest
 
 from grocery_db import pagedata
-from grocery_db.stores import detailresult, hoogvliet, jumbo, lidl, poiesz
+from grocery_db.stores import detailresult, hoogvliet, jumbo, lidl, openprices, poiesz
 
 
 def nuxt(table):
@@ -119,3 +120,55 @@ class StoreParserTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OpenPricesTests(unittest.TestCase):
+    PRICE = {"id": 36400, "price": 1.99, "price_without_discount": 2.79, "price_is_discounted": True,
+             "discount_type": "LOYALTY_PROGRAM", "currency": "EUR", "date": "2026-10-14", "product_code": "8718907",
+             "product": {"product_name": "AH Kipfilet", "quantity": "300 g",
+                         "image_url": "https://images.openfoodfacts.org/kip.jpg"}}
+
+    def test_discount_becomes_an_offer_for_its_bonus_week(self):
+        offer = openprices.parse_price(self.PRICE)
+        self.assertEqual((offer.key, offer.title, offer.offer_price, offer.regular_price, offer.size),
+                         ("8718907", "AH Kipfilet", 1.99, 2.79, "300 g"))
+        self.assertEqual(offer.valid_from, "2026-10-12T00:00:00+02:00")  # Monday of the week it was seen
+        self.assertEqual(offer.valid_to, "2026-10-18T23:59:59+02:00")    # that Sunday
+        self.assertEqual(offer.deal_text, "Bonus met Bonuskaart")
+        self.assertEqual(offer.url, "https://prices.openfoodfacts.org/prices/36400")
+        self.assertEqual(offer.image_url, "https://images.openfoodfacts.org/kip.jpg")
+
+    def test_loose_produce_is_named_from_its_category_and_priced_per_kilo(self):
+        item = {"id": 1, "price": 2.5, "currency": "EUR", "date": "2026-10-13", "category_tag": "en:pink-lady-apples",
+                "price_per": "KILOGRAM", "product": None}
+        offer = openprices.parse_price(item)
+        self.assertEqual((offer.title, offer.size, offer.key), ("Pink lady apples", "1 kg", "en:pink-lady-apples"))
+
+    def test_unusable_prices_are_skipped(self):
+        self.assertIsNone(openprices.parse_price({**self.PRICE, "currency": "GBP"}))
+        self.assertIsNone(openprices.parse_price({**self.PRICE, "price": None}))
+        self.assertIsNone(openprices.parse_price({"id": 2, "price": 1.0, "date": "2026-10-14", "product": {}}))
+
+    def test_regular_price_must_be_higher(self):
+        self.assertIsNone(openprices.parse_price({**self.PRICE, "price_without_discount": 1.50}).regular_price)
+
+    def test_fetch_uses_only_dutch_ah_stores_and_keeps_the_latest_sighting(self):
+        class FakeHttp:
+            def __init__(self):
+                self.urls = []
+
+            def json(self, url, headers=None):
+                self.urls.append(url)
+                if "/locations?" in url:
+                    return {"pages": 1, "items": [{"id": 7, "osm_name": "Albert Heijn XL"},
+                                                  {"id": 8, "osm_name": "Café bij de Albert Heijn"}]}
+                older = {**OpenPricesTests.PRICE, "id": 1, "price": 2.10, "date": "2026-10-12"}
+                return {"pages": 1, "items": [OpenPricesTests.PRICE, older]}
+
+        http = FakeHttp()
+        offers = openprices.fetch_ah_offers(http, today=dt.date(2026, 10, 16))
+        self.assertEqual([o.offer_price for o in offers], [1.99])
+        prices_url = http.urls[1]
+        self.assertIn("location_id__in=7&", prices_url)
+        self.assertIn("price_is_discounted=true", prices_url)
+        self.assertIn("date__gte=2026-10-09", prices_url)

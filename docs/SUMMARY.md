@@ -41,8 +41,8 @@ No third-party app dependencies and no paid services or API keys in the app.
 
 All features above are working and tested. Possible next steps:
 
-- Albert Heijn offers and current shelf prices for the stores the free source no longer updates (needs a source that
-  isn't blocked and is permitted)
+- Current shelf prices for the stores the free source no longer updates (needs a source that isn't blocked and is
+  permitted). Albert Heijn offers now come from Open Prices and from deals you add from AH's Bonus page.
 - Monthly planning and per-store price comparison in the grocery list
 - Nutrition charts with Swift Charts
 

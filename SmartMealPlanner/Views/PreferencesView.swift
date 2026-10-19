@@ -358,7 +358,7 @@ struct PreferencesView: View {
 
         postcodeError = nil
         isLookingUpPostcode = true
-        try? await Task.sleep(for: .milliseconds(400))
+        try? await Task.sleep(for: .seconds(LaunchArguments.postcodeLookupDelay()))
         guard !Task.isCancelled else { return }
         do {
             let resolved = try await PostcodeLocationService.resolve(trimmed)

@@ -29,6 +29,30 @@ final class OffersAndPreferencesUITests: XCTestCase {
         XCTAssertTrue(app.element(containing: "Broccoli 500g").waitForExistence(timeout: 3), "All shows every offer again")
     }
 
+    func testAddingAnAlbertHeijnBonusDealShowsItInOffers() {
+        let app = XCUIApplication.launchForTesting()
+        app.openTab("Offers")
+        let addDeal = app.buttons["offers.addDeal"]
+        XCTAssertTrue(addDeal.waitForExistence(timeout: 5), "Albert Heijn Bonus card shows")
+        XCTAssertTrue(app.buttons["offers.ah.openBonus"].exists)
+        app.reveal(addDeal)
+        addDeal.tap()
+
+        let save = app.buttons["addDeal.save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 3))
+        XCTAssertFalse(save.isEnabled, "needs a name and a price first")
+        app.textFields["addDeal.name"].typeText("AH Halfvolle melk")
+        let price = app.textFields["addDeal.price"]
+        price.tap()
+        price.typeText("0.99")
+        XCTAssertTrue(save.isEnabled)
+        save.tap()
+
+        let added = app.element(containing: "AH Halfvolle melk")
+        XCTAssertTrue(added.waitForExistence(timeout: 3), "the deal is in the offers list")
+        XCTAssertTrue(app.element(containing: "Added by you").exists)
+    }
+
     func testInvalidPostcodeShowsAnError() {
         let app = XCUIApplication.launchForTesting()
         let field = postcodeField(in: app)
@@ -52,15 +76,15 @@ final class OffersAndPreferencesUITests: XCTestCase {
     }
 
     func testFirstSaveKeepsThePostcodeAndChoices() {
-        let app = XCUIApplication.launchForTesting()
+        // The lookup waits 30 s, so the save below always happens while it is still running (the original bug)
+        // and the nearby-stores list can't appear mid-scroll and push the button out of reach.
+        let app = XCUIApplication.launchForTesting(extraArguments: [LaunchFlag.postcodeLookupSeconds, "30"])
         let field = postcodeField(in: app)
         field.tap()
         field.typeText("1062JB\n")  // return closes the keyboard
 
-        // Save straight away, before the postcode lookup has had time to finish. The nearby-stores list can
-        // appear mid-scroll and push the button down, so allow a few extra swipes.
         let save = app.buttons["preferences.save"]
-        app.scrollTo(save, maxSwipes: 14)
+        app.scrollTo(save)
         save.tap()
         XCTAssertTrue(app.button(containing: "Saved").waitForExistence(timeout: 3), "First tap saves")
 

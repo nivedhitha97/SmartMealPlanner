@@ -82,10 +82,11 @@ def update(db, now, forced=()):
     due = [row for row in db.stores()
            if row["id"] in forced or schedule.is_due(schedule.weekday_of(row), row["fetched_week"],
                                                      row["attempts_week"], row["attempts"], now)]
+    daily_requests, daily_new = update_daily_offers(db, now)
     if not due:
-        return None
+        return daily_requests if daily_new else None
     now_s = utc(now)
-    total = 0
+    total = daily_requests
     print("Due: " + ", ".join(f"{row['name']} ({dates.WEEKDAYS[schedule.weekday_of(row)]})" for row in due))
 
     # Offers, from each store itself.
@@ -129,6 +130,34 @@ def update(db, now, forced=()):
     if catalog_stores:
         total += update_catalogs(db, now, catalog_stores, succeeded)
     return total
+
+
+def update_daily_offers(db, now):
+    """Crowdsourced offers (Albert Heijn's, from Open Prices) arrive all week, so they are checked once a day
+    whether the store is due or not. It is a couple of small requests and never touches the weekly schedule.
+    Returns (requests made, new offers)."""
+    today = now.astimezone(dates.AMSTERDAM).date().isoformat()
+    requests = new = 0
+    for row in db.stores():
+        store = BY_ID[row["id"]]
+        key = f"daily_offers:{store.id}"
+        if not store.daily_offers or db.sync_value(key) == today:
+            continue
+        http, started = web.Http(), utc(dt.datetime.now(dt.timezone.utc))
+        try:
+            offers = store.daily_offers(http)
+            added = db.save_offers(store.id, offers, utc(now))
+            db.set_sync_value(key, today)
+            db.log_fetch(store.id, "daily-offers", started, utc(dt.datetime.now(dt.timezone.utc)), "ok",
+                         len(offers), http.requests)
+            print(f"  {store.name} (Open Prices): {len(offers)} offers ({added} new), {http.requests} requests")
+            new += added
+        except Exception as error:  # crowdsourced extras must never stop the weekly fetch
+            db.log_fetch(store.id, "daily-offers", started, utc(dt.datetime.now(dt.timezone.utc)), "error",
+                         requests=http.requests, message=str(error)[:300])
+            print(f"  {store.name} (Open Prices): FAILED ({error})", file=sys.stderr)
+        requests += http.requests
+    return requests, new
 
 
 def update_catalogs(db, now, rows, offers_done):

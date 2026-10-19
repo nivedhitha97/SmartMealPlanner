@@ -13,6 +13,7 @@ struct SmartMealPlannerApp: App {
 
     @StateObject private var planning: PlanningViewModel
     @StateObject private var shopping = ShoppingListStore()
+    @StateObject private var myOffers = MyOffersStore()
     @State private var showSplash: Bool
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
 
@@ -32,6 +33,7 @@ struct SmartMealPlannerApp: App {
                 MainTabView()
                     .environmentObject(planning)
                     .environmentObject(shopping)
+                    .environmentObject(myOffers)
                 if showSplash {
                     SplashView()
                         .transition(.opacity)

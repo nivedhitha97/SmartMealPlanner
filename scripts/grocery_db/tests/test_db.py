@@ -88,6 +88,8 @@ class UpdateTests(unittest.TestCase):
         self.db.sync_stores(STORES)
         self.calls = []
         self.unexpected = []
+        self.daily_calls = []
+        self.daily_result = []
 
     def tearDown(self):
         self.assertEqual(self.unexpected, [], "stores fetched although not due")
@@ -109,7 +111,8 @@ class UpdateTests(unittest.TestCase):
         patched = {
             store.id: dataclasses.replace(store, fetch_offers=self.fake_offers(store.id, starts[store.id])
                                           if store.id in starts else self.not_due(store.id))
-            if store.fetch_offers else store
+            if store.fetch_offers else dataclasses.replace(store, daily_offers=self.fake_daily(store.id))
+            if store.daily_offers else store
             for store in STORES
         }
 
@@ -122,6 +125,13 @@ class UpdateTests(unittest.TestCase):
              mock.patch.object(cli.checkjebon, "fetch_catalogs_at", lambda *a, **k: None):
             return cli.update(self.db, now)
 
+    def fake_daily(self, store_id):
+        def fetch(http):
+            self.daily_calls.append(store_id)
+            http.requests += 1
+            return self.daily_result
+        return fetch
+
     def not_due(self, store_id):
         def fetch(http):
             self.unexpected.append(store_id)
@@ -133,7 +143,8 @@ class UpdateTests(unittest.TestCase):
                   "hoogvliet": "2026-10-14", "poiesz": "2026-10-11"}
         requests = self.run_update(at("2026-10-15 07:00"), starts)
         self.assertEqual(sorted(self.calls), sorted(starts))
-        self.assertEqual(requests, len(starts) + 1, "one request per store plus one shared catalog download")
+        self.assertEqual(requests, len(starts) + 2,
+                         "one request per store, one shared catalog download and the daily Open Prices check")
 
         self.calls.clear()
         self.assertIsNone(self.run_update(at("2026-10-15 18:00"), starts), "same day: nothing due")
@@ -148,8 +159,25 @@ class UpdateTests(unittest.TestCase):
 
         requests = self.run_update(at("2026-10-18 07:00"), {"poiesz": "2026-10-18"})  # Sunday
         self.assertEqual(self.calls, ["poiesz"])
-        self.assertEqual(requests, 2, "Poiesz plus the shared catalog download")
+        self.assertEqual(requests, 3, "Poiesz, the shared catalog download and the daily Open Prices check")
         self.assertEqual(self.db.store("poiesz")["fetched_week"], "2026-10-18")
+
+    def test_crowdsourced_offers_are_checked_once_a_day(self):
+        starts = {"jumbo": "2026-10-14", "lidl": "2026-10-12", "dirk": "2026-10-14", "dekamarkt": "2026-10-13",
+                  "hoogvliet": "2026-10-14", "poiesz": "2026-10-11"}
+        self.run_update(at("2026-10-15 07:00"), starts)
+        self.assertEqual(self.daily_calls, ["ah"])
+        self.assertIsNone(self.run_update(at("2026-10-15 09:00"), starts), "second run that day: nothing new")
+        self.assertEqual(self.daily_calls, ["ah"], "checked only once that day")
+
+        # Friday: no store is due, but a shopper reported an AH Bonus price, so the files are rebuilt.
+        self.daily_result = [Offer("871", "AH Kipfilet", dates.local_start(dt.date(2026, 10, 12)),
+                                   dates.local_end(dt.date(2026, 10, 18)), 1.99, 2.79)]
+        self.assertEqual(self.run_update(at("2026-10-16 07:00"), starts), 1)
+        self.assertEqual(self.daily_calls, ["ah", "ah"])
+        self.assertEqual([row["title"] for row in self.db.current_offers(at("2026-10-16 07:00"))
+                          if row["store_id"] == "ah"], ["AH Kipfilet"])
+        self.assertIsNone(self.run_update(at("2026-10-17 07:00"), starts), "same sighting again: nothing new")
 
     def test_store_that_has_not_published_is_retried_next_morning(self):
         starts = {"jumbo": "2026-10-14", "lidl": "2026-10-12", "dirk": "2026-10-14", "dekamarkt": "2026-10-13",

@@ -27,9 +27,16 @@ struct SupermarketOffer: Identifiable, Codable, Hashable {
     var dealText: String? = nil
     /// Product photo (about 300 px wide) hosted by the store; nil when the store has none.
     var imageURL: URL? = nil
+    /// Who reported the offer when it isn't the store itself: "Open Prices" (shoppers' price tags, ODbL) or
+    /// `addedByYou` for deals the user typed in from a folder.
+    var source: String? = nil
 
     /// Region id of offers that apply across the Netherlands.
     static let nationalRegionId = "NL"
+    static let openPrices = "Open Prices"
+    static let addedByYou = "You"
+
+    var isAddedByYou: Bool { source == Self.addedByYou }
 
     /// Whether this is a live price drop rather than a flyer offer with a known end date.
     var isLivePriceDrop: Bool { observedAt != nil }
