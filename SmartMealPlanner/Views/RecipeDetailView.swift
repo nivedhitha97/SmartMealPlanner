@@ -58,7 +58,9 @@ struct RecipeDetailView: View {
                 .background(Color.brandPrimarySoft, in: Capsule())
 
             if recipe.isAIGenerated {
-                Label("AI-generated: check ingredients for allergens", systemImage: "sparkles")
+                Label(recipe.isFromSpoonacular ? "Adapted by AI from Spoonacular: check ingredients for allergens"
+                                               : "AI-generated: check ingredients for allergens",
+                      systemImage: "sparkles")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.accentAmber)
                     .accessibilityIdentifier("recipe.aiGenerated")

@@ -93,7 +93,7 @@ final class PlanningViewModel: ObservableObject {
                 catalog.recipes += new
                 discoveryNote = new.isEmpty
                     ? discovered.note
-                    : "Includes \(new.count) recipes discovered by on-device AI (marked on each recipe)."
+                    : "Includes \(new.count) recipes \(discovered.source.description) (marked on each recipe)."
             }
 
             var plan = try await ai.generateWeeklySuggestions(

@@ -11,8 +11,9 @@ final class MealPlanner {
     static let maxTimesPerWeek = 2
 
     /// Builds seven consecutive days (from the start of `startingFrom`) using the same routine each day.
-    /// A dish appears at most once a day and at most `maxTimesPerWeek` times a week; a slot is left empty
-    /// when every matching recipe has reached that limit.
+    /// Each slot takes dishes meant for that meal (no pasta for breakfast). A dish appears at most once a day and at
+    /// most `maxTimesPerWeek` times a week; a slot is left empty when every matching recipe has reached that limit.
+    /// Breakfasts may come from other cuisines when the chosen ones have none left: few cuisines have many.
     func generateWeeklyMealPlan(
         recipes: [Recipe],
         preferences: UserPreferences,
@@ -21,23 +22,34 @@ final class MealPlanner {
         calendar: Calendar = .current
     ) -> WeeklyMealPlan {
         let filtered = filterRecipes(recipes, preferences)
+        var anyCuisine = preferences
+        anyCuisine.cuisines = []
+        let otherBreakfasts = filterRecipes(recipes, anyCuisine).filter { recipe in
+            recipe.meals?.contains(MealSlot.breakfast.rawValue) == true && !filtered.contains { $0.id == recipe.id }
+        }
         let weekStart = calendar.startOfDay(for: startingFrom)
         var timesThisWeek: [String: Int] = [:]
         let days: [DailyMealPlanSlot] = (0..<7).compactMap { offset in
             guard let date = calendar.date(byAdding: .day, value: offset, to: weekStart) else { return nil }
             var usedToday: Set<String> = []
-            func pick(_ type: MealType) -> Recipe? {
-                let eligible = filtered.filter {
-                    timesThisWeek[Self.dishKey($0), default: 0] < Self.maxTimesPerWeek && !usedToday.contains(Self.dishKey($0))
+            func pick(_ type: MealType, for slot: MealSlot) -> Recipe? {
+                func allowed(_ pool: [Recipe]) -> [Recipe] {
+                    pool.filter {
+                        $0.suits(slot) && timesThisWeek[Self.dishKey($0), default: 0] < Self.maxTimesPerWeek
+                            && !usedToday.contains(Self.dishKey($0))
+                    }
                 }
+                var eligible = allowed(filtered)
+                if eligible.isEmpty && slot == .breakfast { eligible = allowed(otherBreakfasts) }
                 guard let recipe = selectMeal(type: type, from: eligible, timesThisWeek: timesThisWeek) else { return nil }
                 timesThisWeek[Self.dishKey(recipe), default: 0] += 1
                 usedToday.insert(Self.dishKey(recipe))
                 return recipe
             }
-            let breakfast = preferences.breakfastRecipePreference == .granolaMuesliOnly ? nil : pick(routine.breakfastType)
-            let lunch = pick(routine.lunchType)
-            let dinner = pick(routine.dinnerType)
+            let breakfast = preferences.breakfastRecipePreference == .granolaMuesliOnly
+                ? nil : pick(routine.breakfastType, for: .breakfast)
+            let lunch = pick(routine.lunchType, for: .lunch)
+            let dinner = pick(routine.dinnerType, for: .dinner)
             return DailyMealPlanSlot(date: date, breakfast: breakfast, lunch: lunch, dinner: dinner)
         }
         return WeeklyMealPlan(id: UUID(), weekStart: weekStart, days: days)

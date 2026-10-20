@@ -2,9 +2,10 @@
 //  RecipeDiscovery.swift
 //  SmartMealPlanner
 //
-//  AI-assisted recipe search: Apple's on-device language model (Foundation Models) writes recipes that fit the
-//  user's preferences. Free, no API key, and preferences never leave the phone. Every recipe is checked against
-//  the same diet, allergy and dislike rules as the bundled ones before it can be planned.
+//  AI-assisted recipe search. When the recipe-search function is set up (RecipeSearchService), real recipes come
+//  from Spoonacular, adapted by Claude Haiku. Otherwise, or when that fails, Apple's on-device language model
+//  (Foundation Models) writes recipes: free, no API key, and preferences never leave the phone. Every recipe is
+//  checked against the same diet, allergy and dislike rules as the bundled ones before it can be planned.
 //
 
 import CryptoKit
@@ -44,7 +45,7 @@ struct GeneratedRecipe {
     var cookMinutes: Int
     @Guide(description: "Every ingredient with its grams", .count(2...12))
     var ingredients: [GeneratedIngredient]
-    @Guide(description: "Method steps, one instruction each", .count(3...8))
+    @Guide(description: "Detailed method steps, one instruction each, with amounts, heat levels and timings", .count(6...10))
     var steps: [String]
 }
 
@@ -90,14 +91,31 @@ struct OnDeviceRecipeGenerator: RecipeGenerating {
     }
 }
 
+/// Where discovered recipes came from.
+enum DiscoverySource: String, Codable {
+    /// Spoonacular recipes adapted by Claude Haiku (the recipe-search function).
+    case spoonacular
+    /// Written by Apple's on-device model.
+    case onDevice
+
+    /// For the planner notes, e.g. "Includes 4 recipes from Spoonacular, adapted by AI".
+    var description: String {
+        switch self {
+        case .spoonacular: return "from Spoonacular, adapted by AI"
+        case .onDevice: return "discovered by on-device AI"
+        }
+    }
+}
+
 /// The result of asking for AI recipes.
 struct DiscoveredRecipes: Equatable {
     var recipes: [Recipe]
     /// For the planner notes, e.g. why there are none.
     var note: String?
+    var source: DiscoverySource = .onDevice
 
     static func == (lhs: DiscoveredRecipes, rhs: DiscoveredRecipes) -> Bool {
-        lhs.recipes.map(\.id) == rhs.recipes.map(\.id) && lhs.note == rhs.note
+        lhs.recipes.map(\.id) == rhs.recipes.map(\.id) && lhs.note == rhs.note && lhs.source == rhs.source
     }
 }
 
@@ -105,25 +123,46 @@ struct DiscoveredRecipes: Equatable {
 final class RecipeDiscovery {
     static let shared = RecipeDiscovery()
 
+    private let search: RecipeSearching
     private let generator: RecipeGenerating
     private let cacheURL: URL
 
-    init(generator: RecipeGenerating = OnDeviceRecipeGenerator(),
+    init(search: RecipeSearching = RemoteRecipeSearch(),
+         generator: RecipeGenerating = OnDeviceRecipeGenerator(),
          cacheURL: URL = URL.applicationSupportDirectory.appending(path: "ai-recipes.json")) {
+        self.search = search
         self.generator = generator
         self.cacheURL = cacheURL
     }
 
-    var availability: RecipeDiscoveryAvailability { generator.availability }
+    /// The source tried first: the recipe search when it is set up, else the on-device model.
+    var preferredSource: DiscoverySource { search.isConfigured ? .spoonacular : .onDevice }
 
-    /// AI recipes for these preferences: from the cache when the preferences haven't changed, else newly generated.
-    /// Recipes that break the diet, allergies or dislikes are dropped.
+    var availability: RecipeDiscoveryAvailability { search.isConfigured ? .available : generator.availability }
+
+    /// AI recipes for these preferences: from the cache when the preferences haven't changed, else found anew.
+    /// Recipe search comes first; the on-device model is the fallback. Recipes that break the diet, allergies or
+    /// dislikes are dropped.
     func recipes(for preferences: UserPreferences, forceNew: Bool = false) async -> DiscoveredRecipes {
         let key = Self.cacheKey(for: preferences)
-        if !forceNew, let cached = loadCache(), cached.key == key {
-            return DiscoveredRecipes(recipes: cached.recipes, note: nil)
+        if !forceNew, let cached = loadCache(), cached.key == key, cached.source ?? .onDevice == preferredSource {
+            return DiscoveredRecipes(recipes: cached.recipes, note: nil, source: cached.source ?? .onDevice)
+        }
+        var searchFailed = false
+        if search.isConfigured {
+            do {
+                let safe = MealPlanner().filterRecipes(try await search.search(for: preferences), preferences)
+                saveCache(Cache(key: key, recipes: safe, source: .spoonacular))
+                return DiscoveredRecipes(recipes: safe, note: safe.isEmpty ? "No Spoonacular recipe matched all your preferences." : nil,
+                                         source: .spoonacular)
+            } catch {
+                searchFailed = true  // fall back to the on-device model
+            }
         }
         guard case .available = generator.availability else {
+            if searchFailed {
+                return DiscoveredRecipes(recipes: [], note: "Couldn't reach recipe search this time; the built-in recipes are used.")
+            }
             if case .unavailable(let reason) = generator.availability { return DiscoveredRecipes(recipes: [], note: reason) }
             return DiscoveredRecipes(recipes: [], note: nil)
         }
@@ -131,7 +170,7 @@ final class RecipeDiscovery {
             let generated = try await generator.generate(prompt: Self.prompt(for: preferences),
                                                          instructions: Self.instructions)
             let safe = MealPlanner().filterRecipes(generated.map(Self.recipe(from:)), preferences)
-            saveCache(Cache(key: key, recipes: safe))
+            saveCache(Cache(key: key, recipes: safe, source: .onDevice))
             return DiscoveredRecipes(recipes: safe, note: safe.isEmpty ? "No AI recipe matched all your preferences." : nil)
         } catch {
             return DiscoveredRecipes(recipes: [], note: "Couldn't create AI recipes this time; the built-in recipes are used.")
@@ -196,7 +235,8 @@ final class RecipeDiscovery {
             cookMinutes: generated.cookMinutes,
             instructions: generated.steps,
             youtubeURL: search,
-            isAIGenerated: true
+            isAIGenerated: true,
+            meals: [MealSlot.lunch.rawValue, MealSlot.dinner.rawValue]  // the prompt asks for lunches and dinners
         )
     }
 
@@ -214,6 +254,8 @@ final class RecipeDiscovery {
     private struct Cache: Codable {
         let key: String
         let recipes: [Recipe]
+        /// nil in caches written before recipe search existed (those were on-device).
+        var source: DiscoverySource? = nil
     }
 
     private func loadCache() -> Cache? {

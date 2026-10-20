@@ -360,17 +360,20 @@ struct RecipeImage: View {
     let placeholderKey: String
     var iconSize: CGFloat = 22
 
+    // The gradient sets the size; the photo is an overlay, so a wide photo filling the frame can't make the view
+    // (and the screen around it) wider than its frame.
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: FoodGradient.forKey(placeholderKey).colors,
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+        LinearGradient(
+            colors: FoodGradient.forKey(placeholderKey).colors,
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay {
             Image(systemName: "fork.knife")
                 .font(.system(size: iconSize, weight: .medium))
                 .foregroundStyle(.white.opacity(0.9))
-
+        }
+        .overlay {
             if let url {
                 AsyncImage(url: url) { phase in
                     if case .success(let image) = phase {

@@ -95,7 +95,10 @@ struct WeeklyPlanView: View {
 
     @ViewBuilder
     private func planScroll(_ plan: AISuggestedWeekPlan) -> some View {
-        let breakfastPref = UserPreferences.loadFromUserDefaults()?.breakfastRecipePreference ?? .includeRecipes
+        // Saved settings are read once per update here, not once per meal slot.
+        let preferences = UserPreferences.loadFromUserDefaults()
+        let context = SlotContext(breakfastPreference: preferences?.breakfastRecipePreference ?? .includeRecipes,
+                                  routine: MealRoutine.load(), people: preferences?.people ?? 1)
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 ScreenHeader(eyebrow: weekRange(plan.weeklyMealPlan), title: "Your week") {
@@ -108,7 +111,7 @@ struct WeeklyPlanView: View {
 
                 notesCard(plan)
 
-                mealsSection(plan.weeklyMealPlan, breakfastPreference: breakfastPref)
+                mealsSection(plan.weeklyMealPlan, context: context)
 
                 nutritionSection(plan.weeklyMealPlan)
             }
@@ -219,7 +222,14 @@ struct WeeklyPlanView: View {
 
     // MARK: - Meals
 
-    private func mealsSection(_ weekly: WeeklyMealPlan, breakfastPreference: BreakfastRecipePreference) -> some View {
+    /// What every meal slot needs from the saved preferences and routine.
+    private struct SlotContext {
+        let breakfastPreference: BreakfastRecipePreference
+        let routine: MealRoutine?
+        let people: Int
+    }
+
+    private func mealsSection(_ weekly: WeeklyMealPlan, context: SlotContext) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader(title: "Meals", subtitle: "Tap a dish for the recipe, video and cookbook")
 
@@ -249,7 +259,7 @@ struct WeeklyPlanView: View {
 
                     ForEach(Array(day.mealsWithSlot.enumerated()), id: \.element.0) { index, pair in
                         if index > 0 { RowDivider() }
-                        mealSlotRow(slot: pair.0, recipe: pair.1, breakfastPreference: breakfastPreference)
+                        mealSlotRow(slot: pair.0, recipe: pair.1, context: context)
                     }
                 }
                 .padding(EdgeInsets(top: 14, leading: 16, bottom: 6, trailing: 16))
@@ -283,11 +293,12 @@ struct WeeklyPlanView: View {
     }
 
     @ViewBuilder
-    private func mealSlotRow(slot: MealSlot, recipe: Recipe?, breakfastPreference: BreakfastRecipePreference) -> some View {
+    private func mealSlotRow(slot: MealSlot, recipe: Recipe?, context: SlotContext) -> some View {
+        let breakfastPreference = context.breakfastPreference
         let style = SlotStyle(slot)
         if let recipe {
             NavigationLink {
-                RecipeDetailView(recipe: recipe, slot: slot)
+                RecipeDetailView(recipe: recipe, people: context.people, slot: slot)
             } label: {
                 HStack(spacing: 14) {
                     RecipeImage(url: recipe.imageURLParsed, placeholderKey: recipe.name)
@@ -301,9 +312,9 @@ struct WeeklyPlanView: View {
                             .lineLimit(2)
                         HStack(spacing: 6) {
                             Text(recipe.cuisine)
-                            if recipe.youtubeURL != nil || recipe.cookbookURL != nil {
+                            if let minutes = recipe.totalMinutes {
                                 Text("·").foregroundStyle(Color.textTertiary)
-                                Label("Video & book", systemImage: "link")
+                                Label(Recipe.durationText(minutes), systemImage: "clock")
                                     .labelStyle(.titleAndIcon)
                                     .foregroundStyle(Color.textTertiary)
                             }
@@ -332,11 +343,11 @@ struct WeeklyPlanView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     slotLabel(slot.rawValue, style: .muted)
                     Text(WeeklyPlanContent.emptySlotTitle(slot: slot, breakfastPreference: breakfastPreference,
-                                                          mealType: WeeklyPlanContent.mealType(for: slot, in: MealRoutine.load())))
+                                                          mealType: WeeklyPlanContent.mealType(for: slot, in: context.routine)))
                         .font(.cardTitle)
                         .foregroundStyle(Color.textSecondary)
                     Text(WeeklyPlanContent.emptySlotDetail(slot: slot, breakfastPreference: breakfastPreference,
-                                                           mealType: WeeklyPlanContent.mealType(for: slot, in: MealRoutine.load())))
+                                                           mealType: WeeklyPlanContent.mealType(for: slot, in: context.routine)))
                         .font(.footnote)
                         .foregroundStyle(Color.textTertiary)
                 }

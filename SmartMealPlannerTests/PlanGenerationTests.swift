@@ -124,6 +124,65 @@ struct PlanGenerationTests {
                                                     "Chicken Bowl", "Chicken Bowl", nil])
     }
 
+    // MARK: - Meals each dish is for
+
+    private func tagged(_ recipe: Recipe, _ meals: [MealSlot]) -> Recipe {
+        var copy = recipe
+        copy.meals = meals.map(\.rawValue)
+        return copy
+    }
+
+    @Test func breakfastsOnlyGetBreakfastDishesAndMainsOnlyMainDishes() {
+        let porridge = tagged(Fixtures.recipe("Porridge", cuisine: "Greek", ingredients: [(tomato, 10)]), [.breakfast])
+        let salad = tagged(greekSalad, [.lunch, .dinner])
+        let plan = weekPlan([porridge, salad], Fixtures.preferences())
+
+        #expect(plan.days.compactMap { $0.breakfast?.name }.allSatisfy { $0 == "Porridge" })
+        #expect(plan.days.flatMap { [$0.lunch?.name, $0.dinner?.name] }.compactMap { $0 }.allSatisfy { $0 == "Greek Salad" })
+        expectVarietyRules(plan)
+    }
+
+    @Test func breakfastComesFromAnotherCuisineWhenTheChosenOnesHaveNone() {
+        let poha = tagged(Fixtures.recipe("Poha", cuisine: "Indian", ingredients: [(lentils, 10)]), [.breakfast])
+        let porkBreakfast = tagged(Fixtures.recipe("Bacon Roll", cuisine: "Dutch",
+                                                   ingredients: [(Fixtures.ingredient("Bacon", calories: 300, price: 1), 50)]),
+                                   [.breakfast])
+        let salad = tagged(greekSalad, [.lunch, .dinner])
+        let plan = weekPlan([poha, porkBreakfast, salad], Fixtures.preferences(diet: "Vegetarian", cuisines: ["Greek"]))
+
+        #expect(plan.days.first?.breakfast?.name == "Poha", "another cuisine, but still vegetarian")
+        #expect(!plannedNames(plan).contains("Bacon Roll"))
+        #expect(plan.days.compactMap(\.lunch).allSatisfy { $0.cuisine == "Greek" }, "mains keep to the chosen cuisines")
+    }
+
+    @Test(arguments: [("Champignons", false, false), ("Eggplant", false, false), ("Peanut Butter", false, false),
+                      ("Coconut Milk", false, false), ("Butter Beans", false, false), ("Prawns", true, true),
+                      ("Minced Beef", true, true), ("Fish Sauce", true, true), ("Smoked Sausage", true, true),
+                      ("Greek Yogurt", false, true), ("Eggs", false, true), ("Gruyère Cheese", false, true)])
+    func meatAndAnimalProductsAreRecognisedByWord(name: String, meat: Bool, animal: Bool) {
+        let recipe = Fixtures.recipe("Dish", ingredients: [(Fixtures.ingredient(name, calories: 100, price: 1), 100)])
+        #expect(recipe.containsMeat == meat)
+        #expect(recipe.containsAnimalProducts == animal)
+    }
+
+    @Test func bundledRecipesFillAWeekForEveryDietInEveryCuisine() throws {
+        let recipes = try JSONLoader.load("recipes", as: [Recipe].self)
+        #expect(recipes.count >= 49)
+        for recipe in recipes {
+            #expect(recipe.instructions.count >= 6, "\(recipe.name) has detailed steps")
+            #expect(recipe.ingredients.count >= 5, "\(recipe.name) has a real ingredient list")
+            #expect(recipe.meals?.isEmpty == false, "\(recipe.name) says which meals it is for")
+        }
+        for cuisine in PreferencesForm.cuisineOptions {
+            for diet in ["Non-Vegetarian", "Vegetarian", "Vegan"] {
+                let plan = weekPlan(recipes, Fixtures.preferences(diet: diet, cuisines: [cuisine]))
+                #expect(plan.days.allSatisfy { $0.breakfast != nil }, "\(diet) \(cuisine): a breakfast every day")
+                #expect(plan.allPlannedRecipes.count >= 11, "\(diet) \(cuisine): most of the week planned")
+                expectVarietyRules(plan)
+            }
+        }
+    }
+
     @Test func tooFewDishesLeaveSlotsEmptyRatherThanRepeating() {
         let plan = weekPlan([greekSalad, lentilDal], Fixtures.preferences())
 
