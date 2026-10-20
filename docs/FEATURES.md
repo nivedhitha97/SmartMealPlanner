@@ -5,7 +5,8 @@
 - **People:** 1–10; recipe amounts, grocery quantities and costs scale to it
 - **Breakfast:** include breakfast recipes, or granola/muesli only
 - **Cuisines** and **exclusions** (dislikes and allergies, comma-separated)
-- **Discover new recipes:** add recipes written by Apple's on-device AI for these preferences
+- **Discover new recipes:** add recipes found for these preferences: real Spoonacular recipes adapted by Claude Haiku
+  when [recipe search](DESIGN.md#recipe-search) is set up, else written by Apple's on-device AI
 - **Weekly budget** (€20–150)
 - **Postcode:** a Dutch postcode gives the region at once and, online, the city, the exact location (street level)
   and the supermarkets within 2 km ("Lidl 100 m · Albert Heijn 150 m · …")
@@ -24,10 +25,16 @@
 - A grocery card that opens the List tab
 
 ## Recipes
+- **50 built-in recipes**, 7–8 per cuisine (Indian, Italian, Dutch, Asian, Mexican, Greek, French), each with 2
+  breakfasts and meat, fish, vegetarian and vegan mains, so every diet gets a full week in every cuisine
+- Each says which meals it suits: breakfasts are only planned for breakfast, mains for lunch and dinner. When the
+  chosen cuisines have no breakfast left, one that fits the diet comes from another cuisine
+- Full ingredient lists with real amounts, and 6–9 detailed steps with heat levels and timings
 - Photo, cuisine, ingredients with amounts **for your household** ("For 2 people"), method steps
 - **Total, prep and cooking time** ("No cooking" for no-cook dishes)
 - **Watch:** opens a YouTube search for the recipe in the YouTube app, or in Safari when the app isn't installed
-- Cookbook links; AI-generated recipes are labelled "check ingredients for allergens"
+- Cookbook links; AI recipes are labelled "check ingredients for allergens". Spoonacular recipes credit Spoonacular
+  and the original site, with a link to the original recipe
 
 ## Offers
 - This week's offers from Jumbo, Lidl, Dirk, DekaMarkt, Hoogvliet and Poiesz with their real end dates, deals
