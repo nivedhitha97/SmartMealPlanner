@@ -30,6 +30,25 @@ def _image(offer, products, page_url):
     return IMAGE_HOSTS[page_url] + path.lstrip("/") + IMAGE_WIDTH
 
 
+def regular_price(offer, products):
+    """The normal price for the same thing the offer price is for. Offers usually state it; when they don't, it
+    comes from the offer's products, which can be other pack sizes: Dirk's 'Pepsi Zero, 0,49 per bottle' lists
+    only the 12-pack (normally 7,08, on offer 5,88). Never the dearest product: that overstates the saving."""
+    if offer.get("normalPrice"):
+        return float(offer["normalPrice"])
+    price = float(offer["offerPrice"])
+    priced = [p for p in products if p.get("normalPrice")]
+    # Products on offer at the headline price: the cheapest of their normal prices.
+    same = [p["normalPrice"] for p in priced if p.get("offerPrice") and abs(p["offerPrice"] - price) < 0.005]
+    if same:
+        return float(min(same))
+    # Other quantities: scale each normal price by its own offer price (7,08 × 0,49 / 5,88 = 0,59 a bottle).
+    scaled = [p["normalPrice"] * price / p["offerPrice"] for p in priced if p.get("offerPrice")]
+    if scaled:
+        return round(min(scaled), 2)
+    return float(min((p["normalPrice"] for p in priced), default=0)) or None
+
+
 def parse_page(html, page_url):
     data = pagedata.page_data(html)
     if data is None:
@@ -39,7 +58,7 @@ def parse_page(html, page_url):
         if not offer.get("offerPrice"):
             continue
         products = [p for p in offer.get("products") or [] if isinstance(p, dict)]
-        regular = offer.get("normalPrice") or max((p.get("normalPrice") or 0 for p in products), default=0)
+        regular = regular_price(offer, products)
         sign = (offer.get("textPriceSign") or "").replace("_", " ").strip()
         if sign.lower() == "actie":  # a placeholder, not a deal
             sign = ""

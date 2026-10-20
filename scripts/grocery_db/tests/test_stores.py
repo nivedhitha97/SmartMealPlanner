@@ -80,6 +80,33 @@ class StoreParserTests(unittest.TestCase):
         self.assertEqual(offer.image_url, "https://web-fileserver.dirk.nl/artikelen/243172_1.png?width=300",
                          "the first product's photo, resized")
 
+    def test_detailresult_regular_price_is_for_what_the_offer_price_is_for(self):
+        offer = lambda price, products, normal=0: {"offerPrice": price, "normalPrice": normal, "products": products}
+        # The offer's own normal price wins.
+        self.assertEqual(detailresult.regular_price(offer(2.49, [], 2.99), []), 2.99)
+        # Dirk's Pepsi Zero: 0,49 a bottle, only the 12-pack listed (7,08, on offer 5,88) → 0,59 a bottle.
+        pepsi = [{"normalPrice": 7.08, "offerPrice": 5.88}]
+        self.assertEqual(detailresult.regular_price(offer(0.49, pepsi), pepsi), 0.59)
+        # Pringles at 0,99: cans normally 1,79 and 1,49 → the lower, never overstating the saving.
+        pringles = [{"normalPrice": 1.79, "offerPrice": 0.99}, {"normalPrice": 1.49, "offerPrice": 0.99}]
+        self.assertEqual(detailresult.regular_price(offer(0.99, pringles), pringles), 1.49)
+        # DekaMarkt 1+1 gratis across a range: not the 27,95 tub when the offer is a 1,99 bar.
+        xxl = [{"normalPrice": 1.99, "offerPrice": 1.99}, {"normalPrice": 27.95, "offerPrice": 27.95}]
+        self.assertEqual(detailresult.regular_price(offer(1.99, xxl), xxl), 1.99)
+        # Products without their own offer price: the cheapest normal price; none at all: unknown.
+        self.assertEqual(detailresult.regular_price(offer(1.0, [{"normalPrice": 2.5}, {"normalPrice": 1.5}]),
+                                                    [{"normalPrice": 2.5}, {"normalPrice": 1.5}]), 1.5)
+        self.assertIsNone(detailresult.regular_price(offer(1.0, []), []))
+
+    def test_pepsi_offer_shows_the_bottle_price_saving(self):
+        table = [{"offers": 1}, [2], {"offerId": 3, "headerText": 4, "packaging": 5, "offerPrice": 6,
+                                      "normalPrice": 7, "startDate": 8, "endDate": 9, "textPriceSign": 10,
+                                      "products": 11},
+                 137000, "Pepsi Zero", "Fles 33 cl. OP=OP", 0.49, 0, "2026-10-14T00:00:00.000Z",
+                 "2026-10-20T23:59:00.000Z", "ACTIE_", [12], {"normalPrice": 13, "offerPrice": 14}, 7.08, 5.88]
+        [offer] = detailresult.parse_page(nuxt(table), "https://www.dirk.nl/aanbiedingen")
+        self.assertEqual((offer.offer_price, offer.regular_price), (0.49, 0.59), "was 7,08: the 12-pack's price")
+
     def test_dekamarkt_midnight_end_date_means_the_day_before(self):
         table = [{"offers": 1}, [2], {"offerId": 3, "headerText": 4, "offerPrice": 5, "normalPrice": 6,
                                       "startDate": 7, "endDate": 8, "textPriceSign": 9},
