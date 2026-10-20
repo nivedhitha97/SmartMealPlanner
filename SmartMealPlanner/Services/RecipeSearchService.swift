@@ -49,11 +49,16 @@ struct SearchedRecipe: Decodable {
     let cookMinutes: Int
     let ingredients: [Ingredient]
     let steps: [String]
+    /// "Breakfast", or "Lunch" and "Dinner".
+    let meals: [String]?
     let imageURL: String?
     let sourceURL: String?
     let sourceName: String?
+    /// A real video for the dish, when the function could look one up on YouTube.
+    let youtubeURL: String?
 
-    /// The app's recipe, crediting Spoonacular and linking to the original (Spoonacular's terms ask for both).
+    /// The app's recipe, crediting Spoonacular and linking to the original (Spoonacular's terms ask for both), with
+    /// the YouTube video the function found (else the YouTube search the recipe already has).
     var recipe: Recipe {
         let generated = GeneratedRecipe(
             name: name, cuisine: cuisine, servings: servings, prepMinutes: prepMinutes, cookMinutes: cookMinutes,
@@ -67,6 +72,12 @@ struct SearchedRecipe: Decodable {
         recipe.imageURL = imageURL
         recipe.cookbookReference = "Spoonacular" + (sourceName.map { " · \($0)" } ?? "")
         recipe.cookbookURL = sourceURL ?? "https://spoonacular.com/recipes/-\(spoonacularId)"
+        if let youtubeURL, let url = URL(string: youtubeURL), YouTubeLink.isYouTube(url) {
+            recipe.youtubeURL = youtubeURL
+        }
+        if let meals, !meals.isEmpty {
+            recipe.meals = meals
+        }
         return recipe
     }
 }

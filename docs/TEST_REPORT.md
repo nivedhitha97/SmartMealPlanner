@@ -2,11 +2,11 @@
 
 | Kind | Count | Where | Runs in CI |
 |---|---|---|---|
-| Unit tests (Swift Testing) | 205 | `SmartMealPlannerTests` | iOS build |
+| Unit tests (Swift Testing) | 217 | `SmartMealPlannerTests` | iOS build |
 | UI tests (XCUITest) | 23 (+ 1 screenshot test, skipped unless asked for) | `SmartMealPlannerUITests` | iOS build |
 | Grocery database tests (Python unittest) | 64 | `scripts/grocery_db/tests` | Grocery database |
 | API and security checks (Postman/Newman) | 29 | `docs/api` | API checks |
-| Recipe-search function tests (Node test runner) | 9 | `supabase/functions/recipe-search` | API checks |
+| Recipe-search function tests (Node test runner) | 13 | `supabase/functions/recipe-search` | API checks |
 
 **Latest results: all passing.** Every Xcode and CI test run is recorded in the
 [SmartMealPlanner Test Cases](https://docs.google.com/spreadsheets/d/1YKWuDnbF0zmI1NbZde3dtsLhVRfhXbsNPPZ-43Ga_AE/edit)
@@ -20,12 +20,12 @@ Google Sheet (see below).
 | Planning view model | Missing setup errors, generating/caching/clearing a plan, live prices and AI recipes reaching the planner |
 | Weekly plan screen | Budget card, day picker, empty-slot labels |
 | Recipe detail screen | Calories per serving, servings scaling, prep/cook/total times, links, bundled recipes complete |
-| Recipe discovery | AI recipe conversion, allergen re-check, caching per preferences, unavailable model, prompt contents; **recipe search first** (Spoonacular credit and link, request without postcode or budget, only HTTPS), fallback to the on-device model, planner notes |
+| Recipe discovery | Recipe search is the only source (Spoonacular credit and link, real YouTube video, meal tags, request without postcode or budget, only HTTPS); saved for a week then searched again; **offline the saved recipes however old**; on-device model as fallback with Allerhande / BBC Good Food links; clear notes when offline or not set up; allergen re-check |
 | Deals you add | Validity, saving on the phone, ending on Sunday (Amsterdam time), dropping ended deals, the planner using a linked deal, Open Prices credit |
 | External links | YouTube and Albert Heijn apps first, Safari fallback, short links |
 | Offers screen | Store and category filters, ending soon, ordering, savings, store badges, next update, store statuses |
 | Grocery list | Offers, own items, editing, ticking off, plan items, filters, totals, saving, **purchases and weekly spending** |
-| Live grocery data | No request before the next update, meta-only checks, rebuilt feed, offline fallbacks |
+| Live grocery data | No request before the next update, meta-only checks, rebuilt feed, offline: the saved copy, else **no data (never samples)** |
 | Nearby stores | Chain matching, 2 km radius, nearest per chain, de-duplication, nearby-only offers |
 | Offer alerts | Weekday mapping, weekly triggers, turning off, default store choice, permission |
 | Preferences form / storage | Saving on first tap before the lookup, people, postcode rules, older saved data |
@@ -33,8 +33,9 @@ Google Sheet (see below).
 
 ## UI tests
 
-Each test launches the app with no saved data, no splash and the bundled sample offers (`-uiTestingResetState`,
-`-uiTestingSkipSplash`, `-uiTestingBundledData`), so results don't depend on the network.
+Each test launches the app with no saved data, no splash and fixed test offers and recipes (`-uiTestingResetState`,
+`-uiTestingSkipSplash`, `-uiTestingBundledData`, reading `UITestOffers.json` and `UITestRecipes.json`), so results
+don't depend on the network. Users never see that data: without it the app only shows downloaded data.
 
 | Class | Covers |
 |---|---|
@@ -55,8 +56,9 @@ no requests.
 ## Recipe-search function tests
 
 The Edge Function's logic (`logic.ts`) without the network: preference validation and clean-up, the cache key,
-the Spoonacular query (diet, cuisines, intolerances, exclusions), the compact prompt data, the forced Claude Haiku
-tool call, and the checks on Claude's answer (only Spoonacular's recipes, photo and link from Spoonacular, banned
+the Spoonacular queries (breakfasts from any cuisine, mains in the user's cuisines; diet, intolerances, exclusions),
+the compact prompt data, the forced Claude Haiku tool call, the YouTube lookup and its answer, the user's own cuisine
+names, and the checks on Claude's answer (only Spoonacular's recipes, photo and link from Spoonacular, banned
 ingredients dropped, numbers clamped).
 
 ## API and security checks

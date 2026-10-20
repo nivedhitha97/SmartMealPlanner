@@ -14,11 +14,9 @@ struct AddOfferView: View {
     @State private var draft = OfferDraft()
     @FocusState private var nameFocused: Bool
 
-    /// Recipe ingredients, so a deal can be linked to one and used by the planner.
-    private let ingredients: [String] = {
-        let recipes = (try? JSONLoader.load("recipes", as: [Recipe].self)) ?? []
-        return Array(Set(recipes.flatMap { $0.ingredients.map(\.ingredient.name) })).sorted()
-    }()
+    /// Ingredients of the saved recipes, so a deal can be linked to one and used by the planner.
+    private let ingredients: [String] = Array(Set(RecipeDiscovery.shared.savedRecipes()
+        .flatMap { $0.ingredients.map(\.ingredient.name) })).sorted()
 
     var body: some View {
         NavigationStack {

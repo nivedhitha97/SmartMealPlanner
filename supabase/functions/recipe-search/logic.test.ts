@@ -12,6 +12,8 @@ import {
   RECIPE_TOOL,
   type SpoonRecipe,
   spoonacularQuery,
+  youtubeQuery,
+  youtubeVideo,
 } from "./logic.ts";
 
 const prefs = parsePreferences({
@@ -119,4 +121,50 @@ test("numbers from the model are clamped to sensible ranges", () => {
 
 test("a response without the tool gives no recipes", () => {
   assert.deepEqual(adaptedRecipes({ content: [{ type: "text" }] }, [spoon], prefs), []);
+});
+
+test("breakfasts are searched separately, from any cuisine, and tagged as breakfast", () => {
+  const q = spoonacularQuery(prefs, "KEY", "breakfast");
+  assert.equal(q.get("type"), "breakfast");
+  assert.equal(q.get("cuisine"), null, "breakfasts aren't limited to the user's cuisines");
+  assert.equal(q.get("diet"), "vegetarian");
+  assert.equal(q.get("intolerances"), "peanut");
+  assert.equal(spoonacularQuery(prefs, "KEY").get("type"), "main course");
+  assert.match(claudeRequest(prefs, [], "breakfast").system, /breakfasts/);
+  const [breakfast] = adaptedRecipes(claudeSaid([adapted()]), [spoon], prefs, "breakfast");
+  assert.deepEqual(breakfast.meals, ["Breakfast"]);
+  const [main] = adaptedRecipes(claudeSaid([adapted()]), [spoon], prefs);
+  assert.deepEqual(main.meals, ["Lunch", "Dinner"]);
+  assert.equal(main.youtubeURL, null, "a video is only added after a real YouTube lookup");
+});
+
+test("at most 6 breakfasts and 12 mains are kept", () => {
+  const many = Array.from({ length: 20 }, () => adapted());
+  assert.equal(adaptedRecipes(claudeSaid(many), [spoon], prefs, "breakfast").length, 6);
+  assert.equal(adaptedRecipes(claudeSaid(many), [spoon], prefs).length, 12);
+});
+
+test("youtube lookups find one real video per recipe", () => {
+  const q = youtubeQuery("Chana Masala", "YT");
+  assert.equal(q.get("q"), "Chana Masala recipe");
+  assert.equal(q.get("type"), "video");
+  assert.equal(q.get("maxResults"), "1");
+  const video = youtubeVideo({ items: [{ id: { videoId: "dQw4w9WgXcQ" },
+    snippet: { title: "Mom&#39;s Chana Masala", channelTitle: "Cook &amp; Eat" } }] });
+  assert.deepEqual(video, { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "Mom's Chana Masala",
+    channel: "Cook & Eat" });
+  assert.equal(youtubeVideo({ items: [] }), null);
+  assert.equal(youtubeVideo({ items: [{ id: { videoId: "x/../evil" } }] }), null, "only real video ids");
+  assert.equal(youtubeVideo(null), null);
+});
+
+test("mains get the cuisine in the user's own words", () => {
+  const dutch = parsePreferences({ diet: "Vegetarian", cuisines: ["Dutch", "Indian"] });
+  const european: SpoonRecipe = { ...spoon, cuisines: ["European", "German"] };
+  const [byClaude] = adaptedRecipes(claudeSaid([adapted({ cuisine: "indian" })]), [european], dutch);
+  assert.equal(byClaude.cuisine, "Indian", "Claude's choice, in the user's spelling");
+  const [bySource] = adaptedRecipes(claudeSaid([adapted({ cuisine: "German" })]), [european], dutch);
+  assert.equal(bySource.cuisine, "Dutch", "Spoonacular's European is the user's Dutch");
+  const [breakfast] = adaptedRecipes(claudeSaid([adapted({ cuisine: "American" })]), [european], dutch, "breakfast");
+  assert.equal(breakfast.cuisine, "American", "breakfasts keep their own cuisine");
 });

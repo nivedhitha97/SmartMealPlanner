@@ -2,7 +2,8 @@
 //
 // Secrets (supabase secrets set …): SPOONACULAR_API_KEY, ANTHROPIC_API_KEY, RECIPE_SEARCH_APP_KEY (the key the
 // app sends in the x-app-key header; it ships inside the app, so it only keeps out casual callers).
-// Optional: RECIPE_SEARCH_DAILY_LIMIT (default 40 new searches a day, all users together).
+// Optional: YOUTUBE_API_KEY (a real video for each recipe; without it the app links a YouTube search) and
+// RECIPE_SEARCH_DAILY_LIMIT (default 40 new searches a day, all users together).
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase and used for the cache and the daily limit
 // (tables in supabase/recipe_search_schema.sql).
 //
@@ -10,12 +11,17 @@
 
 import {
   adaptedRecipes,
+  type AppRecipe,
   cacheKeySource,
   claudeRequest,
   compactRecipes,
+  type Course,
   parsePreferences,
+  type Preferences,
   spoonacularQuery,
   type SpoonRecipe,
+  youtubeQuery,
+  youtubeVideo,
 } from "./logic.ts";
 
 const env = (name: string) => Deno.env.get(name) ?? "";
@@ -52,36 +58,68 @@ Deno.serve(async (request) => {
   await database("recipe_search_log", { method: "POST", body: { caller } });
 
   try {
-    const search = await fetch(
-      "https://api.spoonacular.com/recipes/complexSearch?" + spoonacularQuery(preferences, env("SPOONACULAR_API_KEY")),
+    // Breakfasts and mains are searched and adapted side by side; one failing doesn't lose the other.
+    const courses = await Promise.allSettled(
+      (["breakfast", "main"] as Course[]).map((course) => findRecipes(preferences, course)),
     );
-    if (!search.ok) return json({ error: `Spoonacular: HTTP ${search.status}` }, 502);
-    const results: SpoonRecipe[] = (await search.json()).results ?? [];
-    if (!results.length) return json({ recipes: [] });
+    const failed = courses.filter((c) => c.status === "rejected") as PromiseRejectedResult[];
+    failed.forEach((c) => console.error(c.reason));
+    if (failed.length === courses.length) return json({ error: "Recipe search failed" }, 502);
+    const recipes = courses.flatMap((c) => (c.status === "fulfilled" ? c.value : []));
+    await addVideos(recipes);
 
-    const claude = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": env("ANTHROPIC_API_KEY"),
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(claudeRequest(preferences, compactRecipes(results))),
-    });
-    if (!claude.ok) return json({ error: `Claude: HTTP ${claude.status}` }, 502);
-    const recipes = adaptedRecipes(await claude.json(), results, preferences);
-
-    await database("recipe_search_cache", {
-      method: "POST",
-      body: { key, recipes, created_at: new Date().toISOString() },
-      prefer: "resolution=merge-duplicates",
-    });
-    return json({ recipes });
+    if (!failed.length) { // a partial result isn't cached, so the next search tries again
+      await database("recipe_search_cache", {
+        method: "POST",
+        body: { key, recipes, created_at: new Date().toISOString() },
+        prefer: "resolution=merge-duplicates",
+      });
+    }
+    return json({ recipes, complete: failed.length === 0 });
   } catch (error) {
     console.error(error);
     return json({ error: "Recipe search failed" }, 502);
   }
 });
+
+/** Spoonacular's recipes for one course, adapted by Claude Haiku ([] when there are none); throws when a service fails. */
+async function findRecipes(preferences: Preferences, course: Course): Promise<AppRecipe[]> {
+  const search = await fetch(
+    "https://api.spoonacular.com/recipes/complexSearch?" + spoonacularQuery(preferences, env("SPOONACULAR_API_KEY"), course),
+  );
+  if (!search.ok) throw new Error(`Spoonacular (${course}): HTTP ${search.status}`);
+  const results: SpoonRecipe[] = (await search.json()).results ?? [];
+  if (!results.length) return [];
+
+  const claude = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": env("ANTHROPIC_API_KEY"),
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(claudeRequest(preferences, compactRecipes(results), course)),
+  });
+  if (!claude.ok) throw new Error(`Claude (${course}): HTTP ${claude.status}`);
+  return adaptedRecipes(await claude.json(), results, preferences, course);
+}
+
+/** A real YouTube video for each recipe, when a YouTube key is set. A failed lookup (e.g. the daily quota) leaves the
+ *  recipe without one, and the app links a YouTube search instead. */
+async function addVideos(recipes: AppRecipe[]) {
+  const apiKey = env("YOUTUBE_API_KEY");
+  if (!apiKey) return;
+  await Promise.all(recipes.map(async (recipe) => {
+    try {
+      const response = await fetch("https://www.googleapis.com/youtube/v3/search?" + youtubeQuery(recipe.name, apiKey));
+      if (!response.ok) return;
+      const video = youtubeVideo(await response.json());
+      if (video) Object.assign(recipe, { youtubeURL: video.url, youtubeTitle: video.title, youtubeChannel: video.channel });
+    } catch {
+      // keep the search fallback
+    }
+  }));
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });

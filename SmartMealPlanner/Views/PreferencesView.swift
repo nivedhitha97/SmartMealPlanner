@@ -28,7 +28,6 @@ struct PreferencesView: View {
                     peopleCard
                     breakfastCard
                     cuisinesCard
-                    discoveryCard
                     exclusionsCard
                     budgetCard
                     routineLink
@@ -147,28 +146,6 @@ struct PreferencesView: View {
                         form.toggleCuisine(cuisine)
                     }
                 }
-            }
-        }
-        .card()
-    }
-
-    /// Recipes found for these preferences: Spoonacular + Claude Haiku when set up, else Apple's on-device AI.
-    private var discoveryCard: some View {
-        let availability = RecipeDiscovery.shared.availability
-        let subtitle = RecipeDiscovery.shared.preferredSource == .spoonacular
-            ? "Spoonacular recipes for your preferences, adapted by AI"
-            : "On-device AI finds recipes for your preferences"
-        return VStack(alignment: .leading, spacing: 10) {
-            Toggle(isOn: $form.discoverRecipes) {
-                CardHeader(icon: "sparkles", tint: .accentAmber, tintBackground: .accentAmberSoft,
-                           title: "Discover new recipes", subtitle: subtitle)
-            }
-            .tint(.brandPrimary)
-            .accessibilityIdentifier("preferences.discoverRecipes")
-            if form.discoverRecipes, case .unavailable(let reason) = availability {
-                Label(reason, systemImage: "info.circle")
-                    .font(.footnote)
-                    .foregroundStyle(Color.textSecondary)
             }
         }
         .card()

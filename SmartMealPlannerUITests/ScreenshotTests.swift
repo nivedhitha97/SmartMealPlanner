@@ -33,7 +33,8 @@ final class ScreenshotTests: XCTestCase {
         try capture("01-launch")
         app.terminate()
 
-        app = XCUIApplication.launchForTesting(liveData: true)
+        // Live offers; recipes from the UI test set, as recipe search needs its keys deployed.
+        app = XCUIApplication.launchForTesting(liveData: true, extraArguments: [LaunchFlag.fixtureRecipes])
 
         // Preferences: two people, non-vegetarian, five cuisines (enough recipes for a full week), Amsterdam postcode with its
         // nearby supermarkets.

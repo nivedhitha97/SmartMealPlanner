@@ -5,8 +5,6 @@
 - **People:** 1–10; recipe amounts, grocery quantities and costs scale to it
 - **Breakfast:** include breakfast recipes, or granola/muesli only
 - **Cuisines** and **exclusions** (dislikes and allergies, comma-separated)
-- **Discover new recipes:** add recipes found for these preferences: real Spoonacular recipes adapted by Claude Haiku
-  when [recipe search](DESIGN.md#recipe-search) is set up, else written by Apple's on-device AI
 - **Weekly budget** (€20–150)
 - **Postcode:** a Dutch postcode gives the region at once and, online, the city, the exact location (street level)
   and the supermarkets within 2 km ("Lidl 100 m · Albert Heijn 150 m · …")
@@ -25,16 +23,19 @@
 - A grocery card that opens the List tab
 
 ## Recipes
-- **50 built-in recipes**, 7–8 per cuisine (Indian, Italian, Dutch, Asian, Mexican, Greek, French), each with 2
-  breakfasts and meat, fish, vegetarian and vegan mains, so every diet gets a full week in every cuisine
-- Each says which meals it suits: breakfasts are only planned for breakfast, mains for lunch and dinner. When the
-  chosen cuisines have no breakfast left, one that fits the diet comes from another cuisine
-- Full ingredient lists with real amounts, and 6–9 detailed steps with heat levels and timings
+- **Found for your preferences, not built in:** [recipe search](DESIGN.md#recipe-search) finds real recipes on
+  Spoonacular (up to 6 breakfasts and 12 lunch/dinner dishes) and Claude Haiku adapts them: grams, nutrition, Dutch
+  prices and 6–10 detailed steps. Searched again after a week, for variety
+- Each says which meals it suits: breakfasts are only planned for breakfast, mains for lunch and dinner. Breakfasts
+  may come from any cuisine; lunches and dinners keep to yours
+- If recipe search can't be reached, Apple's on-device AI writes recipes (where Apple Intelligence is on)
 - Photo, cuisine, ingredients with amounts **for your household** ("For 2 people"), method steps
 - **Total, prep and cooking time** ("No cooking" for no-cook dishes)
-- **Watch:** opens a YouTube search for the recipe in the YouTube app, or in Safari when the app isn't installed
-- Cookbook links; AI recipes are labelled "check ingredients for allergens". Spoonacular recipes credit Spoonacular
-  and the original site, with a link to the original recipe
+- **Watch:** opens a real YouTube video of the dish (found by the YouTube Data API), else a YouTube search; in the
+  YouTube app, or in Safari when it isn't installed
+- **Original:** Spoonacular recipes credit Spoonacular and the site that published them, and link to that page
+- **Find this recipe:** on-device AI recipes have no source, so they link to Allerhande and BBC Good Food searches
+- Every recipe is labelled "check ingredients for allergens"
 
 ## Offers
 - This week's offers from Jumbo, Lidl, Dirk, DekaMarkt, Hoogvliet and Poiesz with their real end dates, deals
@@ -47,7 +48,7 @@
   Sunday (AH's Bonus week) unless you change the date, can be linked to a recipe ingredient so the planner uses the
   price, and stay on the phone. Long-press one to delete it.
 - AH discounts that shoppers report on **Open Prices** appear as "Reported on Open Prices", with the ODbL credit
-- Freshness line (live, offline copy, or samples), the next store update, and a **Store updates** list with each
+- Freshness line (live, or the saved copy when offline), the next store update, and a **Store updates** list with each
   store's weekly day and whether its data is current; pull to refresh
 
 ## Grocery list (List tab)
@@ -64,6 +65,11 @@
   near you are chosen by default; tapping an alert opens Offers
 - **Appearance:** System, Light or Dark
 - Version and build number
+
+## Offline
+- The app shows the offers, recipes and plan it last saved; it never shows sample data
+- With nothing saved yet, Offers says "No internet connection" with **Try again**, and generating a plan says that
+  recipes need an internet connection
 
 ## Grocery data (behind the scenes)
 - A grocery database fetches each supermarket once a week, on the day its offer week starts, and the app downloads

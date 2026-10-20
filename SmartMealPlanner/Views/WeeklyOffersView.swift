@@ -40,6 +40,19 @@ struct WeeklyOffersView: View {
                 if grocery == nil {
                     ProgressView("Fetching today's prices…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if grocery?.source == .unavailable {
+                    // Offline and nothing downloaded yet: say so, rather than showing made-up offers.
+                    ContentUnavailableView {
+                        Label("No internet connection", systemImage: "wifi.slash")
+                    } description: {
+                        Text("Connect to the internet to see this week's offers. They're saved, so next time they show offline too.")
+                    } actions: {
+                        Button("Try again") { Task { await loadOffers(forceRefresh: true) } }
+                            .buttonStyle(.borderedProminent)
+                            .tint(Color.brandPrimary)
+                            .accessibilityIdentifier("offers.retry")
+                    }
+                    .accessibilityIdentifier("offers.unavailable")
                 } else {
                     // Lazy, so only the offer cards on screen are built: with live data there are hundreds, and
                     // building them all made switching tabs and themes slow.
@@ -216,6 +229,7 @@ struct WeeklyOffersView: View {
             .padding(.horizontal, 24)
         }
         .scrollIndicators(.hidden)
+        .scrollEdgeFade()
         .padding(.horizontal, -24)
         .accessibilityIdentifier("offers.storeFilter")
     }
@@ -235,6 +249,7 @@ struct WeeklyOffersView: View {
             .padding(.horizontal, 24)
         }
         .scrollIndicators(.hidden)
+        .scrollEdgeFade()
         .padding(.horizontal, -24)
     }
 

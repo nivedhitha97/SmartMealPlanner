@@ -165,8 +165,9 @@ struct PlanGenerationTests {
         #expect(recipe.containsAnimalProducts == animal)
     }
 
-    @Test func bundledRecipesFillAWeekForEveryDietInEveryCuisine() throws {
-        let recipes = try JSONLoader.load("recipes", as: [Recipe].self)
+    /// The UI tests' recipe set (a realistic catalog): every diet in every cuisine gets a full week.
+    @Test func aRealisticCatalogFillsAWeekForEveryDietInEveryCuisine() throws {
+        let recipes = try JSONLoader.load("UITestRecipes", as: [Recipe].self)
         #expect(recipes.count >= 49)
         for recipe in recipes {
             #expect(recipe.instructions.count >= 6, "\(recipe.name) has detailed steps")

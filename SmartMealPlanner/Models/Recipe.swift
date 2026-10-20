@@ -167,6 +167,25 @@ struct Recipe: Identifiable, Codable {
         return u
     }
 
+    /// Whether the video link is one real video (from recipe search) rather than a YouTube search.
+    var hasVideo: Bool {
+        guard let url = youtubeURLParsed else { return false }
+        return YouTubeLink.isYouTube(url) && url.path != "/results"
+    }
+
+    /// For a recipe without a source (one written by the on-device AI): searches for the dish on trusted recipe
+    /// sites, so a published, tested version is one tap away. Empty when the recipe links its own source.
+    var findRecipeLinks: [(site: String, url: URL)] {
+        guard cookbookURLParsed == nil else { return [] }
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&+=?#")
+        guard let query = name.addingPercentEncoding(withAllowedCharacters: allowed) else { return [] }
+        return [
+            ("Allerhande", URL(string: "https://www.ah.nl/allerhande/recepten-zoeken?query=\(query)")),
+            ("BBC Good Food", URL(string: "https://www.bbcgoodfood.com/search?q=\(query)")),
+        ].compactMap { site, url in url.map { (site, $0) } }
+    }
+
     /// Whether there's a YouTube or cookbook link to show.
     var hasReferenceLinks: Bool {
         youtubeURLParsed != nil || cookbookURLParsed != nil

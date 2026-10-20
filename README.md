@@ -29,23 +29,28 @@ UI designed in Figma: [Smart Meal Planner – UI Revamp](https://www.figma.com/d
 ## Features
 
 ### Weekly plan
-- **A week of meals in one tap.** Generates 7 days of breakfast, lunch and dinner from 50 built-in recipes (and
-  any AI recipes) that fit your diet, cuisines, allergies and dislikes; breakfasts get breakfast dishes.
+- **A week of meals in one tap.** Generates 7 days of breakfast, lunch and dinner from real recipes found for your
+  diet, cuisines, allergies and dislikes; breakfasts get breakfast dishes.
 - **Variety rules.** A dish is never planned twice on one day or more than twice a week; when the recipes run out,
   the slot says so and the notes suggest adding cuisines.
 - **Budget card.** The estimated grocery cost against your weekly budget, priced from this week's offers and live
   supermarket prices.
-- **Planner notes.** What the planner did: offers used, live prices used, AI recipes added, meals left open.
+- **Planner notes.** What the planner did: offers used, live prices used, where the recipes came from, meals left open.
 - **Daily meals and nutrition.** Pick a day to see its meals with photos; weekly calories, protein, carbs and fat.
 
 ### Recipes
-- **Full recipes.** Real ingredient lists and 6–9 detailed steps with heat levels and timings.
+- **Real recipes, with their source.** Recipes are found on Spoonacular (published on real recipe sites) and adapted
+  by Claude Haiku to the app: grams, nutrition, Dutch prices and 6–10 detailed steps. Each links to the original
+  recipe page and is re-checked against your allergies.
+- **A real video.** Watch opens a YouTube video of the dish (in the YouTube app, or Safari without it).
 - **Amounts for your household.** Ingredient amounts scale to the number of people you cook for.
 - **Total, prep and cook time.** Instead of a step count, so you know how long a dish really takes.
-- **Watch on YouTube.** Opens a recipe video search in the YouTube app, or in Safari when the app isn't installed.
-- **AI recipe search.** Optional: real recipes from Spoonacular that fit your preferences, adapted by Claude Haiku
-  (grams, nutrition, Dutch prices). Without it, Apple's on-device AI writes recipes. Every AI recipe is re-checked
-  against your allergies and labelled in the app.
+- **No made-up recipes.** The app ships none of its own. If recipe search can't be reached, Apple's on-device AI is
+  the fallback, and its recipes link to Allerhande and BBC Good Food to find a published version.
+
+### Offline
+- **Stored data, never samples.** Offline, the app shows the offers, recipes and plan it last saved. With nothing
+  saved yet, it says it needs an internet connection.
 
 ### Offers
 - **Deals near you.** This week's offers from the supermarkets within 2 km of your postcode, with real end dates,
@@ -91,8 +96,9 @@ Every feature in detail, screen by screen: [Features](docs/FEATURES.md).
 2. Select the `SmartMealPlanner` scheme and run on an iOS Simulator.
 3. Run the tests with ⌘U (see the [test report](docs/TEST_REPORT.md)).
 
-The app runs without any API keys. AI recipe search (Spoonacular + Claude Haiku) is optional; to turn it on, deploy
-the Supabase function as described in [Recipe search](docs/DESIGN.md#recipe-search).
+The app needs no API keys of its own. Recipes come from recipe search (Spoonacular + Claude Haiku, optionally YouTube),
+a Supabase function that holds those keys: deploy it as described in [Recipe search](docs/DESIGN.md#recipe-search).
+Until then, the app has no recipes to plan with (or uses Apple's on-device AI where Apple Intelligence is on).
 
 ## Author
 

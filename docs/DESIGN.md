@@ -31,11 +31,11 @@ SmartMealPlanner/
 │                                  IngredientPrice, AISuggestedWeekPlan, DailyMealLog
 ├── Services/
 │   ├── AIPlanningService.swift    Planner protocol + on-device heuristic planner (grocery pricing, notes)
-│   ├── GroceryDataService.swift   Feed download, disk cache, offline/bundled fallback, store schedules
+│   ├── GroceryDataService.swift   Feed download, disk cache, offline fallback (no sample data), store schedules
 │   ├── PostcodeLocationService    Postcode → region, city, coordinates
 │   ├── NearbyStoresService        Supermarkets within 2 km (Apple Maps)
-│   ├── RecipeDiscovery            AI recipes: recipe search first, on-device model (Foundation Models) as
-│   │                              fallback; cached per preferences
+│   ├── RecipeDiscovery            The only recipe source: recipe search, the saved recipes offline, the
+│   │                              on-device model (Foundation Models) as fallback; cached per preferences
 │   ├── RecipeSearchService        Client for the recipe-search function (Spoonacular + Claude Haiku)
 │   ├── OfferAlerts                Weekly local notifications per store
 │   └── ExternalLinks              YouTube app with Safari fallback
@@ -45,8 +45,8 @@ SmartMealPlanner/
 ├── Views/                         MainTabView, SplashView, WeeklyPlanView, RecipeDetailView, WeeklyOffersView,
 │                                  GroceryListView, PreferencesView, MealRoutineView, SettingsView
 │   └── DesignSystem/              Theme (tokens, components), StoreBadge
-└── Data/                          recipes.json, offers.json (offline samples), ingredients.json,
-                                   RecipeSearch.json (recipe-search address and app key; empty = off)
+└── Data/                          RecipeSearch.json (recipe-search address and app key; empty = off);
+                                   UITestRecipes.json, UITestOffers.json: fixed data for UI tests only
 scripts/grocery_db/                Grocery database (Python, stdlib): store fetchers, schedule, SQLite, export,
                                    Supabase mirror, tests
 supabase/functions/recipe-search/  Edge Function (Deno): Spoonacular search, Claude Haiku adaptation, cache,
@@ -98,22 +98,28 @@ repository secrets. The first run sends everything; later runs only new and chan
 
 ## Recipe search
 
-With **Discover new recipes** on, the planner adds recipes found for the user's preferences:
+The app ships no recipes of its own: every recipe is found for the user's preferences.
 
 1. The app sends only the diet, cuisines, allergies, dislikes and number of people (no postcode or budget) to the
    `recipe-search` Supabase Edge Function.
-2. The function asks **Spoonacular** for up to 20 real main-course recipes: the diet and cuisines as filters,
-   allergies as Spoonacular intolerances (others as excluded ingredients), dislikes excluded.
-3. **Claude Haiku** (`claude-haiku-5-5`) puts up to 10 of them in the app's format through a forced tool call: every
+2. The function makes two **Spoonacular** searches side by side: up to 10 breakfasts (any cuisine) and up to 20
+   main courses (the user's cuisines), with the diet as a filter, allergies as Spoonacular intolerances (others as
+   excluded ingredients) and dislikes excluded, in random order so each week's search brings other dishes.
+3. **Claude Haiku** (`claude-haiku-5-5`) puts up to 6 breakfasts and 12 mains in the app's format through a forced
+   tool call (one call per course, side by side), labels each main with one of the user's cuisines, and gives every
    ingredient in grams, nutrition per 100 g (from Spoonacular's data where given), Dutch supermarket prices, 6–10
    detailed steps (amounts, heat, timings). It is told to drop any recipe with an allergen or disliked ingredient and never to add ingredients.
 4. The function checks the result: only recipes that really came from Spoonacular, numbers clamped to sensible
    ranges, the photo and source link taken from Spoonacular (never from the model), and banned ingredients filtered
-   again. The app filters a third time with the same rules as the bundled recipes, credits Spoonacular with a link
-   to the original, and labels the recipe "Adapted by AI from Spoonacular: check ingredients for allergens".
+   again. With a `YOUTUBE_API_KEY`, each recipe gets a real video from the YouTube Data API (100 of the 10,000 free
+   daily units per lookup; a failed lookup leaves a YouTube search link). The app filters a third time, credits
+   Spoonacular with a link to the original, and labels the recipe "Adapted by AI from Spoonacular: check
+   ingredients for allergens".
 
-If the function isn't set up or fails, Apple's on-device model writes recipes instead (when Apple Intelligence is
-available); otherwise only the bundled recipes are used.
+The app keeps the recipes for a week, then searches again. If the search can't be reached, it uses the saved recipes
+however old (offline it shows what it stored); with none saved, Apple's on-device model writes recipes (when Apple
+Intelligence is available) and they link to Allerhande and BBC Good Food searches; otherwise the plan screen says
+recipes need an internet connection. There are never sample recipes.
 
 **Keys and cost.** The Spoonacular and Anthropic keys exist only as Supabase secrets. Results are cached for 7 days
 per set of preferences (cache hits cost nothing), and new searches are capped per caller (10 a day) and in total
@@ -122,13 +128,14 @@ app only keeps out casual callers, since anything shipped in an app can be extra
 
 **Setting it up**
 
-1. Get a [Spoonacular API key](https://spoonacular.com/food-api/console) (free plan) and an
-   [Anthropic API key](https://console.anthropic.com/).
+1. Get a [Spoonacular API key](https://spoonacular.com/food-api/console) (free plan), an
+   [Anthropic API key](https://console.anthropic.com/) and, for real videos, a
+   [YouTube Data API key](https://console.cloud.google.com/apis/library/youtube.googleapis.com) (free; optional).
 2. In the Supabase SQL editor, run [`supabase/recipe_search_schema.sql`](../supabase/recipe_search_schema.sql).
 3. With the [Supabase CLI](https://supabase.com/docs/guides/cli), from the repository root:
    ```bash
    supabase link --project-ref <your-project-ref>
-   supabase secrets set SPOONACULAR_API_KEY=… ANTHROPIC_API_KEY=… RECIPE_SEARCH_APP_KEY=<any long random string>
+   supabase secrets set SPOONACULAR_API_KEY=… ANTHROPIC_API_KEY=… YOUTUBE_API_KEY=… RECIPE_SEARCH_APP_KEY=<any long random string>
    supabase functions deploy recipe-search --no-verify-jwt
    ```
 4. Put the function's address and the app key in `SmartMealPlanner/Data/RecipeSearch.json`:

@@ -105,6 +105,14 @@ enum DiscoverySource: String, Codable {
         case .onDevice: return "discovered by on-device AI"
         }
     }
+
+    /// The planner notes' line about where this week's recipes came from.
+    var plannerNote: String {
+        switch self {
+        case .spoonacular: return "Recipes from Spoonacular, adapted by AI; each links to the original recipe."
+        case .onDevice: return "Recipe search couldn't be reached, so these recipes were written by on-device AI: check ingredients for allergens."
+        }
+    }
 }
 
 /// The result of asking for AI recipes.
@@ -121,18 +129,32 @@ struct DiscoveredRecipes: Equatable {
 
 @MainActor
 final class RecipeDiscovery {
-    static let shared = RecipeDiscovery()
+    /// UI tests (`-uiTestingBundledData`, `-uiTestingFixtureRecipes`) get their fixed recipes; everyone else searches.
+    static let shared = LaunchArguments.contains(LaunchArguments.bundledData)
+        || LaunchArguments.contains(LaunchArguments.fixtureRecipes)
+        ? RecipeDiscovery(search: FixtureRecipeSearch(), generator: NoRecipeGenerator(),
+                          cacheURL: URL.temporaryDirectory.appending(path: "ui-test-recipes.json"))
+        : RecipeDiscovery()
+
+    /// Searched recipes are kept this long before a new search (the function's cache lasts as long).
+    static let freshDays = 7
+
+    static let offlineNote = "No internet connection. Connect to find recipes for your preferences."
+    static let notSetUpNote = "Recipe search isn't set up yet, so there are no recipes to plan with."
 
     private let search: RecipeSearching
     private let generator: RecipeGenerating
     private let cacheURL: URL
+    private let now: () -> Date
 
     init(search: RecipeSearching = RemoteRecipeSearch(),
          generator: RecipeGenerating = OnDeviceRecipeGenerator(),
-         cacheURL: URL = URL.applicationSupportDirectory.appending(path: "ai-recipes.json")) {
+         cacheURL: URL = URL.applicationSupportDirectory.appending(path: "ai-recipes.json"),
+         now: @escaping () -> Date = Date.init) {
         self.search = search
         self.generator = generator
         self.cacheURL = cacheURL
+        self.now = now
     }
 
     /// The source tried first: the recipe search when it is set up, else the on-device model.
@@ -140,41 +162,70 @@ final class RecipeDiscovery {
 
     var availability: RecipeDiscoveryAvailability { search.isConfigured ? .available : generator.availability }
 
-    /// AI recipes for these preferences: from the cache when the preferences haven't changed, else found anew.
-    /// Recipe search comes first; the on-device model is the fallback. Recipes that break the diet, allergies or
-    /// dislikes are dropped.
+    /// Recipes for these preferences, the only recipes the planner uses:
+    /// 1. the saved ones, while the preferences are unchanged and they are less than a week old;
+    /// 2. a new recipe search (Spoonacular, adapted by AI);
+    /// 3. when that can't be reached, the saved ones however old (offline, the app shows what it stored);
+    /// 4. else recipes from the on-device model, else none, with a note saying why.
+    /// Recipes that break the diet, allergies or dislikes are always dropped.
     func recipes(for preferences: UserPreferences, forceNew: Bool = false) async -> DiscoveredRecipes {
         let key = Self.cacheKey(for: preferences)
-        if !forceNew, let cached = loadCache(), cached.key == key, cached.source ?? .onDevice == preferredSource {
-            return DiscoveredRecipes(recipes: cached.recipes, note: nil, source: cached.source ?? .onDevice)
+        let saved = loadCache().flatMap { $0.key == key ? $0 : nil }
+        if !forceNew, let saved, saved.source ?? .onDevice == preferredSource,
+           let savedAt = saved.savedAt, now().timeIntervalSince(savedAt) < Double(Self.freshDays) * 86_400 {
+            return DiscoveredRecipes(recipes: saved.recipes, note: nil, source: saved.source ?? .onDevice)
         }
-        var searchFailed = false
+        var searchNote: String?
         if search.isConfigured {
             do {
-                let safe = MealPlanner().filterRecipes(try await search.search(for: preferences), preferences)
-                saveCache(Cache(key: key, recipes: safe, source: .spoonacular))
+                let safe = Self.safe(try await search.search(for: preferences), for: preferences)
+                saveCache(Cache(key: key, recipes: safe, source: .spoonacular, savedAt: now()))
                 return DiscoveredRecipes(recipes: safe, note: safe.isEmpty ? "No Spoonacular recipe matched all your preferences." : nil,
                                          source: .spoonacular)
             } catch {
-                searchFailed = true  // fall back to the on-device model
+                searchNote = Self.isOffline(error) ? Self.offlineNote : "Couldn't reach recipe search; try again later."
             }
         }
+        if let saved, !saved.recipes.isEmpty {
+            return DiscoveredRecipes(recipes: saved.recipes, note: nil, source: saved.source ?? .onDevice)
+        }
         guard case .available = generator.availability else {
-            if searchFailed {
-                return DiscoveredRecipes(recipes: [], note: "Couldn't reach recipe search this time; the built-in recipes are used.")
+            if let searchNote { return DiscoveredRecipes(recipes: [], note: searchNote) }
+            if case .unavailable(let reason) = generator.availability {
+                return DiscoveredRecipes(recipes: [], note: Self.notSetUpNote + " " + reason)
             }
-            if case .unavailable(let reason) = generator.availability { return DiscoveredRecipes(recipes: [], note: reason) }
-            return DiscoveredRecipes(recipes: [], note: nil)
+            return DiscoveredRecipes(recipes: [], note: Self.notSetUpNote)
         }
         do {
             let generated = try await generator.generate(prompt: Self.prompt(for: preferences),
                                                          instructions: Self.instructions)
-            let safe = MealPlanner().filterRecipes(generated.map(Self.recipe(from:)), preferences)
-            saveCache(Cache(key: key, recipes: safe, source: .onDevice))
+            let safe = Self.safe(generated.map(Self.recipe(from:)), for: preferences)
+            saveCache(Cache(key: key, recipes: safe, source: .onDevice, savedAt: now()))
             return DiscoveredRecipes(recipes: safe, note: safe.isEmpty ? "No AI recipe matched all your preferences." : nil)
         } catch {
-            return DiscoveredRecipes(recipes: [], note: "Couldn't create AI recipes this time; the built-in recipes are used.")
+            return DiscoveredRecipes(recipes: [], note: searchNote ?? (search.isConfigured
+                ? "Couldn't create AI recipes this time; try again later."
+                : Self.notSetUpNote + " On-device AI couldn't create recipes either."))
         }
+    }
+
+    /// The recipes saved by the last search, whatever the preferences (e.g. for picking ingredient names).
+    func savedRecipes() -> [Recipe] {
+        loadCache()?.recipes ?? []
+    }
+
+    /// Diet, allergies and dislikes only: the search already chose the cuisines, and breakfasts may come from any
+    /// cuisine (the planner keeps lunches and dinners to the chosen ones).
+    private static func safe(_ recipes: [Recipe], for preferences: UserPreferences) -> [Recipe] {
+        var anyCuisine = preferences
+        anyCuisine.cuisines = []
+        return MealPlanner().filterRecipes(recipes, anyCuisine)
+    }
+
+    private static func isOffline(_ error: Error) -> Bool {
+        guard let code = (error as? URLError)?.code else { return false }
+        return [.notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost,
+                .timedOut, .dataNotAllowed, .internationalRoamingOff].contains(code)
     }
 
     // MARK: - Prompt
@@ -256,6 +307,8 @@ final class RecipeDiscovery {
         let recipes: [Recipe]
         /// nil in caches written before recipe search existed (those were on-device).
         var source: DiscoverySource? = nil
+        /// nil in older caches, which are then treated as out of date.
+        var savedAt: Date? = nil
     }
 
     private func loadCache() -> Cache? {
@@ -271,4 +324,18 @@ final class RecipeDiscovery {
 
 private extension Optional where Wrapped == String {
     var orEmpty: String { self ?? "" }
+}
+
+/// For UI tests: the fixed recipes in Data/UITestRecipes.json, as if a search had found them.
+struct FixtureRecipeSearch: RecipeSearching {
+    var isConfigured: Bool { true }
+    func search(for preferences: UserPreferences) async throws -> [Recipe] {
+        try JSONLoader.load("UITestRecipes", as: [Recipe].self)
+    }
+}
+
+/// For UI tests: no on-device model, so results don't depend on the Mac running the simulator.
+struct NoRecipeGenerator: RecipeGenerating {
+    var availability: RecipeDiscoveryAvailability { .unavailable("No on-device model in UI tests.") }
+    func generate(prompt: String, instructions: String) async throws -> [GeneratedRecipe] { [] }
 }

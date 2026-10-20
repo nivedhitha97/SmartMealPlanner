@@ -117,8 +117,10 @@ struct OffersList {
             return age.map { "Live prices · updated \($0)" } ?? "Live prices"
         case .cached:
             return age.map { "Offline · prices from \($0)" } ?? "Offline · saved prices"
-        case .bundled:
-            return "Offline · sample offers"
+        case .unavailable:
+            return "No internet connection"
+        case .fixture:
+            return "Test data"
         }
     }
 }
