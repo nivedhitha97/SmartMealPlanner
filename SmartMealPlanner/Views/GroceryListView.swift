@@ -187,6 +187,7 @@ struct GroceryListView: View {
             .padding(.horizontal, 24)
         }
         .scrollIndicators(.hidden)
+        .scrollEdgeFade()
         .padding(.horizontal, -24)
         .accessibilityIdentifier("list.filters")
     }
