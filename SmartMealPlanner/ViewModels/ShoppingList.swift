@@ -147,6 +147,15 @@ struct ShoppingList: Codable, Equatable {
         items.first { $0.offerID == offer.id && !$0.isChecked }?.quantity ?? 0
     }
 
+    /// `quantity(of:)` for every offer on the list at once, so a screen of offers doesn't search the list per card.
+    var quantitiesByOffer: [UUID: Int] {
+        var result: [UUID: Int] = [:]
+        for item in items where !item.isChecked {
+            if let id = item.offerID, result[id] == nil { result[id] = item.quantity }
+        }
+        return result
+    }
+
     // MARK: - Editing
 
     /// Adds an item typed in by hand. Blank names are ignored.

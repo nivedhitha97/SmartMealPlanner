@@ -163,6 +163,19 @@ struct GroceryDataServiceTests {
         #expect(data.stores.first?.updateDay == "Sunday")
     }
 
+    @Test func currentFeedIsReusedFromMemoryWithoutReadingTheDisk() async throws {
+        StubURLProtocol.set(Self.feed(meta: Self.scheduledMeta(nextUpdateAt: "2026-10-18T04:00:00Z")))
+        let service = makeService(now: { Self.date("2026-10-15T08:00:00Z") })
+        let first = await service.latest()
+
+        // Opening the Offers or Settings tab again: the saved copy isn't needed while the one in memory is current.
+        try FileManager.default.removeItem(at: cacheDirectory)
+        let again = await service.latest()
+
+        #expect(again.source == .live && again.offers.map(\.id) == first.offers.map(\.id))
+        #expect(service.requestCount == 3, "no new requests either")
+    }
+
     @Test func afterTheRefreshTimeOnlyMetaIsCheckedIfTheFeedIsUnchanged() async {
         let meta = Self.scheduledMeta(nextUpdateAt: "2026-10-18T04:00:00Z")
         StubURLProtocol.set(Self.feed(meta: meta))

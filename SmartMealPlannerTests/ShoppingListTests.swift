@@ -56,6 +56,18 @@ struct ShoppingListTests {
         #expect(list.quantity(of: broccoli) == 1, "counts what's still to buy")
     }
 
+    @Test func quantitiesForAllOffersMatchTheOneByOneLookup() {
+        var list = ShoppingList()
+        list.add(broccoli)
+        list.add(broccoli)
+        list.add(vla)
+        list.toggleChecked(list.items[1].id)  // vla bought
+
+        #expect(list.quantitiesByOffer == [broccoli.id: 2])
+        #expect(list.quantitiesByOffer[broccoli.id] == list.quantity(of: broccoli))
+        #expect(list.quantitiesByOffer[vla.id] == nil && list.quantity(of: vla) == 0)
+    }
+
     // MARK: - Editing
 
     @Test func ownItemsNeedANameAndAnyStoreMeansNoStore() {

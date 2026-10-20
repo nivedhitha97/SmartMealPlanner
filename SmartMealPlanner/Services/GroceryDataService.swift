@@ -146,6 +146,16 @@ final class RemoteGroceryDataService: GroceryDataService {
     }
 
     func latest(forceRefresh: Bool) async -> GroceryData {
+        // What this service last returned is reused from memory while it is still current, so opening the Offers
+        // or Settings tab doesn't read and decode the whole feed from disk every time.
+        if !forceRefresh, let lastCheck {
+            if lastCheck.data.source == .live, let next = lastCheck.data.nextUpdateAt, now() < next {
+                return lastCheck.data
+            }
+            if now().timeIntervalSince(lastCheck.at) < reuseInterval {
+                return lastCheck.data
+            }
+        }
         let cached = loadFromCache()
         if !forceRefresh {
             // Nothing new is published before the next store refresh.
