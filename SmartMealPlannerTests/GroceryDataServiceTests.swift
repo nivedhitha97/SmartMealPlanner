@@ -3,7 +3,7 @@
 //  SmartMealPlannerTests
 //
 //  The live grocery feed: downloading only when the feed can have changed, caching for offline use, and
-//  falling back to the bundled offers.
+//  and no data (never samples) when offline with nothing downloaded.
 //  Network calls go to a stub URL protocol, so these tests never touch the internet.
 //
 
@@ -58,7 +58,6 @@ struct GroceryDataServiceTests {
 
     private let cacheDirectory = FileManager.default.temporaryDirectory
         .appending(path: "GroceryFeedTests-\(UUID().uuidString)", directoryHint: .isDirectory)
-    private let bundled = [Fixtures.offer(product: "Bundled Broccoli", price: 1.49)]
 
     private static let offersJSON = """
     [{
@@ -105,13 +104,11 @@ struct GroceryDataServiceTests {
     private func makeService(now: @escaping () -> Date = Date.init) -> RemoteGroceryDataService {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]
-        let bundled = self.bundled
         return RemoteGroceryDataService(
             baseURL: URL(string: "https://feed.test/grocery-feed/")!,
             session: URLSession(configuration: configuration),
             cacheDirectory: cacheDirectory,
-            now: now,
-            bundledOffers: { bundled }
+            now: now
         )
     }
 
@@ -161,6 +158,19 @@ struct GroceryDataServiceTests {
         #expect(data.nextUpdateAt == Self.date("2026-10-18T04:00:00Z"))
         #expect(data.stores.map(\.name) == ["Poiesz"])
         #expect(data.stores.first?.updateDay == "Sunday")
+    }
+
+    @Test func currentFeedIsReusedFromMemoryWithoutReadingTheDisk() async throws {
+        StubURLProtocol.set(Self.feed(meta: Self.scheduledMeta(nextUpdateAt: "2026-10-18T04:00:00Z")))
+        let service = makeService(now: { Self.date("2026-10-15T08:00:00Z") })
+        let first = await service.latest()
+
+        // Opening the Offers or Settings tab again: the saved copy isn't needed while the one in memory is current.
+        try FileManager.default.removeItem(at: cacheDirectory)
+        let again = await service.latest()
+
+        #expect(again.source == .live && again.offers.map(\.id) == first.offers.map(\.id))
+        #expect(service.requestCount == 3, "no new requests either")
     }
 
     @Test func afterTheRefreshTimeOnlyMetaIsCheckedIfTheFeedIsUnchanged() async {
@@ -220,14 +230,13 @@ struct GroceryDataServiceTests {
         #expect(data.updatedAt != nil)
     }
 
-    @Test func offlineWithoutAnyDownloadUsesTheBundledOffers() async {
+    @Test func offlineWithoutAnyDownloadHasNoDataRatherThanSamples() async {
         StubURLProtocol.set([:])
 
         let data = await makeService().latest()
 
-        #expect(data.source == .bundled)
-        #expect(data.offers.map(\.productName) == ["Bundled Broccoli"])
-        #expect(data.prices.isEmpty)
+        #expect(data.source == .unavailable)
+        #expect(data.offers.isEmpty && data.prices.isEmpty)
         #expect(data.updatedAt == nil)
     }
 
@@ -236,7 +245,7 @@ struct GroceryDataServiceTests {
 
         let data = await makeService().latest()
 
-        #expect(data.source == .bundled)
+        #expect(data.source == .unavailable)
     }
 
     @Test func brokenFeedDoesNotReplaceTheCachedCopy() async {
@@ -252,8 +261,8 @@ struct GroceryDataServiceTests {
 
     // MARK: - Compatibility
 
-    @Test func bundledOffersWithoutLiveFieldsStillDecode() throws {
-        let offers = GroceryDataServices.bundledOffers()
+    @Test func uiTestOffersWithoutLiveFieldsStillDecode() throws {
+        let offers = GroceryDataServices.fixtureOffers()
 
         #expect(!offers.isEmpty)
         #expect(offers.allSatisfy { !$0.isLivePriceDrop && $0.ingredientName == nil && $0.dealText == nil
@@ -263,7 +272,8 @@ struct GroceryDataServiceTests {
     @Test(arguments: [
         (GroceryDataSource.live, "Live prices · updated"),
         (.cached, "Offline · prices from"),
-        (.bundled, "Offline · sample offers"),
+        (.unavailable, "No internet connection"),
+        (.fixture, "Test data"),
     ])
     func freshnessLineSaysWhereThePricesCameFrom(source: GroceryDataSource, prefix: String) {
         let text = OffersList.freshnessText(source: source, updatedAt: Fixtures.date(daysFromNow: -1), now: Fixtures.now)

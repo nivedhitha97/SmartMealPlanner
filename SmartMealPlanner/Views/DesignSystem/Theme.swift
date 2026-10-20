@@ -354,23 +354,43 @@ enum FoodGradient: CaseIterable {
     }
 }
 
+extension View {
+    /// For a row of chips that scrolls sideways to the screen edges: fades the chips out over the outer `width` points,
+    /// so a chip cut off by the edge reads as "swipe for more" instead of as the layout running off the screen. The
+    /// faded strip is the row's own 24 pt inset, so the first chip (and the last, once scrolled to) stays fully visible.
+    func scrollEdgeFade(width: CGFloat = 24) -> some View {
+        mask {
+            HStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: width)
+                Rectangle()
+                LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: width)
+            }
+        }
+    }
+}
+
 /// Recipe photo with a gradient fallback while loading or when no URL exists.
 struct RecipeImage: View {
     let url: URL?
     let placeholderKey: String
     var iconSize: CGFloat = 22
 
+    // The gradient sets the size; the photo is an overlay, so a wide photo filling the frame can't make the view
+    // (and the screen around it) wider than its frame.
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: FoodGradient.forKey(placeholderKey).colors,
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+        LinearGradient(
+            colors: FoodGradient.forKey(placeholderKey).colors,
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay {
             Image(systemName: "fork.knife")
                 .font(.system(size: iconSize, weight: .medium))
                 .foregroundStyle(.white.opacity(0.9))
-
+        }
+        .overlay {
             if let url {
                 AsyncImage(url: url) { phase in
                     if case .success(let image) = phase {

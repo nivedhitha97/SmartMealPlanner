@@ -91,17 +91,4 @@ struct RecipeDetailTests {
     func durationsReadNaturally(minutes: Int, text: String) {
         #expect(Recipe.durationText(minutes) == text)
     }
-
-    @Test func everyBundledRecipeHasItsTimesAndServings() throws {
-        let recipes = try JSONLoader.load("recipes", as: [Recipe].self)
-        #expect(!recipes.isEmpty)
-        for recipe in recipes {
-            #expect(recipe.prepMinutes != nil && recipe.cookMinutes != nil, "\(recipe.name) has prep and cook times")
-            #expect(recipe.servings >= 1)
-            if let video = recipe.youtubeURLParsed {
-                #expect(YouTubeLink.isYouTube(video), "\(recipe.name)'s video link goes to YouTube")
-                #expect(video.path == "/results", "a search for the recipe, which can't go dead like a single video")
-            }
-        }
-    }
 }

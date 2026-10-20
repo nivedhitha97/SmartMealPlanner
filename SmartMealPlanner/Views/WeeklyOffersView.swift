@@ -40,26 +40,45 @@ struct WeeklyOffersView: View {
                 if grocery == nil {
                     ProgressView("Fetching today's prices…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if grocery?.source == .unavailable {
+                    // Offline and nothing downloaded yet: say so, rather than showing made-up offers.
+                    ContentUnavailableView {
+                        Label("No internet connection", systemImage: "wifi.slash")
+                    } description: {
+                        Text("Connect to the internet to see this week's offers. They're saved, so next time they show offline too.")
+                    } actions: {
+                        Button("Try again") { Task { await loadOffers(forceRefresh: true) } }
+                            .buttonStyle(.borderedProminent)
+                            .tint(Color.brandPrimary)
+                            .accessibilityIdentifier("offers.retry")
+                    }
+                    .accessibilityIdentifier("offers.unavailable")
                 } else {
+                    // Lazy, so only the offer cards on screen are built: with live data there are hundreds, and
+                    // building them all made switching tabs and themes slow.
+                    let list = self.list
+                    let sections = list.sections()
+                    let quantities = shopping.list.quantitiesByOffer
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 20) {
-                            header
-                            let endingSoon = list.endingSoon()
-                            if list.totalSavings > 0 { savingsBanner }
+                        LazyVStack(alignment: .leading, spacing: 20) {
+                            header(list)
+                            let endingSoon = sections.endingSoon
+                            let savings = list.totalSavings
+                            if savings > 0 { savingsBanner(savings) }
                             if showsAlbertHeijn { albertHeijnCard }
                             VStack(alignment: .leading, spacing: 10) {
-                                storeFilters
-                                categoryFilters
+                                storeFilters(list)
+                                categoryFilters(list)
                             }
-                            if list.filtered.isEmpty {
+                            if endingSoon.isEmpty && sections.other.isEmpty {
                                 Text("No offers in this category right now.")
                                     .font(.subheadline)
                                     .foregroundStyle(Color.textSecondary)
                                     .frame(maxWidth: .infinity)
                                     .padding(.top, 24)
                             }
-                            offerGroup("Ending soon", endingSoon)
-                            offerGroup(endingSoon.isEmpty ? "All deals" : "More deals", list.otherOffers())
+                            offerGroup("Ending soon", endingSoon, quantities: quantities)
+                            offerGroup(endingSoon.isEmpty ? "All deals" : "More deals", sections.other, quantities: quantities)
                             if let stores = grocery?.stores, !stores.isEmpty {
                                 storeUpdates(OffersList.storeStatuses(stores))
                             }
@@ -90,7 +109,7 @@ struct WeeklyOffersView: View {
 
     // MARK: - Sections
 
-    private var header: some View {
+    private func header(_ list: OffersList) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Deals near you")
                 .font(.screenTitle)
@@ -127,11 +146,11 @@ struct WeeklyOffersView: View {
         }
     }
 
-    private var savingsBanner: some View {
+    private func savingsBanner(_ savings: Double) -> some View {
         HStack(spacing: 14) {
             IconCircle(systemName: "flame.fill", tint: .accentAmber, background: .bgSurface, size: 40)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Save up to \(list.totalSavings.euros)")
+                Text("Save up to \(savings.euros)")
                     .font(.callout.bold())
                     .foregroundStyle(Color.textPrimary)
                 Text("Matched offers are used automatically in your grocery list.")
@@ -185,13 +204,13 @@ struct WeeklyOffersView: View {
     }
 
     /// One chip per supermarket; "All stores" clears it.
-    private var storeFilters: some View {
+    private func storeFilters(_ list: OffersList) -> some View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
                 if nearbyChains != nil {
                     Chip(title: "Near me", isSelected: nearMeOnly) {
                         nearMeOnly.toggle()
-                        if let store = selectedStore, !list.stores.contains(store) { selectedStore = nil }
+                        if let store = selectedStore, !self.list.stores.contains(store) { selectedStore = nil }
                     }
                     .accessibilityIdentifier("offers.nearMe")
                 }
@@ -201,7 +220,7 @@ struct WeeklyOffersView: View {
                 ForEach(list.stores, id: \.self) { store in
                     StoreChip(store: store, isSelected: selectedStore == store) {
                         selectedStore = store
-                        if let category = selectedCategory, !list.categories.contains(category) {
+                        if let category = selectedCategory, !self.list.categories.contains(category) {
                             selectedCategory = nil  // that category has no offers at this store
                         }
                     }
@@ -210,11 +229,12 @@ struct WeeklyOffersView: View {
             .padding(.horizontal, 24)
         }
         .scrollIndicators(.hidden)
+        .scrollEdgeFade()
         .padding(.horizontal, -24)
         .accessibilityIdentifier("offers.storeFilter")
     }
 
-    private var categoryFilters: some View {
+    private func categoryFilters(_ list: OffersList) -> some View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
                 Chip(title: "All", isSelected: selectedCategory == nil) {
@@ -229,19 +249,20 @@ struct WeeklyOffersView: View {
             .padding(.horizontal, 24)
         }
         .scrollIndicators(.hidden)
+        .scrollEdgeFade()
         .padding(.horizontal, -24)
     }
 
     @ViewBuilder
-    private func offerGroup(_ title: String, _ items: [SupermarketOffer]) -> some View {
+    private func offerGroup(_ title: String, _ items: [SupermarketOffer], quantities: [UUID: Int]) -> some View {
         if !items.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
+            LazyVStack(alignment: .leading, spacing: 10) {
                 Text(title.uppercased())
                     .font(.footnote.weight(.semibold))
                     .tracking(0.6)
                     .foregroundStyle(Color.textSecondary)
                 ForEach(items) { offer in
-                    OfferCard(offer: offer, quantityInList: shopping.list.quantity(of: offer)) {
+                    OfferCard(offer: offer, quantityInList: quantities[offer.id] ?? 0) {
                         shopping.change { $0.add(offer) }
                     }
                     .contextMenu {
@@ -300,8 +321,11 @@ struct WeeklyOffersView: View {
         region = preferences?.shoppingRegion ?? ""
         nearbyChains = preferences?.nearbyChains
         let latest = await service.latest(forceRefresh: forceRefresh)
-        offers = latest.offers
-        grocery = latest
+        // Only replace the offers when they changed: re-setting the same hundreds of offers redraws the whole screen.
+        if grocery?.updatedAt != latest.updatedAt || grocery?.source != latest.source || offers.count != latest.offers.count {
+            offers = latest.offers
+            grocery = latest
+        }
     }
 }
 

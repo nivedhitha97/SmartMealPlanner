@@ -58,7 +58,9 @@ struct RecipeDetailView: View {
                 .background(Color.brandPrimarySoft, in: Capsule())
 
             if recipe.isAIGenerated {
-                Label("AI-generated: check ingredients for allergens", systemImage: "sparkles")
+                Label(recipe.isFromSpoonacular ? "Adapted by AI from Spoonacular: check ingredients for allergens"
+                                               : "AI-generated: check ingredients for allergens",
+                      systemImage: "sparkles")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.accentAmber)
                     .accessibilityIdentifier("recipe.aiGenerated")
@@ -125,10 +127,26 @@ struct RecipeDetailView: View {
             if hasLinks {
                 HStack(spacing: 12) {
                     if let yt = recipe.youtubeURLParsed {
-                        referenceButton(url: yt, icon: "play.fill", title: "Watch", subtitle: "Videos on YouTube", tint: .accentCoral, background: .accentCoralSoft)
+                        referenceButton(url: yt, icon: "play.fill", title: "Watch",
+                                        subtitle: recipe.hasVideo ? "Video on YouTube" : "Search YouTube",
+                                        tint: .accentCoral, background: .accentCoralSoft)
                     }
                     if let book = recipe.cookbookURLParsed {
-                        referenceButton(url: book, icon: "book", title: "Cookbook", subtitle: "Source link", tint: .brandPrimaryDeep, background: .brandPrimarySoft)
+                        referenceButton(url: book, icon: "book", title: "Original", subtitle: "Full recipe page",
+                                        tint: .brandPrimaryDeep, background: .brandPrimarySoft)
+                    }
+                }
+            }
+            let finds = recipe.findRecipeLinks
+            if !finds.isEmpty {
+                // No source of its own (written by on-device AI): find a published version instead.
+                Text("Find this recipe")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.textSecondary)
+                HStack(spacing: 12) {
+                    ForEach(finds, id: \.site) { find in
+                        referenceButton(url: find.url, icon: "magnifyingglass", title: find.site, subtitle: "Recipe search",
+                                        tint: .brandPrimaryDeep, background: .brandPrimarySoft)
                     }
                 }
             }

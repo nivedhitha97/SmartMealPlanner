@@ -25,6 +25,15 @@ struct OffersTests {
 
     // MARK: - Filter chips
 
+    @Test func sectionsMatchEndingSoonAndOtherOffers() {
+        for store in [nil, "Albert Heijn"] as [String?] {
+            let list = OffersList(offers: all, selectedCategory: nil, selectedStore: store)
+            let sections = list.sections(now: Fixtures.now, calendar: Fixtures.calendar)
+            #expect(names(sections.endingSoon) == names(list.endingSoon(now: Fixtures.now, calendar: Fixtures.calendar)))
+            #expect(names(sections.other) == names(list.otherOffers(now: Fixtures.now, calendar: Fixtures.calendar)))
+        }
+    }
+
     @Test func categoriesAreUniqueAndAlphabetical() {
         #expect(OffersList(offers: all).categories == ["Meat", "Pantry", "Produce"])
     }

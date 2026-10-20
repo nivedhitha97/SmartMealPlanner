@@ -28,7 +28,6 @@ struct PreferencesView: View {
                     peopleCard
                     breakfastCard
                     cuisinesCard
-                    discoveryCard
                     exclusionsCard
                     budgetCard
                     routineLink
@@ -147,25 +146,6 @@ struct PreferencesView: View {
                         form.toggleCuisine(cuisine)
                     }
                 }
-            }
-        }
-        .card()
-    }
-
-    /// Recipes written by Apple's on-device AI for these preferences.
-    private var discoveryCard: some View {
-        let availability = RecipeDiscovery.shared.availability
-        return VStack(alignment: .leading, spacing: 10) {
-            Toggle(isOn: $form.discoverRecipes) {
-                CardHeader(icon: "sparkles", tint: .accentAmber, tintBackground: .accentAmberSoft,
-                           title: "Discover new recipes", subtitle: "On-device AI finds recipes for your preferences")
-            }
-            .tint(.brandPrimary)
-            .accessibilityIdentifier("preferences.discoverRecipes")
-            if form.discoverRecipes, case .unavailable(let reason) = availability {
-                Label(reason, systemImage: "info.circle")
-                    .font(.footnote)
-                    .foregroundStyle(Color.textSecondary)
             }
         }
         .card()

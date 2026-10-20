@@ -14,32 +14,33 @@ final class PlanningViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var lastError: String?
 
-    /// Recipes, offers and ingredient prices the planner chooses from.
+    /// Offers and ingredient prices the planner prices groceries with (and, in tests, extra recipes).
+    /// Recipes come from recipe search (`discoverRecipes`); the app ships none of its own.
     struct Catalog {
-        var recipes: [Recipe]
+        var recipes: [Recipe] = []
         var offers: [SupermarketOffer]
         var ingredientPrices: [IngredientPrice] = []
 
-        /// Bundled recipes with the latest offers and prices from the live grocery feed.
+        /// The latest offers and prices from the grocery feed, plus the deals the user added.
         static func live() async throws -> Catalog {
             try await live(from: GroceryDataServices.shared)
         }
 
         static func live(from service: GroceryDataService) async throws -> Catalog {
-            let recipes = try JSONLoader.load("recipes", as: [Recipe].self)
             let grocery = await service.latest()
             let offers = MyOffersStore.merged(grocery.offers, with: MyOffersStore.saved())
-            return Catalog(recipes: recipes, offers: offers, ingredientPrices: grocery.prices)
+            return Catalog(offers: offers, ingredientPrices: grocery.prices)
         }
     }
 
     static let missingPreferencesMessage = "Save your preferences on the Preferences tab first."
     static let missingRoutineMessage = "Set your meal routine (Preferences → Meal Routine) first."
+    static let noRecipesMessage = "No recipes found for your preferences. Try adding cuisines or removing exclusions."
 
     private let ai: AIPlanningService
     private let defaults: UserDefaults
     private let loadCatalog: () async throws -> Catalog
-    /// AI recipes for the preferences (Recipe discovery), added to the catalog when that preference is on.
+    /// The recipes to plan with: searched for the preferences, or the saved ones offline (Recipe discovery).
     private let discoverRecipes: (UserPreferences) async -> DiscoveredRecipes
 
     enum Keys {
@@ -73,8 +74,6 @@ final class PlanningViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            var catalog = try await loadCatalog()
-
             guard let prefs = UserPreferences.load(from: defaults) else {
                 lastError = Self.missingPreferencesMessage
                 return
@@ -85,16 +84,19 @@ final class PlanningViewModel: ObservableObject {
                 return
             }
 
-            var discoveryNote: String?
-            if prefs.discoverRecipes {
-                let discovered = await discoverRecipes(prefs)
-                let known = Set(catalog.recipes.map { $0.name.lowercased() })
-                let new = discovered.recipes.filter { !known.contains($0.name.lowercased()) }
-                catalog.recipes += new
-                discoveryNote = new.isEmpty
-                    ? discovered.note
-                    : "Includes \(new.count) recipes discovered by on-device AI (marked on each recipe)."
+            async let loadedCatalog = loadCatalog()
+            let discovered = await discoverRecipes(prefs)
+            var catalog = try await loadedCatalog
+            let known = Set(catalog.recipes.map { $0.name.lowercased() })
+            catalog.recipes += discovered.recipes.filter { !known.contains($0.name.lowercased()) }
+            guard !catalog.recipes.isEmpty else {
+                // No recipes: offline with none saved, or no recipe source. Any plan already made stays.
+                lastError = discovered.note ?? Self.noRecipesMessage
+                return
             }
+            let discoveryNote = discovered.recipes.isEmpty
+                ? discovered.note
+                : discovered.source.plannerNote
 
             var plan = try await ai.generateWeeklySuggestions(
                 preferences: prefs,

@@ -5,3 +5,6 @@ TestReports/
 # Local output of scripts/build_grocery_feed.py
 build/
 __pycache__/
+
+# macOS folder metadata
+.DS_Store

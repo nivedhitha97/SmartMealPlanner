@@ -2,10 +2,11 @@
 
 | Kind | Count | Where | Runs in CI |
 |---|---|---|---|
-| Unit tests (Swift Testing) | 184 | `SmartMealPlannerTests` | iOS build |
-| UI tests (XCUITest) | 22 | `SmartMealPlannerUITests` | iOS build |
-| Grocery database tests (Python unittest) | 57 | `scripts/grocery_db/tests` | Grocery database |
+| Unit tests (Swift Testing) | 217 | `SmartMealPlannerTests` | iOS build |
+| UI tests (XCUITest) | 23 (+ 1 screenshot test, skipped unless asked for) | `SmartMealPlannerUITests` | iOS build |
+| Grocery database tests (Python unittest) | 64 | `scripts/grocery_db/tests` | Grocery database |
 | API and security checks (Postman/Newman) | 29 | `docs/api` | API checks |
+| Recipe-search function tests (Node test runner) | 13 | `supabase/functions/recipe-search` | API checks |
 
 **Latest results: all passing.** Every Xcode and CI test run is recorded in the
 [SmartMealPlanner Test Cases](https://docs.google.com/spreadsheets/d/1YKWuDnbF0zmI1NbZde3dtsLhVRfhXbsNPPZ-43Ga_AE/edit)
@@ -19,11 +20,12 @@ Google Sheet (see below).
 | Planning view model | Missing setup errors, generating/caching/clearing a plan, live prices and AI recipes reaching the planner |
 | Weekly plan screen | Budget card, day picker, empty-slot labels |
 | Recipe detail screen | Calories per serving, servings scaling, prep/cook/total times, links, bundled recipes complete |
-| Recipe discovery | AI recipe conversion, allergen re-check, caching per preferences, unavailable model, prompt contents |
-| External links | YouTube app first, Safari fallback, short links |
+| Recipe discovery | Recipe search is the only source (Spoonacular credit and link, real YouTube video, meal tags, request without postcode or budget, only HTTPS); saved for a week then searched again; **offline the saved recipes however old**; on-device model as fallback with Allerhande / BBC Good Food links; clear notes when offline or not set up; allergen re-check |
+| Deals you add | Validity, saving on the phone, ending on Sunday (Amsterdam time), dropping ended deals, the planner using a linked deal, Open Prices credit |
+| External links | YouTube and Albert Heijn apps first, Safari fallback, short links |
 | Offers screen | Store and category filters, ending soon, ordering, savings, store badges, next update, store statuses |
 | Grocery list | Offers, own items, editing, ticking off, plan items, filters, totals, saving, **purchases and weekly spending** |
-| Live grocery data | No request before the next update, meta-only checks, rebuilt feed, offline fallbacks |
+| Live grocery data | No request before the next update, meta-only checks, rebuilt feed, offline: the saved copy, else **no data (never samples)** |
 | Nearby stores | Chain matching, 2 km radius, nearest per chain, de-duplication, nearby-only offers |
 | Offer alerts | Weekday mapping, weekly triggers, turning off, default store choice, permission |
 | Preferences form / storage | Saving on first tap before the lookup, people, postcode rules, older saved data |
@@ -31,14 +33,16 @@ Google Sheet (see below).
 
 ## UI tests
 
-Each test launches the app with no saved data, no splash and the bundled sample offers (`-uiTestingResetState`,
-`-uiTestingSkipSplash`, `-uiTestingBundledData`), so results don't depend on the network.
+Each test launches the app with no saved data, no splash and fixed test offers and recipes (`-uiTestingResetState`,
+`-uiTestingSkipSplash`, `-uiTestingBundledData`, reading `UITestOffers.json` and `UITestRecipes.json`), so results
+don't depend on the network. Users never see that data: without it the app only shows downloaded data.
 
 | Class | Covers |
 |---|---|
 | Navigation | Splash, every tab opens its screen |
 | Weekly plan | Setup checklist, generating before setup, full flow with 2 people (recipe shows "2 people", times, YouTube falls back to Safari), picking another day |
-| Offers & preferences | Category filter, postcode errors and region, **first save keeps the postcode**, edits survive Meal routine |
+| Offers & preferences | Category filter, **adding an Albert Heijn Bonus deal**, postcode errors and region, **first save keeps the postcode** (lookup delayed so the save happens during it), edits survive Meal routine |
+| Screenshots | Takes the README screenshots with live data; runs only with `TEST_RUNNER_SCREENSHOT_DIR` set (see below) |
 | Grocery list | Store filter, adding offers and totals, own items (add/edit/tick/delete), plan groceries on the List tab, ticked items in the Profile |
 | Settings | Version, theme choice and persistence, dark theme everywhere, **offer alerts per store** |
 
@@ -48,6 +52,14 @@ Schedule (who is due when, retries, learning offer days), every store parser on 
 deal and per-item price maths, images, price history, the Supabase mirror (push only changes, never overwrite
 edits, edits applied, first fill), and an end-to-end run with the network faked: a second run on the same day makes
 no requests.
+
+## Recipe-search function tests
+
+The Edge Function's logic (`logic.ts`) without the network: preference validation and clean-up, the cache key,
+the Spoonacular queries (breakfasts from any cuisine, mains in the user's cuisines; diet, intolerances, exclusions),
+the compact prompt data, the forced Claude Haiku tool call, the YouTube lookup and its answer, the user's own cuisine
+names, and the checks on Claude's answer (only Spoonacular's recipes, photo and link from Spoonacular, banned
+ingredients dropped, numbers clamped).
 
 ## API and security checks
 
@@ -64,6 +76,13 @@ xcodebuild test -project SmartMealPlanner.xcodeproj -scheme SmartMealPlanner -de
 Add `-only-testing:SmartMealPlannerTests` or `-only-testing:SmartMealPlannerUITests` for one kind; ⌘U in Xcode.
 Python: `cd scripts && python3 -m unittest discover -s grocery_db/tests -t .`.
 API: `npx newman run docs/api/SmartMealPlanner.postman_collection.json -e docs/api/feed.postman_environment.json`.
+Recipe-search function: `node --test supabase/functions/recipe-search/logic.test.ts` (Node 22.6+).
+README screenshots (live data, simulator in light mode):
+
+```bash
+TEST_RUNNER_SCREENSHOT_DIR="$PWD/docs/screenshots" xcodebuild test -project SmartMealPlanner.xcodeproj -scheme SmartMealPlanner -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:SmartMealPlannerUITests/ScreenshotTests
+sips -Z 1000 docs/screenshots/*.png   # README size (460 × 1000)
+```
 
 ## Test case report (Google Sheets)
 

@@ -55,6 +55,15 @@ struct OffersList {
         return filtered.filter { !$0.isLivePriceDrop && $0.validUntil >= now && $0.validUntil <= cutoff }
     }
 
+    /// "Ending soon" and the other filtered offers, filtering and sorting only once (the screen needs both).
+    func sections(now: Date = Date(), calendar: Calendar = .current) -> (endingSoon: [SupermarketOffer], other: [SupermarketOffer]) {
+        let cutoff = calendar.date(byAdding: .day, value: Self.endingSoonDays, to: now) ?? now
+        let all = filtered
+        let soon = all.filter { !$0.isLivePriceDrop && $0.validUntil >= now && $0.validUntil <= cutoff }
+        let soonIDs = Set(soon.map(\.id))
+        return (soon, all.filter { !soonIDs.contains($0.id) })
+    }
+
     /// Filtered offers that aren't ending soon.
     func otherOffers(now: Date = Date(), calendar: Calendar = .current) -> [SupermarketOffer] {
         let soonIDs = Set(endingSoon(now: now, calendar: calendar).map(\.id))
@@ -108,8 +117,10 @@ struct OffersList {
             return age.map { "Live prices · updated \($0)" } ?? "Live prices"
         case .cached:
             return age.map { "Offline · prices from \($0)" } ?? "Offline · saved prices"
-        case .bundled:
-            return "Offline · sample offers"
+        case .unavailable:
+            return "No internet connection"
+        case .fixture:
+            return "Test data"
         }
     }
 }

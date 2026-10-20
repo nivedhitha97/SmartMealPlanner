@@ -23,12 +23,17 @@ struct Recipe: Identifiable, Codable {
     var cookbookReference: String?
     /// Publisher, bookstore, or recipe permalink.
     var cookbookURL: String?
-    /// Written by the on-device AI (Recipe discovery) rather than bundled with the app.
+    /// The meals this dish is for ("Breakfast", "Lunch", "Dinner"); nil means any meal.
+    var meals: [String]?
+    /// Found by Recipe discovery (on-device AI, or Spoonacular adapted by AI) rather than bundled with the app.
     var isAIGenerated: Bool
+
+    /// A Spoonacular recipe from Recipe search; its source is credited as the cookbook reference.
+    var isFromSpoonacular: Bool { isAIGenerated && cookbookReference?.hasPrefix("Spoonacular") == true }
 
     enum CodingKeys: String, CodingKey {
         case id, name, cuisine, ingredients, servings, prepMinutes, cookMinutes, instructions
-        case imageURL, youtubeURL, cookbookReference, cookbookURL, isAIGenerated
+        case imageURL, youtubeURL, cookbookReference, cookbookURL, isAIGenerated, meals
     }
 
     init(
@@ -44,7 +49,8 @@ struct Recipe: Identifiable, Codable {
         youtubeURL: String? = nil,
         cookbookReference: String? = nil,
         cookbookURL: String? = nil,
-        isAIGenerated: Bool = false
+        isAIGenerated: Bool = false,
+        meals: [String]? = nil
     ) {
         self.id = id
         self.name = name
@@ -59,6 +65,7 @@ struct Recipe: Identifiable, Codable {
         self.cookbookReference = cookbookReference
         self.cookbookURL = cookbookURL
         self.isAIGenerated = isAIGenerated
+        self.meals = meals
     }
 
     init(from decoder: Decoder) throws {
@@ -76,6 +83,7 @@ struct Recipe: Identifiable, Codable {
         cookbookReference = try c.decodeIfPresent(String.self, forKey: .cookbookReference)
         cookbookURL = try c.decodeIfPresent(String.self, forKey: .cookbookURL)
         isAIGenerated = try c.decodeIfPresent(Bool.self, forKey: .isAIGenerated) ?? false
+        meals = try c.decodeIfPresent([String].self, forKey: .meals)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -93,26 +101,53 @@ struct Recipe: Identifiable, Codable {
         try c.encodeIfPresent(cookbookReference, forKey: .cookbookReference)
         try c.encodeIfPresent(cookbookURL, forKey: .cookbookURL)
         if isAIGenerated { try c.encode(isAIGenerated, forKey: .isAIGenerated) }
+        try c.encodeIfPresent(meals, forKey: .meals)
+    }
+
+    /// Whether the dish suits this meal (dishes without meals suit any).
+    func suits(_ slot: MealSlot) -> Bool {
+        meals?.contains(slot.rawValue) ?? true
     }
 
     var containsMeat: Bool {
-        let meatKeywords = ["chicken", "beef", "pork", "fish", "mutton", "lamb", "seafood", "turkey", "duck", "salmon"]
-        return ingredients.contains { row in
-            meatKeywords.contains { keyword in
-                row.ingredient.name.lowercased().contains(keyword)
-            }
-        }
+        ingredients.contains { Self.isMeatOrFish($0.ingredient.name) }
     }
 
     var containsAnimalProducts: Bool {
-        containsMeat || containsDairyEggs
+        containsMeat || ingredients.contains { Self.isDairyOrEgg($0.ingredient.name) }
     }
 
-    private var containsDairyEggs: Bool {
-        let keywords = ["milk", "cheese", "butter", "egg", "yogurt", "cream", "honey", "ghee", "parmesan"]
-        return ingredients.contains { row in
-            keywords.contains { row.ingredient.name.lowercased().contains($0) }
-        }
+    // Matched on the start of each word, so "Prawns" and "Meatballs" count but "Champignons" (…ham…) and
+    // "Eggplant" don't.
+    private static let meatWords = ["chicken", "beef", "pork", "fish", "mutton", "lamb", "seafood", "turkey", "duck",
+                                    "salmon", "tuna", "cod", "haddock", "mackerel", "herring", "anchov", "sardine",
+                                    "prawn", "shrimp", "mussel", "clam", "squid", "crab", "lobster", "oyster", "meat",
+                                    "mince", "sausage", "bacon", "ham", "chorizo", "salami", "pancetta", "prosciutto",
+                                    "veal", "venison", "gelatin", "lard"]
+    private static let dairyEggWords = ["milk", "cheese", "butter", "egg", "yogurt", "yoghurt", "cream", "crème", "honey",
+                                        "ghee", "parmesan", "feta", "mozzarella", "paneer", "halloumi", "ricotta",
+                                        "mascarpone", "cheddar", "gouda", "gruyère", "kefir", "quark", "custard",
+                                        "mayonnaise"]
+    /// Plant milks, butters and creams.
+    private static let plantWords: Set<String> = ["coconut", "almond", "oat", "soy", "soya", "peanut", "cashew",
+                                                   "vegan", "plant"]
+    private static let notAnimal = ["eggplant", "butternut", "butter bean", "lamb's lettuce", "cream of tartar"]
+
+    private static func words(_ name: String) -> [String] {
+        name.lowercased().split { !$0.isLetter }.map(String.init)
+    }
+
+    static func isMeatOrFish(_ name: String) -> Bool {
+        let lowered = name.lowercased()
+        guard !notAnimal.contains(where: lowered.contains) else { return false }
+        return words(name).contains { word in meatWords.contains { word.hasPrefix($0) } }
+    }
+
+    static func isDairyOrEgg(_ name: String) -> Bool {
+        let lowered = name.lowercased()
+        let words = words(name)
+        guard !notAnimal.contains(where: lowered.contains), !words.contains(where: plantWords.contains) else { return false }
+        return words.contains { word in dairyEggWords.contains { word.hasPrefix($0) } }
     }
 
     var imageURLParsed: URL? {
@@ -130,6 +165,25 @@ struct Recipe: Identifiable, Codable {
     var cookbookURLParsed: URL? {
         guard let cookbookURL, let u = URL(string: cookbookURL) else { return nil }
         return u
+    }
+
+    /// Whether the video link is one real video (from recipe search) rather than a YouTube search.
+    var hasVideo: Bool {
+        guard let url = youtubeURLParsed else { return false }
+        return YouTubeLink.isYouTube(url) && url.path != "/results"
+    }
+
+    /// For a recipe without a source (one written by the on-device AI): searches for the dish on trusted recipe
+    /// sites, so a published, tested version is one tap away. Empty when the recipe links its own source.
+    var findRecipeLinks: [(site: String, url: URL)] {
+        guard cookbookURLParsed == nil else { return [] }
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&+=?#")
+        guard let query = name.addingPercentEncoding(withAllowedCharacters: allowed) else { return [] }
+        return [
+            ("Allerhande", URL(string: "https://www.ah.nl/allerhande/recepten-zoeken?query=\(query)")),
+            ("BBC Good Food", URL(string: "https://www.bbcgoodfood.com/search?q=\(query)")),
+        ].compactMap { site, url in url.map { (site, $0) } }
     }
 
     /// Whether there's a YouTube or cookbook link to show.

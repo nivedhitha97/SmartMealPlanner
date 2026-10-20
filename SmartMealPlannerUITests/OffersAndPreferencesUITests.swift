@@ -48,8 +48,10 @@ final class OffersAndPreferencesUITests: XCTestCase {
         XCTAssertTrue(save.isEnabled)
         save.tap()
 
+        // Offer cards are built only when on screen, so scroll down to the new deal.
         let added = app.element(containing: "AH Halfvolle melk")
-        XCTAssertTrue(added.waitForExistence(timeout: 3), "the deal is in the offers list")
+        app.scrollTo(added, maxSwipes: 12)
+        XCTAssertTrue(added.exists, "the deal is in the offers list")
         XCTAssertTrue(app.element(containing: "Added by you").exists)
     }
 

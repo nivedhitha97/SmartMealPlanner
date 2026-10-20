@@ -15,8 +15,10 @@ enum GroceryDataSource: String, Codable {
     case live
     /// The last successful download, used while offline.
     case cached
-    /// The sample offers bundled with the app, used when nothing was ever downloaded.
-    case bundled
+    /// Offline with nothing downloaded yet: there is no data to show.
+    case unavailable
+    /// Fixed test data, only in UI tests (`-uiTestingBundledData`); never shown to users.
+    case fixture
 }
 
 /// When a supermarket's data is refreshed, from the feed's meta.json.
@@ -54,7 +56,7 @@ struct GroceryData {
 }
 
 protocol GroceryDataService: AnyObject {
-    /// The latest grocery data. Never fails: falls back to the cached feed, then to the bundled offers.
+    /// The latest grocery data. Never fails: falls back to the last download, else reports `.unavailable`.
     /// - Parameter forceRefresh: download again even if the last download is recent.
     func latest(forceRefresh: Bool) async -> GroceryData
 }
@@ -68,7 +70,7 @@ extension GroceryDataService {
 enum GroceryDataServices {
     /// The service the app uses. UI tests launch with `-uiTestingBundledData` to get fixed, offline data.
     static let shared: GroceryDataService = LaunchArguments.contains(LaunchArguments.bundledData)
-        ? BundledGroceryDataService()
+        ? FixtureGroceryDataService()
         : RemoteGroceryDataService()
 
     /// The stores' offer days as the grocery database found them, for use before the live schedule has loaded.
@@ -80,16 +82,19 @@ enum GroceryDataServices {
                       pricesChangedAt: nil, pricesAreCurrent: nil, lastError: nil)
     }
 
-    /// The sample offers in Data/offers.json.
-    static func bundledOffers() -> [SupermarketOffer] {
-        (try? JSONLoader.load("offers", as: [SupermarketOffer].self)) ?? []
+    /// The UI tests' fixed offers (Data/UITestOffers.json).
+    static func fixtureOffers() -> [SupermarketOffer] {
+        (try? JSONLoader.load("UITestOffers", as: [SupermarketOffer].self)) ?? []
     }
+
+    /// Nothing to show: offline and never downloaded.
+    static let unavailable = GroceryData(offers: [], prices: [], updatedAt: nil, source: .unavailable)
 }
 
-/// Only the bundled sample offers, with no ingredient prices.
-final class BundledGroceryDataService: GroceryDataService {
+/// UI tests only: fixed offers so results don't depend on the network.
+final class FixtureGroceryDataService: GroceryDataService {
     func latest(forceRefresh: Bool) async -> GroceryData {
-        GroceryData(offers: GroceryDataServices.bundledOffers(), prices: [], updatedAt: nil, source: .bundled,
+        GroceryData(offers: GroceryDataServices.fixtureOffers(), prices: [], updatedAt: nil, source: .fixture,
                     stores: GroceryDataServices.defaultStoreSchedules)
     }
 }
@@ -97,7 +102,8 @@ final class BundledGroceryDataService: GroceryDataService {
 /// Downloads the feed only when it can have changed. Supermarkets are refreshed once a week each, and the
 /// feed says when the next refresh is due (`nextUpdateAt`); until then the copy on disk is used without any
 /// request. After that, only the small meta.json is checked, and offers and prices are downloaded only if
-/// the feed was actually rebuilt. The last good copy is also the offline fallback.
+/// the feed was actually rebuilt. The last good copy is also the offline fallback; with none, the data is unavailable
+/// (never sample data).
 final class RemoteGroceryDataService: GroceryDataService {
 
     static let publishedFeedURL = URL(string: "https://raw.githubusercontent.com/nivedhitha97/SmartMealPlanner/grocery-feed/")!
@@ -124,7 +130,6 @@ final class RemoteGroceryDataService: GroceryDataService {
     private let cacheDirectory: URL
     private let reuseInterval: TimeInterval
     private let now: () -> Date
-    private let bundledOffers: () -> [SupermarketOffer]
     private var lastCheck: (data: GroceryData, at: Date)?
     /// Requests made by this service, for tests and diagnostics.
     private(set) var requestCount = 0
@@ -134,18 +139,26 @@ final class RemoteGroceryDataService: GroceryDataService {
         session: URLSession = .shared,
         cacheDirectory: URL = URL.cachesDirectory.appending(path: "GroceryFeed", directoryHint: .isDirectory),
         reuseInterval: TimeInterval = 10 * 60,
-        now: @escaping () -> Date = Date.init,
-        bundledOffers: @escaping () -> [SupermarketOffer] = GroceryDataServices.bundledOffers
+        now: @escaping () -> Date = Date.init
     ) {
         self.baseURL = baseURL
         self.session = session
         self.cacheDirectory = cacheDirectory
         self.reuseInterval = reuseInterval
         self.now = now
-        self.bundledOffers = bundledOffers
     }
 
     func latest(forceRefresh: Bool) async -> GroceryData {
+        // What this service last returned is reused from memory while it is still current, so opening the Offers
+        // or Settings tab doesn't read and decode the whole feed from disk every time.
+        if !forceRefresh, let lastCheck {
+            if lastCheck.data.source == .live, let next = lastCheck.data.nextUpdateAt, now() < next {
+                return lastCheck.data
+            }
+            if now().timeIntervalSince(lastCheck.at) < reuseInterval {
+                return lastCheck.data
+            }
+        }
         let cached = loadFromCache()
         if !forceRefresh {
             // Nothing new is published before the next store refresh.
@@ -174,7 +187,7 @@ final class RemoteGroceryDataService: GroceryDataService {
         } catch {
             if let cached { return GroceryData(offers: cached.offers, prices: cached.prices, updatedAt: cached.updatedAt,
                                                source: .cached, nextUpdateAt: cached.nextUpdateAt, stores: cached.stores) }
-            return GroceryData(offers: bundledOffers(), prices: [], updatedAt: nil, source: .bundled)
+            return GroceryDataServices.unavailable
         }
     }
 

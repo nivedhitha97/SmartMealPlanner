@@ -18,7 +18,9 @@ editable shopping list grouped by store.
   week starts (about a dozen requests a week), from the stores within 2 km of your postcode
 - **Grocery list:** plan groceries, offers and your own items in one list, filtered by store, with store and overall
   totals; ticking items off tracks weekly spending against your budget
-- **On-device AI:** optional recipe discovery with Apple's on-device model; free and private
+- **Real recipes with their sources:** found on Spoonacular for each user's preferences and adapted by Claude Haiku
+  through a Supabase Edge Function, each linked to its original page and a real YouTube video; no built-in samples.
+  Apple's on-device model is the fallback. Offline, the app shows only what it saved
 - **Offer alerts:** a weekly local notification when a chosen store's new offers are in
 - **Quality:** 184 unit tests, 22 UI tests, 57 Python tests and 29 API/security checks, all in CI; every test run is
   recorded in a Google Sheet
@@ -31,11 +33,13 @@ editable shopping list grouped by store.
 | Architecture | MVVM-inspired, service layer, plain-Swift screen logic for testability |
 | Data | Codable JSON, UserDefaults, on-disk cache; grocery feed from a SQLite database built in GitHub Actions |
 | Apple frameworks | MapKit (postcode geocoding, nearby stores), Foundation Models (on-device AI), UserNotifications |
+| Recipe search | Supabase Edge Function (Deno, TypeScript): Spoonacular API, Claude Haiku (Anthropic Messages API), YouTube Data API |
 | Backend | GitHub Actions + Python (stdlib) grocery database, optional Supabase mirror for browsing and edits |
 | Testing | Swift Testing, XCUITest, Python unittest, Postman/Newman |
 | Design | Figma: [Smart Meal Planner – UI Revamp](https://www.figma.com/design/mCMW5PlNeirvCva8Ns9EAs) |
 
-No third-party app dependencies and no paid services or API keys in the app.
+No third-party app dependencies and no API keys in the app. Recipe search uses Spoonacular, Claude and YouTube,
+whose keys stay on the server.
 
 ## Status and roadmap
 

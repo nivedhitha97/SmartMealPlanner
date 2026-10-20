@@ -79,13 +79,16 @@ struct GroceryListView: View {
                 }
                 .accessibilityLabel("More")
             }
-            Button {
-                editing = .new
-            } label: {
-                IconCircle(systemName: "plus", tint: .white, background: .brandPrimary, size: 40)
+            // An empty list has its own "Add item" button, so the + only shows once there are items.
+            if !list.items.isEmpty {
+                Button {
+                    editing = .new
+                } label: {
+                    IconCircle(systemName: "plus", tint: .white, background: .brandPrimary, size: 40)
+                }
+                .accessibilityLabel("Add item")
+                .accessibilityIdentifier("list.addItem")
             }
-            .accessibilityLabel("Add item")
-            .accessibilityIdentifier("list.addItem")
         }
     }
 
@@ -104,6 +107,7 @@ struct GroceryListView: View {
                     .buttonStyle(.secondary)
                 Button("Add item") { editing = .new }
                     .buttonStyle(.primary)
+                    .accessibilityIdentifier("list.addItem")  // the header's + takes over once there are items
             }
             .padding(.top, 4)
         }
@@ -187,6 +191,7 @@ struct GroceryListView: View {
             .padding(.horizontal, 24)
         }
         .scrollIndicators(.hidden)
+        .scrollEdgeFade()
         .padding(.horizontal, -24)
         .accessibilityIdentifier("list.filters")
     }

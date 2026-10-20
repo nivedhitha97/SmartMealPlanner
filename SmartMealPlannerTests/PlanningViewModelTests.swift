@@ -49,7 +49,8 @@ struct PlanningViewModelTests {
 
     private func makeViewModel(planner: StubPlanner, catalog: PlanningViewModel.Catalog? = nil) -> PlanningViewModel {
         let catalog = catalog ?? self.catalog
-        return PlanningViewModel(ai: planner, defaults: storage.defaults, loadCatalog: { catalog })
+        return PlanningViewModel(ai: planner, defaults: storage.defaults, loadCatalog: { catalog },
+                                 discoverRecipes: { _ in DiscoveredRecipes(recipes: [], note: nil) })
     }
 
     private func saveSetup() {
@@ -152,20 +153,48 @@ struct PlanningViewModelTests {
         let viewModel = PlanningViewModel(
             ai: StubPlanner(result: .success(Fixtures.plan())),
             defaults: storage.defaults,
-            loadCatalog: { throw JSONResourceError.missingFile("recipes") }
+            loadCatalog: { throw JSONResourceError.missingFile("UITestOffers") },
+            discoverRecipes: { _ in DiscoveredRecipes(recipes: [Fixtures.recipe("Pasta")], note: nil) }
         )
 
         await viewModel.generatePlan()
 
-        #expect(viewModel.lastError == "Missing bundled JSON: recipes.json")
+        #expect(viewModel.lastError == "Missing bundled JSON: UITestOffers.json")
         #expect(viewModel.suggestedPlan == nil)
     }
 
-    @Test func catalogCombinesBundledRecipesWithTheGroceryFeed() async throws {
-        let catalog = try await PlanningViewModel.Catalog.live(from: BundledGroceryDataService())
+    @Test func catalogHasTheGroceryFeedButNoRecipesOfItsOwn() async throws {
+        let catalog = try await PlanningViewModel.Catalog.live(from: FixtureGroceryDataService())
 
-        #expect(!catalog.recipes.isEmpty)
+        #expect(catalog.recipes.isEmpty, "recipes only come from recipe search")
         #expect(!catalog.offers.isEmpty)
-        #expect(catalog.ingredientPrices.isEmpty, "Bundled data has no live prices")
+    }
+
+    @Test func planUsesTheSearchedRecipes() async {
+        saveSetup()
+        let planner = StubPlanner(result: .success(Fixtures.plan()))
+        let viewModel = PlanningViewModel(
+            ai: planner, defaults: storage.defaults, loadCatalog: { .init(offers: []) },
+            discoverRecipes: { _ in DiscoveredRecipes(recipes: [Fixtures.recipe("Chana Masala")], note: nil, source: .spoonacular) }
+        )
+
+        await viewModel.generatePlan()
+
+        #expect(planner.calls.last?.recipes.map(\.name) == ["Chana Masala"])
+        #expect(viewModel.suggestedPlan?.aiSummary.contains("Recipes from Spoonacular") == true)
+    }
+
+    @Test func withoutRecipesThePlanStaysAndTheReasonIsShown() async {
+        saveSetup()
+        let planner = StubPlanner(result: .success(Fixtures.plan()))
+        let viewModel = PlanningViewModel(
+            ai: planner, defaults: storage.defaults, loadCatalog: { .init(offers: []) },
+            discoverRecipes: { _ in DiscoveredRecipes(recipes: [], note: RecipeDiscovery.offlineNote) }
+        )
+
+        await viewModel.generatePlan()
+
+        #expect(viewModel.lastError == RecipeDiscovery.offlineNote)
+        #expect(planner.calls.isEmpty, "nothing to plan with")
     }
 }
