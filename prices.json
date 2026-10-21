@@ -1,0 +1,200 @@
+[
+ {
+  "ingredientName": "Arborio Rice",
+  "pricePer100g": 0.535,
+  "cheapestStore": "Jumbo",
+  "cheapestProduct": "Jumbo Risotto rijst Arborio 500 g",
+  "cheapestPrice": 1.99,
+  "cheapestSize": "500 g",
+  "cheapestPricePer100g": 0.398,
+  "storeCount": 2,
+  "productCount": 6
+ },
+ {
+  "ingredientName": "Bell Pepper",
+  "pricePer100g": 0.394,
+  "cheapestStore": "Jumbo",
+  "cheapestProduct": "Jumbo Goulashsoep met Paprika en Ui 800ML",
+  "cheapestPrice": 2.29,
+  "cheapestSize": "800 ml",
+  "cheapestPricePer100g": 0.286,
+  "storeCount": 3,
+  "productCount": 80
+ },
+ {
+  "ingredientName": "Black Beans",
+  "pricePer100g": 0.348,
+  "cheapestStore": "Jumbo",
+  "cheapestProduct": "Jumbo Zwarte Bonen 400 g",
+  "cheapestPrice": 1.05,
+  "cheapestSize": "400 g",
+  "cheapestPricePer100g": 0.263,
+  "storeCount": 2,
+  "productCount": 10
+ },
+ {
+  "ingredientName": "Broccoli",
+  "pricePer100g": 0.238,
+  "cheapestStore": "Spar",
+  "cheapestProduct": "Broccoli",
+  "cheapestPrice": 0.99,
+  "cheapestSize": "500 Gram",
+  "cheapestPricePer100g": 0.198,
+  "storeCount": 3,
+  "productCount": 27
+ },
+ {
+  "ingredientName": "Butter",
+  "pricePer100g": 0.5,
+  "cheapestStore": "Jumbo",
+  "cheapestProduct": "Jumbo Roomboter Ongezouten 500 g",
+  "cheapestPrice": 2.25,
+  "cheapestSize": "500 g",
+  "cheapestPricePer100g": 0.45,
+  "storeCount": 3,
+  "productCount": 74
+ },
+ {
+  "ingredientName": "Cherry Tomatoes",
+  "pricePer100g": 0.496,
+  "cheapestStore": "Jumbo",
+  "cheapestProduct": "Jumbo Cherry Tomaten 250 g",
+  "cheapestPrice": 0.99,
+  "cheapestSize": "250 G",
+  "cheapestPricePer100g": 0.396,
+  "storeCount": 2,
+  "productCount": 7
+ },
+ {
+  "ingredientName": "Chicken Breast",
+  "pricePer100g": 1.278,
+  "cheapestStore": "Jumbo",
+  "cheapestProduct": "Jumbo Wortel Erwt met Kipfilet 500 g",
+  "cheapestPrice": 5.79,
+  "cheapestSize": "500 g",
+  "cheapestPricePer100g": 1.158,
+  "storeCount": 3,
+  "productCount": 57
+ },
+ {
+  "ingredientName": "Corn Tortillas",
+  "pricePer100g": 0.903,
+  "cheapestStore": "Jumbo",
+  "cheapestProduct": "La Morena Tortilla Mais 320g",
+  "cheapestPrice": 2.89,
+  "cheapestSize": "",
+  "cheapestPricePer100g": 0.903,
+  "storeCount": 1,
+  "productCount": 3
+ },
+ {
+  "ingredientName": "Cucumber",
+  "pricePer100g": 0.214,
+  "cheapestStore": "Jumbo",
+  "cheapestProduct": "Jumbo Komkommer",
+  "cheapestPrice": 0.75,
+  "cheapestSize": "",
+  "cheapestPricePer100g": 0.214,
+  "storeCount": 2,
+  "productCount": 16
+ },
+ {
+  "ingredientName": "Eggs",
+  "pricePer100g": 0.626,
+  "cheapestStore": "Poiesz",
+  "cheapestProduct": "Eieren M/L - 12 stuks",
+  "cheapestPrice": 3.29,
+  "cheapestSize": "12 Stuks",
+  "cheapestPricePer100g": 0.457,
+  "storeCount": 3,
+  "productCount": 28
+ },
+ {
+  "ingredientName": "Feta Cheese",
+  "pricePer100g": 1.726,
+  "cheapestStore": "Jumbo",
+  "cheapestProduct": "Jumbo Feta Kaas 43+ Plak 200 g",
+  "cheapestPrice": 1.85,
+  "cheapestSize": "200 g",
+  "cheapestPricePer100g": 0.925,
+  "storeCount": 2,
+  "productCount": 7
+ },
+ {
+  "ingredientName": "Mushrooms",
+  "pricePer100g": 0.382,
+  "cheapestStore": "Jumbo",
+  "cheapestProduct": "Jumbo Gesneden Champignons 280 g",
+  "cheapestPrice": 0.99,
+  "cheapestSize": "280 g",
+  "cheapestPricePer100g": 0.354,
+  "storeCount": 2,
+  "productCount": 32
+ },
+ {
+  "ingredientName": "Olives",
+  "pricePer100g": 0.586,
+  "cheapestStore": "Jumbo",
+  "cheapestProduct": "Sera Zwarte Olijven Zonder Pit 850ML",
+  "cheapestPrice": 2.99,
+  "cheapestSize": "",
+  "cheapestPricePer100g": 0.352,
+  "storeCount": 3,
+  "productCount": 45
+ },
+ {
+  "ingredientName": "Parmesan Cheese",
+  "pricePer100g": 1.661,
+  "cheapestStore": "Jumbo",
+  "cheapestProduct": "Paolo Grissini Wave Parmigiano Reggiano en Zout 150 g",
+  "cheapestPrice": 1.99,
+  "cheapestSize": "150 g",
+  "cheapestPricePer100g": 1.327,
+  "storeCount": 2,
+  "productCount": 25
+ },
+ {
+  "ingredientName": "Red Lentils",
+  "pricePer100g": 0.309,
+  "cheapestStore": "Jumbo",
+  "cheapestProduct": "Garrido Rode Linzen 1KG",
+  "cheapestPrice": 3.09,
+  "cheapestSize": "",
+  "cheapestPricePer100g": 0.309,
+  "storeCount": 1,
+  "productCount": 4
+ },
+ {
+  "ingredientName": "Rice",
+  "pricePer100g": 0.186,
+  "cheapestStore": "Jumbo",
+  "cheapestProduct": "Jumbo Basmati Rijst Voordeelverpakking 1 kg",
+  "cheapestPrice": 1.75,
+  "cheapestSize": "1 kg",
+  "cheapestPricePer100g": 0.175,
+  "storeCount": 2,
+  "productCount": 19
+ },
+ {
+  "ingredientName": "Salmon Fillet",
+  "pricePer100g": 1.128,
+  "cheapestStore": "Jumbo",
+  "cheapestProduct": "Jumbo Wilde Zalm Filet 675 g",
+  "cheapestPrice": 7.49,
+  "cheapestSize": "675 g",
+  "cheapestPricePer100g": 1.11,
+  "storeCount": 2,
+  "productCount": 18
+ },
+ {
+  "ingredientName": "Whole Wheat Pasta",
+  "pricePer100g": 0.198,
+  "cheapestStore": "Jumbo",
+  "cheapestProduct": "Jumbo's Biologisch Volkoren Macaroni 500 g",
+  "cheapestPrice": 0.99,
+  "cheapestSize": "500 g",
+  "cheapestPricePer100g": 0.198,
+  "storeCount": 1,
+  "productCount": 9
+ }
+]
