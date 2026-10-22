@@ -1,20 +1,21 @@
-// Supabase Edge Function: POST the user's preferences, get up to 6 recipes from Spoonacular adapted by Claude Haiku.
+// Supabase Edge Function: POST the user's preferences (and, optionally, dish ideas from the app's on-device AI), get
+// up to 6 breakfasts and 12 lunch/dinner dishes: genuine recipes from Spoonacular, never written or changed by AI.
 //
-// Secrets (supabase secrets set …): SPOONACULAR_API_KEY, ANTHROPIC_API_KEY, RECIPE_SEARCH_APP_KEY (the key the
-// app sends in the x-app-key header; it ships inside the app, so it only keeps out casual callers).
-// Optional: YOUTUBE_API_KEY (a real video for each recipe; without it the app links a YouTube search) and
-// RECIPE_SEARCH_DAILY_LIMIT (default 40 new searches a day, all users together).
+// Secrets (supabase secrets set …): SPOONACULAR_API_KEY and RECIPE_SEARCH_APP_KEY (the key the app sends in the
+// x-app-key header; it ships inside the app, so it only keeps out casual callers). Optional:
+//   YOUTUBE_API_KEY            a real video for each recipe (free quota); without it the app links a YouTube search.
+//   RECIPE_SEARCH_DAILY_LIMIT  default 40 new searches a day, all users together.
+// Everything used is free: Supabase's free plan, Spoonacular's free plan and the YouTube Data API's free quota.
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase and used for the cache and the daily limit
 // (tables in supabase/recipe_search_schema.sql).
 //
 // Deploy: supabase functions deploy recipe-search --no-verify-jwt
 
 import {
-  adaptedRecipes,
+  convertedRecipes,
   type AppRecipe,
   cacheKeySource,
-  claudeRequest,
-  compactRecipes,
+  COURSES,
   type Course,
   parsePreferences,
   type Preferences,
@@ -44,7 +45,7 @@ Deno.serve(async (request) => {
   const cached = await database(`recipe_search_cache?key=eq.${key}&created_at=gte.${daysAgo(CACHE_DAYS)}&select=recipes`);
   if (Array.isArray(cached) && cached.length) return json({ recipes: cached[0].recipes, cached: true });
 
-  // New searches cost Spoonacular points and Claude tokens: cap them per caller and in total.
+  // New searches cost Spoonacular points: cap them per caller and in total.
   const caller = await sha256(request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown");
   const today = daysAgo(1);
   const [mine, all] = await Promise.all([
@@ -66,59 +67,75 @@ Deno.serve(async (request) => {
     failed.forEach((c) => console.error(c.reason));
     if (failed.length === courses.length) return json({ error: "Recipe search failed" }, 502);
     const recipes = courses.flatMap((c) => (c.status === "fulfilled" ? c.value : []));
-    await addVideos(recipes);
+    const videoError = await addVideos(recipes, preferences.diet);
 
-    if (!failed.length) { // a partial result isn't cached, so the next search tries again
+    // A partial result, or one whose video lookups all failed, isn't cached, so the next search tries again.
+    if (!failed.length && !videoError) {
       await database("recipe_search_cache", {
         method: "POST",
         body: { key, recipes, created_at: new Date().toISOString() },
         prefer: "resolution=merge-duplicates",
       });
     }
-    return json({ recipes, complete: failed.length === 0 });
+    return json({ recipes, complete: failed.length === 0, ...(videoError ? { videoError } : {}) });
   } catch (error) {
     console.error(error);
     return json({ error: "Recipe search failed" }, 502);
   }
 });
 
-/** Spoonacular's recipes for one course, adapted by Claude Haiku ([] when there are none); throws when a service fails. */
+/** Genuine recipes for one course, in the app's format ([] when there are none); throws when Spoonacular fails.
+ *  Breakfasts come from one search. Lunches and dinners come from the dish ideas first (each searched by name, so the
+ *  AI only chooses what to look for), topped up with a plain search for the preferences when they bring too few. */
 async function findRecipes(preferences: Preferences, course: Course): Promise<AppRecipe[]> {
-  const search = await fetch(
-    "https://api.spoonacular.com/recipes/complexSearch?" + spoonacularQuery(preferences, env("SPOONACULAR_API_KEY"), course),
-  );
-  if (!search.ok) throw new Error(`Spoonacular (${course}): HTTP ${search.status}`);
-  const results: SpoonRecipe[] = (await search.json()).results ?? [];
-  if (!results.length) return [];
+  const sources: SpoonRecipe[] = [];
+  const add = (results: SpoonRecipe[]) => {
+    for (const r of results) if (!sources.some((s) => s.id === r.id)) sources.push(r);
+  };
+  if (course === "main" && preferences.ideas.length) {
+    const found = await Promise.allSettled(preferences.ideas.map((idea) => search(preferences, course, idea)));
+    found.forEach((f) => { if (f.status === "fulfilled") add(f.value); });
+  }
+  let recipes = convertedRecipes(sources, preferences, course);
+  if (recipes.length < COURSES[course].max) {
+    add(await search(preferences, course));
+    recipes = convertedRecipes(sources, preferences, course);
+  }
+  return recipes;
+}
 
-  const claude = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": env("ANTHROPIC_API_KEY"),
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(claudeRequest(preferences, compactRecipes(results), course)),
-  });
-  if (!claude.ok) throw new Error(`Claude (${course}): HTTP ${claude.status}`);
-  return adaptedRecipes(await claude.json(), results, preferences, course);
+async function search(preferences: Preferences, course: Course, idea?: string): Promise<SpoonRecipe[]> {
+  const response = await fetch(
+    "https://api.spoonacular.com/recipes/complexSearch?" +
+      spoonacularQuery(preferences, env("SPOONACULAR_API_KEY"), course, idea),
+  );
+  if (!response.ok) throw new Error(`Spoonacular (${idea ?? course}): HTTP ${response.status}`);
+  return (await response.json()).results ?? [];
 }
 
 /** A real YouTube video for each recipe, when a YouTube key is set. A failed lookup (e.g. the daily quota) leaves the
- *  recipe without one, and the app links a YouTube search instead. */
-async function addVideos(recipes: AppRecipe[]) {
+ *  recipe without one, and the app links a YouTube search instead. Returns YouTube's reason when every lookup failed
+ *  (e.g. the API not enabled for the key), so it can be fixed. */
+async function addVideos(recipes: AppRecipe[], diet: string): Promise<string | undefined> {
   const apiKey = env("YOUTUBE_API_KEY");
-  if (!apiKey) return;
-  await Promise.all(recipes.map(async (recipe) => {
+  if (!apiKey || !recipes.length) return;
+  const errors = await Promise.all(recipes.map(async (recipe): Promise<string | undefined> => {
     try {
-      const response = await fetch("https://www.googleapis.com/youtube/v3/search?" + youtubeQuery(recipe.name, apiKey));
-      if (!response.ok) return;
-      const video = youtubeVideo(await response.json());
+      const response = await fetch("https://www.googleapis.com/youtube/v3/search?" + youtubeQuery(recipe.name, apiKey, diet));
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        return `YouTube: HTTP ${response.status} ${body?.error?.errors?.[0]?.reason ?? body?.error?.message ?? ""}`.trim();
+      }
+      const video = youtubeVideo(await response.json(), recipe.name, diet);
       if (video) Object.assign(recipe, { youtubeURL: video.url, youtubeTitle: video.title, youtubeChannel: video.channel });
-    } catch {
-      // keep the search fallback
+    } catch (error) {
+      return `YouTube: ${(error as Error).message ?? error}`;
     }
   }));
+  if (errors.every(Boolean)) {
+    console.error(errors[0]);
+    return errors[0];
+  }
 }
 
 function json(body: unknown, status = 200) {

@@ -42,14 +42,16 @@ UI designed in Figma: [Smart Meal Planner – UI Revamp](https://www.figma.com/d
 - **Daily meals and nutrition.** Pick a day to see its meals with photos; weekly calories, protein, carbs and fat.
 
 ### Recipes
-- **Real recipes, with their source.** Recipes are found on Spoonacular (published on real recipe sites) and adapted
-  by Claude Haiku to the app: grams, nutrition, Dutch prices and 6–10 detailed steps. Each links to the original
-  recipe page and is re-checked against your allergies.
+- **Human-made recipes, with their source.** Recipes are found on Spoonacular (published on real recipe sites) with
+  their original method, amounts in grams and nutrition. Each links to the original recipe page and is re-checked
+  against your allergies. AI never writes or rewrites a recipe.
+- **AI helps find them.** Where Apple Intelligence is on, Apple's free on-device model suggests dishes that suit your
+  diet and cuisines (e.g. "Chana Masala"), and recipe search looks up the published recipes for them.
 - **A real video.** Watch opens a YouTube video of the dish (in the YouTube app, or Safari without it).
 - **Amounts for your household.** Ingredient amounts scale to the number of people you cook for.
 - **Total, prep and cook time.** Instead of a step count, so you know how long a dish really takes.
-- **No made-up recipes.** The app ships none of its own. If recipe search can't be reached, Apple's on-device AI is
-  the fallback, and its recipes link to Allerhande and BBC Good Food to find a published version.
+- **No made-up recipes.** The app ships none of its own, and if recipe search can't be reached it uses only the
+  recipes it found before.
 
 ### Offline
 - **Stored data, never samples.** Offline, the app shows the offers, recipes and plan it last saved. With nothing
@@ -100,9 +102,10 @@ Every feature in detail, screen by screen: [Features](docs/FEATURES.md).
 2. Select the `SmartMealPlanner` scheme and run on an iOS Simulator.
 3. Run the tests with ⌘U (see the [test report](docs/TEST_REPORT.md)).
 
-The app needs no API keys of its own. Recipes come from recipe search (Spoonacular + Claude Haiku, optionally YouTube),
-a Supabase function that holds those keys: deploy it as described in [Recipe search](docs/DESIGN.md#recipe-search).
-Until then, the app has no recipes to plan with (or uses Apple's on-device AI where Apple Intelligence is on).
+The app needs no API keys of its own. Recipes come from recipe search (Spoonacular, optionally YouTube), a
+Supabase function that holds those keys. The whole setup is free: deploy it as described in
+[Recipe search](docs/DESIGN.md#recipe-search).
+Until then, the app has no recipes to plan with.
 
 ## Author
 

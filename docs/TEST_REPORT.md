@@ -6,7 +6,7 @@
 | UI tests (XCUITest) | 24 (+ 1 screenshot test, skipped unless asked for) | `SmartMealPlannerUITests` | iOS build |
 | Grocery database tests (Python unittest) | 64 | `scripts/grocery_db/tests` | Grocery database |
 | API and security checks (Postman/Newman) | 29 | `docs/api` | API checks |
-| Recipe-search function tests (Node test runner) | 13 | `supabase/functions/recipe-search` | API checks |
+| Recipe-search function tests (Node test runner) | 16 | `supabase/functions/recipe-search` | API checks |
 
 **Latest results: all passing.** Every Xcode and CI test run is recorded in the
 [SmartMealPlanner Test Cases](https://docs.google.com/spreadsheets/d/1YKWuDnbF0zmI1NbZde3dtsLhVRfhXbsNPPZ-43Ga_AE/edit)
@@ -17,10 +17,10 @@ Google Sheet (see below).
 | Suite | Covers |
 |---|---|
 | Plan generation | 7-day structure, **staying within budget** (cheaper swaps, usual meals kept, impossible budgets explained), diet/allergy/dislike/cuisine filtering, meal types, **no dish twice a day or more than twice a week**, unfilled slots, grocery aggregation scaled to people, offer matching (regional, national, nearby only), live prices, nutrition |
-| Planning view model | Missing setup errors, generating/caching/clearing a plan, live prices and AI recipes reaching the planner |
+| Planning view model | Missing setup errors, generating/caching/clearing a plan, live prices and searched recipes reaching the planner |
 | Weekly plan screen | Budget card, day picker, empty-slot labels |
 | Recipe detail screen | Calories per serving, servings scaling, prep/cook/total times, links, bundled recipes complete |
-| Recipe discovery | Recipe search is the only source (Spoonacular credit and link, real YouTube video, meal tags, request without postcode or budget, only HTTPS); saved for a week then searched again; **offline the saved recipes however old**; on-device model as fallback with Allerhande / BBC Good Food links; clear notes when offline or not set up; allergen re-check |
+| Recipe discovery | Recipe search is the only source and recipes are never AI-written (Spoonacular credit and link, same id for the same recipe, real YouTube video, meal tags, request with dish ideas but without postcode or budget, only HTTPS); **the on-device model's dish ideas reach the search**, tidied and limited to 8, and the prompt carries the preferences; no ideas means a search by preferences alone; saved for a week then searched again; **offline the saved recipes however old**; clear notes when offline or not set up; allergen re-check |
 | Deals you add | Validity, saving on the phone, ending on Sunday (Amsterdam time), dropping ended deals, the planner using a linked deal, Open Prices credit |
 | External links | YouTube and Albert Heijn apps first, Safari fallback, short links |
 | Offers screen | Store and category filters, ending soon, ordering, savings, store badges (real logos present in the app, monograms otherwise, tile widths), next update, store statuses |
@@ -56,10 +56,11 @@ no requests.
 ## Recipe-search function tests
 
 The Edge Function's logic (`logic.ts`) without the network: preference validation and clean-up, the cache key,
-the Spoonacular queries (breakfasts from any cuisine, mains in the user's cuisines; diet, intolerances, exclusions),
-the compact prompt data, the forced Claude Haiku tool call, the YouTube lookup and its answer, the user's own cuisine
-names, and the checks on Claude's answer (only Spoonacular's recipes, photo and link from Spoonacular, banned
-ingredients dropped, numbers clamped).
+the Spoonacular queries (breakfasts from any cuisine, mains in the user's cuisines, a search per dish idea; diet,
+intolerances, exclusions), dish ideas cleaned and limited to 8, meals from dish types, the YouTube lookup and its
+answer (videos that fit the diet, full videos before shorts, none rather than a meat video), the conversion (grams from metric amounts and piece weights, nutrition per 100 g, prices, the author's steps
+word for word), recipes with allergens, dislikes or no method dropped, the 6 and 12 caps, and the user's own cuisine
+names (14 tests).
 
 ## API and security checks
 

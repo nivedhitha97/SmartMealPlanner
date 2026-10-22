@@ -175,7 +175,7 @@ struct PlanningViewModelTests {
         let planner = StubPlanner(result: .success(Fixtures.plan()))
         let viewModel = PlanningViewModel(
             ai: planner, defaults: storage.defaults, loadCatalog: { .init(offers: []) },
-            discoverRecipes: { _ in DiscoveredRecipes(recipes: [Fixtures.recipe("Chana Masala")], note: nil, source: .spoonacular) }
+            discoverRecipes: { _ in DiscoveredRecipes(recipes: [Fixtures.recipe("Chana Masala")], note: nil) }
         )
 
         await viewModel.generatePlan()

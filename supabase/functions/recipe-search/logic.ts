@@ -1,17 +1,18 @@
-// Recipe search: real recipes from Spoonacular, adapted by Claude Haiku to the app's format (grams, nutrition per
-// 100 g, Dutch supermarket prices, short steps). Pure functions only, so they can be tested without Deno or the
-// network (node --test logic.test.ts); index.ts does the I/O.
+// Recipe search: genuine, human-made recipes from Spoonacular (published on real recipe sites), put in the app's format
+// without changing them: amounts in grams, nutrition per 100 g, the original method. No recipe is written or
+// rewritten by AI; the app's on-device model may only suggest dish names to search for (`ideas`). Pure functions
+// only, so they can be tested without Deno or the network (node --test logic.test.ts); index.ts does the I/O.
 
-export const CLAUDE_MODEL = "claude-haiku-5-5";
-
-/** A week needs breakfasts as well as lunches and dinners; each is a separate Spoonacular search and Claude call. */
+/** A week needs breakfasts as well as lunches and dinners; each is a separate Spoonacular search. */
 export type Course = "breakfast" | "main";
 export const COURSES: Record<Course, { type: string; results: number; max: number; meals: string[]; cuisines: boolean }> = {
   // Breakfasts aren't limited to the user's cuisines: few cuisines have many.
   breakfast: { type: "breakfast", results: 10, max: 6, meals: ["Breakfast"], cuisines: false },
   main: { type: "main course", results: 20, max: 12, meals: ["Lunch", "Dinner"], cuisines: true },
 };
-export const MAX_RECIPES = Math.max(...Object.values(COURSES).map((c) => c.max));
+/** Dish ideas searched one by one, and how many recipes each may bring. */
+export const MAX_IDEAS = 8;
+export const RESULTS_PER_IDEA = 2;
 
 export type Preferences = {
   diet: string;
@@ -19,6 +20,8 @@ export type Preferences = {
   allergies: string[];
   dislikes: string[];
   people: number;
+  /** Dish names the app's on-device AI suggested for these preferences, e.g. "Chana Masala"; may be empty. */
+  ideas: string[];
 };
 
 export type AppIngredient = {
@@ -67,6 +70,7 @@ export function parsePreferences(body: unknown): Preferences {
     allergies: words(b.allergies),
     dislikes: words(b.dislikes),
     people: Number.isFinite(people) ? Math.min(10, Math.max(1, Math.round(people))) : 1,
+    ideas: words(b.ideas).slice(0, MAX_IDEAS),
   };
 }
 
@@ -107,7 +111,9 @@ const CUISINES: Record<string, string> = {
   vietnamese: "Vietnamese", american: "American", british: "British", german: "German",
 };
 
-export function spoonacularQuery(p: Preferences, apiKey: string, course: Course = "main"): URLSearchParams {
+/** A search for one course, or, with `idea`, for that dish (by name, most relevant first). The diet, allergies and
+ *  dislikes always apply, so an idea can never bring a recipe that breaks them. */
+export function spoonacularQuery(p: Preferences, apiKey: string, course: Course = "main", idea?: string): URLSearchParams {
   const intolerances = new Set<string>();
   const exclude = new Set<string>(p.dislikes.map((d) => d.toLowerCase()));
   for (const allergy of p.allergies) {
@@ -132,55 +138,29 @@ export function spoonacularQuery(p: Preferences, apiKey: string, course: Course 
   if (cuisines.length && COURSES[course].cuisines) query.set("cuisine", cuisines.join(","));
   if (intolerances.size) query.set("intolerances", [...intolerances].join(","));
   if (exclude.size) query.set("excludeIngredients", [...exclude].join(","));
+  if (idea) {
+    query.set("query", idea);
+    query.set("number", String(RESULTS_PER_IDEA));
+    query.delete("sort");    // the best matches for the dish, not random ones
+    query.delete("type");    // the dish decides: an idea can be a breakfast or a main
+    query.delete("cuisine"); // the idea already fits the cuisines
+  }
   return query;
 }
 
 type Nutrient = { name?: string; amount?: number };
 type SpoonIngredient = {
-  name?: string; nameClean?: string | null; amount?: number; unit?: string;
+  id?: number; name?: string; nameClean?: string | null; amount?: number; unit?: string;
   measures?: { metric?: { amount?: number; unitShort?: string } };
 };
 export type SpoonRecipe = {
   id: number; title: string; image?: string; servings?: number; readyInMinutes?: number;
   preparationMinutes?: number | null; cookingMinutes?: number | null; sourceUrl?: string; sourceName?: string;
-  spoonacularSourceUrl?: string; cuisines?: string[];
+  spoonacularSourceUrl?: string; cuisines?: string[]; dishTypes?: string[]; pricePerServing?: number;
   extendedIngredients?: SpoonIngredient[];
-  nutrition?: { ingredients?: { name?: string; amount?: number; unit?: string; nutrients?: Nutrient[] }[] };
+  nutrition?: { ingredients?: { id?: number; name?: string; amount?: number; unit?: string; nutrients?: Nutrient[] }[] };
   analyzedInstructions?: { steps?: { step?: string }[] }[];
 };
-
-/** What Claude needs from each Spoonacular recipe, kept small: fewer tokens, lower cost. */
-export function compactRecipes(results: SpoonRecipe[]) {
-  return results.map((r) => {
-    const nutrition = new Map(
-      (r.nutrition?.ingredients ?? []).map((n) => [String(n.name ?? "").toLowerCase(), n]),
-    );
-    return {
-      id: r.id,
-      title: r.title,
-      cuisines: r.cuisines ?? [],
-      servings: r.servings ?? 2,
-      readyInMinutes: r.readyInMinutes ?? null,
-      preparationMinutes: positive(r.preparationMinutes),
-      cookingMinutes: positive(r.cookingMinutes),
-      ingredients: (r.extendedIngredients ?? []).slice(0, 15).map((i) => {
-        const name = i.nameClean || i.name || "";
-        const metric = i.measures?.metric;
-        const n = nutrition.get(String(i.name ?? "").toLowerCase()) ?? nutrition.get(name.toLowerCase());
-        const value = (key: string) => n?.nutrients?.find((x) => x.name === key)?.amount ?? null;
-        return {
-          name,
-          amount: metric ? `${round(metric.amount ?? 0)} ${metric.unitShort ?? ""}`.trim() : `${i.amount ?? ""} ${i.unit ?? ""}`.trim(),
-          nutritionForAmount: n
-            ? { calories: value("Calories"), protein: value("Protein"), carbs: value("Carbohydrates"), fat: value("Fat") }
-            : null,
-        };
-      }),
-      steps: (r.analyzedInstructions ?? []).flatMap((a) => a.steps ?? []).map((s) => String(s.step ?? "").slice(0, 300))
-        .filter(Boolean).slice(0, 15),
-    };
-  });
-}
 
 function positive(value: number | null | undefined): number | null {
   return typeof value === "number" && value > 0 ? value : null;
@@ -190,152 +170,16 @@ function round(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-// ---- Claude ----
-
-const INGREDIENT_SCHEMA = {
-  type: "object",
-  properties: {
-    name: { type: "string", description: "Plain English ingredient name, singular, Title Case, e.g. Chicken Breast" },
-    grams: { type: "integer", description: "Grams for the whole recipe (convert cups, pieces, ml…)" },
-    caloriesPer100g: { type: "number" },
-    proteinPer100g: { type: "number" },
-    carbsPer100g: { type: "number" },
-    fatPer100g: { type: "number" },
-    pricePer100g: { type: "number", description: "Typical Albert Heijn / Jumbo price in euros per 100 g" },
-  },
-  required: ["name", "grams", "caloriesPer100g", "proteinPer100g", "carbsPer100g", "fatPer100g", "pricePer100g"],
-};
-
-export const RECIPE_TOOL = {
-  name: "save_recipes",
-  description: "Save the recipes adapted for the user's meal planner.",
-  input_schema: {
-    type: "object",
-    properties: {
-      recipes: {
-        type: "array",
-        maxItems: MAX_RECIPES,
-        items: {
-          type: "object",
-          properties: {
-            spoonacularId: { type: "integer", description: "The id of the Spoonacular recipe this is based on" },
-            name: { type: "string" },
-            cuisine: { type: "string", description: "One of the user's cuisines when it fits, else the recipe's own" },
-            servings: { type: "integer" },
-            prepMinutes: { type: "integer" },
-            cookMinutes: { type: "integer" },
-            ingredients: { type: "array", items: INGREDIENT_SCHEMA },
-            steps: { type: "array", items: { type: "string" }, description: "6 to 10 detailed method steps with amounts, heat and timings" },
-          },
-          required: ["spoonacularId", "name", "cuisine", "servings", "prepMinutes", "cookMinutes", "ingredients", "steps"],
-        },
-      },
-    },
-    required: ["recipes"],
-  },
-};
-
-export const systemPrompt = (course: Course) => `You adapt recipes for a meal-planning app used in the Netherlands.
-You get recipes found on Spoonacular and the user's preferences. Keep each recipe faithful to its source:
-the same dish, ingredients and method. Your job is only to put them in the app's format:
-- every ingredient in grams for the whole recipe (convert cups, spoons, pieces and millilitres);
-- nutrition per 100 g, using the given nutrition for the amount where present, else typical values;
-- a realistic price per 100 g at Dutch supermarkets (Albert Heijn, Jumbo) in euros;
-- 6 to 10 detailed method steps: amounts, heat levels, timings and how to tell when it is done.
-Leave out any recipe that contains an ingredient the user is allergic to or dislikes, even as a minor
-ingredient or in a sauce. Never add ingredients. These are ${course === "breakfast" ? "breakfasts" : "lunch and dinner dishes"}.
-Return at most ${COURSES[course].max} recipes with the save_recipes tool.`;
-
-export function claudeRequest(p: Preferences, recipes: ReturnType<typeof compactRecipes>, course: Course = "main") {
-  const user = [
-    `Preferences: diet ${p.diet}; cooking for ${p.people} ${p.people === 1 ? "person" : "people"}.`,
-    p.cuisines.length ? `Cuisines they like: ${p.cuisines.join(", ")}.` : "",
-    p.allergies.length ? `Allergies (never include): ${p.allergies.join(", ")}.` : "",
-    p.dislikes.length ? `Dislikes (never include): ${p.dislikes.join(", ")}.` : "",
-    "",
-    "Spoonacular recipes (JSON):",
-    JSON.stringify(recipes),
-  ].filter((line, i) => line !== "" || i > 3).join("\n");
-  return {
-    model: CLAUDE_MODEL,
-    max_tokens: 16000,
-    system: systemPrompt(course),
-    tools: [RECIPE_TOOL],
-    tool_choice: { type: "tool", name: RECIPE_TOOL.name },
-    messages: [{ role: "user", content: user }],
-  };
-}
-
-type ClaudeResponse = { content?: { type: string; name?: string; input?: { recipes?: unknown[] } }[] };
-
-/** Claude's recipes, checked and joined with Spoonacular's photo and source link (never taken from the model). */
-export function adaptedRecipes(
-  response: ClaudeResponse, sources: SpoonRecipe[], p: Preferences, course: Course = "main",
-): AppRecipe[] {
-  const block = response.content?.find((c) => c.type === "tool_use" && c.name === RECIPE_TOOL.name);
-  const byId = new Map(sources.map((s) => [s.id, s]));
-  const banned = [...p.allergies, ...p.dislikes].map((w) => w.toLowerCase()).filter((w) => w.length > 2);
-  const result: AppRecipe[] = [];
-  for (const raw of block?.input?.recipes ?? []) {
-    const r = raw as Record<string, unknown>;
-    const source = byId.get(Number(r.spoonacularId));
-    if (!source) continue; // only recipes that really came from Spoonacular
-    const ingredients = (Array.isArray(r.ingredients) ? r.ingredients : []).map(ingredient).filter(
-      (i): i is AppIngredient => i !== null,
-    );
-    const steps = (Array.isArray(r.steps) ? r.steps : []).filter((s): s is string => typeof s === "string" && s.trim() !== "")
-      .map((s) => s.trim().slice(0, 500)).slice(0, 10);
-    if (ingredients.length < 2 || steps.length === 0) continue;
-    if (ingredients.some((i) => banned.some((w) => i.name.toLowerCase().includes(w)))) continue;
-    result.push({
-      spoonacularId: source.id,
-      name: text(r.name, source.title),
-      cuisine: cuisineFor(r.cuisine, source, p, course),
-      servings: clampInt(r.servings, 1, 12, source.servings ?? 2),
-      prepMinutes: clampInt(r.prepMinutes, 0, 240, 10),
-      cookMinutes: clampInt(r.cookMinutes, 0, 480, 20),
-      ingredients,
-      steps,
-      meals: COURSES[course].meals,
-      imageURL: https(source.image),
-      sourceURL: https(source.sourceUrl) ?? https(source.spoonacularSourceUrl),
-      sourceName: source.sourceName ?? null,
-      youtubeURL: null,
-      youtubeTitle: null,
-      youtubeChannel: null,
-    });
-    if (result.length === COURSES[course].max) break;
-  }
-  return result;
-}
-
 /** The cuisine in the user's own words ("Dutch", not Spoonacular's "European"), so the app keeps lunches and dinners
  *  to the cuisines they chose. The search was filtered by those cuisines, so every main belongs to one of them. */
-function cuisineFor(raw: unknown, source: SpoonRecipe, p: Preferences, course: Course): string {
-  const fallback = text(raw, source.cuisines?.[0] ?? "International");
+function cuisineFor(source: SpoonRecipe, p: Preferences, course: Course): string {
+  const fallback = text(null, source.cuisines?.[0] ?? "International");
   if (course === "breakfast" || !p.cuisines.length) return fallback;
   const said = fallback.toLowerCase();
   const sourceCuisines = (source.cuisines ?? []).map((c) => c.toLowerCase());
   return p.cuisines.find((c) => c.toLowerCase() === said)
     ?? p.cuisines.find((c) => sourceCuisines.includes((CUISINES[c.toLowerCase()] ?? c).toLowerCase()))
     ?? p.cuisines[0];
-}
-
-function ingredient(raw: unknown): AppIngredient | null {
-  if (typeof raw !== "object" || raw === null) return null;
-  const i = raw as Record<string, unknown>;
-  const name = text(i.name, "");
-  const grams = clampInt(i.grams, 1, 5000, 0);
-  if (!name || grams === 0) return null;
-  return {
-    name,
-    grams,
-    caloriesPer100g: clamp(i.caloriesPer100g, 0, 900),
-    proteinPer100g: clamp(i.proteinPer100g, 0, 100),
-    carbsPer100g: clamp(i.carbsPer100g, 0, 100),
-    fatPer100g: clamp(i.fatPer100g, 0, 100),
-    pricePer100g: clamp(i.pricePer100g, 0.01, 10),
-  };
 }
 
 function text(value: unknown, fallback: string): string {
@@ -356,27 +200,154 @@ function https(url: string | undefined | null): string | null {
   return typeof url === "string" && url.startsWith("https://") ? url : null;
 }
 
+// ---- Into the app's format ----
+// Spoonacular gives each ingredient's metric amount and its nutrition for that amount, the original method and a price
+// per serving, so recipes can be put in the app's format without changing them.
+
+const UNIT_GRAMS: Record<string, number> = {
+  g: 1, gram: 1, grams: 1, kg: 1000, mg: 0.001, ml: 1, milliliter: 1, milliliters: 1, l: 1000, liter: 1000,
+  liters: 1000, tsp: 5, tsps: 5, teaspoon: 5, teaspoons: 5, tbsp: 15, tbsps: 15, tablespoon: 15, tablespoons: 15,
+  cup: 240, cups: 240, oz: 28.35, ounce: 28.35, ounces: 28.35, lb: 453.6, lbs: 453.6, pound: 453.6, pounds: 453.6,
+  pinch: 0.4, pinches: 0.4, dash: 0.6, dashes: 0.6, clove: 4, cloves: 4, slice: 30, slices: 30, can: 400, cans: 400,
+  stick: 113, sticks: 113, handful: 30, handfuls: 30, bunch: 50, bunches: 50, sprig: 1, sprigs: 1, leaf: 0.5, leaves: 0.5,
+};
+const SIZE: Record<string, number> = { small: 0.75, medium: 1, large: 1.25 };
+// Typical weights of one piece, for "2 eggs", "1 large onion"; anything else counts as 100 g.
+const PIECE_GRAMS: [RegExp, number][] = [
+  [/egg/, 50], [/garlic/, 4], [/onion|shallot/, 100], [/tomato/, 120], [/potato/, 170], [/lemon|lime/, 80],
+  [/carrot/, 60], [/bell pepper|capsicum/, 150], [/avocado/, 170], [/apple|pear|orange/, 150], [/banana/, 120],
+  [/zucchini|courgette|cucumber|eggplant|aubergine/, 200], [/chicken breast/, 170], [/tortilla/, 45], [/chili|chilli/, 15],
+];
+const USD_TO_EUR = 0.92;
+
+/** Grams of an ingredient from its metric amount, else from typical piece weights. */
+export function gramsOf(ingredient: SpoonIngredient): number {
+  const metric = ingredient.measures?.metric;
+  const amount = Number(metric?.amount ?? ingredient.amount ?? 0);
+  const unit = String(metric?.unitShort ?? ingredient.unit ?? "").toLowerCase().replace(/\.$/, "").trim();
+  if (!(amount > 0)) return 0;
+  if (UNIT_GRAMS[unit] !== undefined) return amount * UNIT_GRAMS[unit];
+  const name = String(ingredient.nameClean || ingredient.name || "").toLowerCase();
+  const piece = PIECE_GRAMS.find(([pattern]) => pattern.test(name))?.[1] ?? 100;
+  return amount * piece * (SIZE[unit] ?? 1);
+}
+
+/** Which meals a recipe suits, from Spoonacular's dish types ("breakfast", "main course", …), else from the search. */
+export function mealsFor(source: SpoonRecipe, course: Course): string[] {
+  const types = (source.dishTypes ?? []).map((t) => t.toLowerCase());
+  const meals: string[] = [];
+  if (types.some((t) => ["breakfast", "brunch", "morning meal"].includes(t))) meals.push("Breakfast");
+  if (types.some((t) => ["lunch", "main course", "main dish", "dinner", "soup", "salad"].includes(t))) meals.push("Lunch", "Dinner");
+  return meals.length ? meals : COURSES[course].meals;
+}
+
+/** Spoonacular's recipes in the app's format, unchanged in substance: their own ingredients, amounts (in grams),
+ *  nutrition and method. Recipes with an allergen or disliked ingredient, or without a method, are left out. */
+export function convertedRecipes(sources: SpoonRecipe[], p: Preferences, course: Course = "main"): AppRecipe[] {
+  const banned = [...p.allergies, ...p.dislikes].map((w) => w.toLowerCase()).filter((w) => w.length > 2);
+  const result: AppRecipe[] = [];
+  for (const source of sources) {
+    const nutrition = new Map((source.nutrition?.ingredients ?? []).map((n) => [n.id, n]));
+    const byName = new Map<string, AppIngredient>();
+    let totalGrams = 0;
+    for (const item of source.extendedIngredients ?? []) {
+      const grams = gramsOf(item);
+      const name = titleCase(item.nameClean || item.name || "");
+      if (!name || grams < 1) continue;
+      const n = nutrition.get(item.id);
+      const per100 = (key: string, max: number) => {
+        const value = n?.nutrients?.find((x) => x.name === key)?.amount;
+        return value === undefined ? 0 : clamp(value / grams * 100, 0, max);
+      };
+      const existing = byName.get(name);
+      if (existing) { existing.grams += Math.round(grams); totalGrams += grams; continue; }
+      byName.set(name, {
+        name, grams: Math.round(grams), caloriesPer100g: Math.round(per100("Calories", 900)),
+        proteinPer100g: round(per100("Protein", 100)), carbsPer100g: round(per100("Carbohydrates", 100)),
+        fatPer100g: round(per100("Fat", 100)), pricePer100g: 0,
+      });
+      totalGrams += grams;
+    }
+    const ingredients = [...byName.values()].slice(0, 15);
+    const steps = (source.analyzedInstructions ?? []).flatMap((a) => a.steps ?? [])
+      .map((x) => String(x.step ?? "").trim().slice(0, 500)).filter(Boolean).slice(0, 15);
+    if (ingredients.length < 2 || steps.length === 0) continue;
+    if (ingredients.some((i) => banned.some((w) => i.name.toLowerCase().includes(w)))) continue;
+    // Spoonacular's price per serving is in US cents; spread it over the grams as a rough per-100 g price. The
+    // planner prefers this week's Dutch offers and live prices when it has them.
+    const servings = clampInt(source.servings, 1, 12, 2);
+    const total = Number(source.pricePerServing) > 0 ? source.pricePerServing! * servings / 100 * USD_TO_EUR : 0;
+    const pricePer100g = total > 0 && totalGrams > 0 ? clamp(total / totalGrams * 100, 0.01, 10) : 0.5;
+    ingredients.forEach((i) => { i.pricePer100g = Math.round(pricePer100g * 100) / 100; });
+    const ready = clampInt(source.readyInMinutes, 0, 600, 30);
+    const prep = positive(source.preparationMinutes) ?? Math.round(ready * 0.3);
+    const cook = positive(source.cookingMinutes) ?? Math.max(0, ready - prep);
+    result.push({
+      spoonacularId: source.id,
+      name: text(source.title, "Recipe"),
+      cuisine: cuisineFor(source, p, course),
+      servings,
+      prepMinutes: clampInt(prep, 0, 240, 10),
+      cookMinutes: clampInt(cook, 0, 480, 20),
+      ingredients,
+      steps,
+      meals: mealsFor(source, course),
+      imageURL: https(source.image),
+      sourceURL: https(source.sourceUrl) ?? https(source.spoonacularSourceUrl),
+      sourceName: source.sourceName ?? null,
+      youtubeURL: null,
+      youtubeTitle: null,
+      youtubeChannel: null,
+    });
+    if (result.length === COURSES[course].max) break;
+  }
+  return result;
+}
+
+function titleCase(name: string): string {
+  return name.trim().replace(/\s+/g, " ").replace(/\b\p{L}/gu, (c) => c.toUpperCase()).slice(0, 60);
+}
+
 // ---- YouTube ----
 
-/** The YouTube Data API search for a recipe's video: one video, the most relevant. Costs 100 of 10,000 daily units. */
-export function youtubeQuery(recipeName: string, apiKey: string): URLSearchParams {
+/** A YouTube search for a recipe's video: a few results, so one that fits can be picked. For a vegetarian or vegan
+ *  diet the search says so (unless the name does), so "Couscous Biryani" doesn't find a chicken biryani. One search
+ *  costs 100 of the 10,000 free daily units however many results it returns. */
+export function youtubeQuery(recipeName: string, apiKey: string, diet = ""): URLSearchParams {
+  const dietWord = diet === "Vegetarian" || diet === "Vegan" ? diet.toLowerCase() : "";
+  const name = dietWord && !new RegExp(`\\b(${dietWord}|vegan)\\b`, "i").test(recipeName)
+    ? `${dietWord} ${recipeName}` : recipeName;
   return new URLSearchParams({
-    part: "snippet", type: "video", maxResults: "1", relevanceLanguage: "en", safeSearch: "strict",
-    q: `${recipeName} recipe`, key: apiKey,
+    part: "snippet", type: "video", maxResults: "5", relevanceLanguage: "en", safeSearch: "strict",
+    q: `${name} recipe`, key: apiKey,
   });
 }
 
-/** The video in a YouTube search response, or null when there is none. */
-export function youtubeVideo(response: unknown): { url: string; title: string; channel: string } | null {
-  const item = (response as { items?: { id?: { videoId?: string }; snippet?: { title?: string; channelTitle?: string } }[] })
-    ?.items?.[0];
-  const id = item?.id?.videoId;
-  if (!id || !/^[\w-]{11}$/.test(id)) return null;
-  return {
-    url: `https://www.youtube.com/watch?v=${id}`,
-    title: decodeEntities(item?.snippet?.title ?? ""),
-    channel: decodeEntities(item?.snippet?.channelTitle ?? ""),
+const MEAT_IN_TITLE = /\b(chicken|beef|pork|mutton|lamb|fish|prawns?|shrimps?|keema|bacon|ham|turkey|meat|egg)\b/i;
+const EGG_FREE_DIETS = ["Vegan"];
+
+/** The best video in a YouTube search response, or null when there is none. Shorts are skipped when there's a full
+ *  video, and for a vegetarian or vegan diet so is any video whose title names meat or fish (and, for vegan, egg)
+ *  that the recipe's own name doesn't. */
+export function youtubeVideo(response: unknown, recipeName = "", diet = ""):
+  { url: string; title: string; channel: string } | null {
+  type Item = { id?: { videoId?: string }; snippet?: { title?: string; channelTitle?: string } };
+  const items = ((response as { items?: Item[] })?.items ?? [])
+    .filter((item) => /^[\w-]{11}$/.test(item?.id?.videoId ?? ""))
+    .map((item) => ({
+      url: `https://www.youtube.com/watch?v=${item.id!.videoId}`,
+      title: decodeEntities(item.snippet?.title ?? ""),
+      channel: decodeEntities(item.snippet?.channelTitle ?? ""),
+    }));
+  const meatFree = diet === "Vegetarian" || diet === "Vegan";
+  const wrongDish = (title: string) => {
+    if (!meatFree) return false;
+    const found = title.match(new RegExp(MEAT_IN_TITLE, "gi")) ?? [];
+    return found.some((word) => (word.toLowerCase() !== "egg" || EGG_FREE_DIETS.includes(diet))
+      && !new RegExp(`\\b${word}\\b`, "i").test(recipeName));
   };
+  const fitting = items.filter((v) => !wrongDish(v.title));
+  return fitting.find((v) => !/#shorts?\b/i.test(v.title)) ?? fitting[0] ?? null;
 }
 
 /** YouTube returns titles with HTML entities ("Mom&#39;s Dal"). */

@@ -2,29 +2,25 @@
 //  RecipeDiscoveryTests.swift
 //  SmartMealPlannerTests
 //
-//  AI recipe discovery with a stand-in for the on-device model.
+//  Recipe discovery: published recipes from recipe search, with stand-ins for the search and the dish ideas.
 //
 
 import Foundation
 import Testing
 @testable import SmartMealPlanner
 
-/// Returns canned recipes and counts how often it was asked.
-final class FakeRecipeGenerator: RecipeGenerating {
-    var availability: RecipeDiscoveryAvailability
-    var recipes: [GeneratedRecipe]
+/// Suggests canned dish names and records what it was asked.
+final class FakeDishIdeas: DishIdeaSuggesting {
+    var dishes: [String]
     private(set) var calls = 0
-    private(set) var lastPrompt = ""
 
-    init(availability: RecipeDiscoveryAvailability = .available, recipes: [GeneratedRecipe]) {
-        self.availability = availability
-        self.recipes = recipes
+    init(_ dishes: [String] = []) {
+        self.dishes = dishes
     }
 
-    func generate(prompt: String, instructions: String) async throws -> [GeneratedRecipe] {
+    func ideas(for preferences: UserPreferences) async -> [String] {
         calls += 1
-        lastPrompt = prompt
-        return recipes
+        return dishes
     }
 }
 
@@ -35,14 +31,16 @@ final class FakeRecipeSearch: RecipeSearching {
     let isConfigured: Bool
     var result: Result<[Recipe], Error>
     private(set) var calls = 0
+    private(set) var lastIdeas: [String] = []
 
     init(isConfigured: Bool = true, result: Result<[Recipe], Error> = .success([])) {
         self.isConfigured = isConfigured
         self.result = result
     }
 
-    func search(for preferences: UserPreferences) async throws -> [Recipe] {
+    func search(for preferences: UserPreferences, ideas: [String]) async throws -> [Recipe] {
         calls += 1
+        lastIdeas = ideas
         return try result.get()
     }
 }
@@ -51,20 +49,7 @@ final class FakeRecipeSearch: RecipeSearching {
 @Suite("Recipe discovery")
 struct RecipeDiscoveryTests {
 
-    private let cache = FileManager.default.temporaryDirectory.appending(path: "ai-recipes-\(UUID().uuidString).json")
-
-    private func ingredient(_ name: String, grams: Int = 200) -> GeneratedIngredient {
-        GeneratedIngredient(name: name, grams: grams, caloriesPer100g: 120, proteinPer100g: 8, carbsPer100g: 15,
-                            fatPer100g: 3, pricePer100g: 0.5)
-    }
-
-    private func recipe(_ name: String, _ ingredients: [String], cuisine: String = "Indian") -> GeneratedRecipe {
-        GeneratedRecipe(name: name, cuisine: cuisine, servings: 2, prepMinutes: 10, cookMinutes: 25,
-                        ingredients: ingredients.map { ingredient($0) }, steps: ["Chop", "Cook", "Serve"])
-    }
-
-    private var curry: GeneratedRecipe { recipe("Chickpea Curry", ["Chickpeas", "Spinach", "Rice"]) }
-    private var satay: GeneratedRecipe { recipe("Tofu Satay", ["Tofu", "Peanut Butter"]) }
+    private let cache = FileManager.default.temporaryDirectory.appending(path: "searched-recipes-\(UUID().uuidString).json")
 
     private func preferences(allergies: [String] = []) -> UserPreferences {
         var preferences = Fixtures.preferences(diet: "Vegan", cuisines: ["Indian"], allergies: allergies)
@@ -72,61 +57,58 @@ struct RecipeDiscoveryTests {
         return preferences
     }
 
-    @Test func generatedRecipesBecomeAppRecipes() {
-        let made = RecipeDiscovery.recipe(from: curry)
-
-        #expect(made.isAIGenerated)
-        #expect((made.name, made.cuisine, made.servings, made.prepMinutes, made.cookMinutes)
-                == ("Chickpea Curry", "Indian", 2, 10, 25))
-        #expect(made.ingredients.map(\.ingredient.name) == ["Chickpeas", "Spinach", "Rice"])
-        #expect(made.ingredients[0].quantity == 200 && made.ingredients[0].ingredient.defaultPrice == 0.5)
-        #expect(made.instructions.count == 3)
-        #expect(made.id == RecipeDiscovery.recipe(from: curry).id, "the same dish keeps the same id")
+    private func discovery(_ search: FakeRecipeSearch, ideas: FakeDishIdeas = FakeDishIdeas(),
+                           now: @escaping () -> Date = Date.init) -> RecipeDiscovery {
+        RecipeDiscovery(search: search, ideas: ideas, cacheURL: cache, now: now)
     }
 
-    @Test func recipesBreakingAllergiesAreDropped() async {
-        let generator = FakeRecipeGenerator(recipes: [curry, satay])
-        let discovery = RecipeDiscovery(search: FakeRecipeSearch.off, generator: generator, cacheURL: cache)
+    // MARK: - AI finds, never writes
 
-        let found = await discovery.recipes(for: preferences(allergies: ["peanut"]))
+    @Test func dishIdeasAreSentToTheSearch() async throws {
+        let search = FakeRecipeSearch(result: .success(try RemoteRecipeSearch.recipes(from: searchedJSON)))
+        let ideas = FakeDishIdeas(["Chana Masala", "Aloo Gobi"])
 
-        #expect(found.recipes.map(\.name) == ["Chickpea Curry"])
+        let found = await discovery(search, ideas: ideas).recipes(for: preferences())
+
+        #expect(search.lastIdeas == ["Chana Masala", "Aloo Gobi"])
+        #expect(found.recipes.map(\.name) == ["Cauliflower Fried Rice"], "the published recipe, not the idea")
+        #expect(found.recipes.allSatisfy { !$0.isAIGenerated && $0.isFromSpoonacular })
     }
 
-    @Test func recipesAreCachedUntilThePreferencesChange() async {
-        let generator = FakeRecipeGenerator(recipes: [curry])
-        let discovery = RecipeDiscovery(search: FakeRecipeSearch.off, generator: generator, cacheURL: cache)
+    @Test func withoutIdeasTheSearchUsesThePreferencesAlone() async throws {
+        let search = FakeRecipeSearch(result: .success(try RemoteRecipeSearch.recipes(from: searchedJSON)))
 
-        _ = await discovery.recipes(for: preferences())
-        var richer = preferences()
-        richer.budgetWeekly = 120  // budget doesn't change which recipes fit
-        _ = await discovery.recipes(for: richer)
-        #expect(generator.calls == 1)
+        let found = await discovery(search).recipes(for: preferences())
 
-        _ = await discovery.recipes(for: preferences(allergies: ["soy"]))
-        #expect(generator.calls == 2, "new allergies need new recipes")
+        #expect(search.calls == 1 && search.lastIdeas.isEmpty)
+        #expect(found.recipes.count == 1)
     }
 
-    @Test func unavailableModelExplainsWhy() async {
-        let generator = FakeRecipeGenerator(availability: .unavailable("Turn on Apple Intelligence"), recipes: [curry])
-        let found = await RecipeDiscovery(search: FakeRecipeSearch.off, generator: generator, cacheURL: cache).recipes(for: preferences())
+    @Test func withoutRecipeSearchNoRecipesAreMadeUp() async {
+        let ideas = FakeDishIdeas(["Chana Masala"])
+        let found = await discovery(FakeRecipeSearch.off, ideas: ideas).recipes(for: preferences())
 
         #expect(found.recipes.isEmpty)
-        #expect(found.note == RecipeDiscovery.notSetUpNote + " Turn on Apple Intelligence")
-        #expect(generator.calls == 0)
+        #expect(found.note == RecipeDiscovery.notSetUpNote)
+        #expect(ideas.calls == 0, "no point asking for ideas with nothing to search")
     }
 
-    @Test func promptCarriesThePreferences() async {
-        let generator = FakeRecipeGenerator(recipes: [curry])
-        _ = await RecipeDiscovery(search: FakeRecipeSearch.off, generator: generator, cacheURL: cache).recipes(for: preferences(allergies: ["peanut"]))
-
-        #expect(generator.lastPrompt.contains("3 people"))
-        #expect(generator.lastPrompt.contains("Diet: Vegan"))
-        #expect(generator.lastPrompt.contains("Indian"))
-        #expect(generator.lastPrompt.contains("peanut"))
+    @Test func dishIdeasAreTidied() {
+        let names = ["  Chana Masala ", "", "chana masala", "Aloo Gobi", String(repeating: "x", count: 41)]
+        #expect(OnDeviceDishIdeas.cleaned(names) == ["Chana Masala", "Aloo Gobi"])
+        #expect(OnDeviceDishIdeas.cleaned((1...12).map { "Dish \($0)" }).count == 8)
     }
 
-    // MARK: - Recipe search (Spoonacular + Claude Haiku)
+    @Test func ideasPromptCarriesThePreferences() {
+        let prompt = OnDeviceDishIdeas.prompt(for: preferences(allergies: ["peanut"]))
+
+        #expect(prompt.contains("3 people"))
+        #expect(prompt.contains("Diet: Vegan"))
+        #expect(prompt.contains("Indian"))
+        #expect(prompt.contains("peanut"))
+    }
+
+    // MARK: - Recipe search (Spoonacular)
 
     private var searchedJSON: Data {
         Data("""
@@ -153,7 +135,8 @@ struct RecipeDiscoveryTests {
         #expect(recipe.imageURL == "https://img.spoonacular.com/716426.jpg")
         #expect(recipe.cookbookReference == "Spoonacular · Full Belly Sisters")
         #expect(recipe.cookbookURL == "https://fullbellysisters.blogspot.com/cauliflower-fried-rice")
-        #expect(recipe.isAIGenerated && recipe.isFromSpoonacular)
+        #expect(!recipe.isAIGenerated && recipe.isFromSpoonacular, "a published recipe, not an AI one")
+        #expect(recipe.id == SearchedRecipe.id(for: 716426), "the same recipe keeps the same id")
         #expect(recipe.meals == ["Lunch", "Dinner"])
         #expect(recipe.youtubeURL == "https://www.youtube.com/watch?v=abcdefghijk" && recipe.hasVideo, "the video the function found")
         #expect(recipe.findRecipeLinks.isEmpty, "it links its own source")
@@ -161,12 +144,14 @@ struct RecipeDiscoveryTests {
 
     @Test func searchRequestSendsOnlyWhatTheSearchNeeds() throws {
         let config = RecipeSearchConfig(url: "https://abc.supabase.co/functions/v1/recipe-search", appKey: "app-key")
-        let request = try RemoteRecipeSearch.request(for: preferences(allergies: ["peanut"]), config: config)
+        let request = try RemoteRecipeSearch.request(for: preferences(allergies: ["peanut"]), ideas: ["Chana Masala"],
+                                                     config: config)
 
         #expect(request.httpMethod == "POST")
         #expect(request.value(forHTTPHeaderField: "x-app-key") == "app-key")
         let body = try #require(request.httpBody.flatMap { try JSONSerialization.jsonObject(with: $0) as? [String: Any] })
-        #expect(Set(body.keys) == ["diet", "cuisines", "allergies", "dislikes", "people"], "no postcode or budget")
+        #expect(Set(body.keys) == ["diet", "cuisines", "allergies", "dislikes", "people", "ideas"], "no postcode or budget")
+        #expect(body["ideas"] as? [String] == ["Chana Masala"])
         #expect(body["diet"] as? String == "Vegan" && body["people"] as? Int == 3)
         #expect(body["allergies"] as? [String] == ["peanut"])
     }
@@ -178,52 +163,33 @@ struct RecipeDiscoveryTests {
         #expect(RemoteRecipeSearch(config: RecipeSearchConfig(url: "https://abc.supabase.co/x", appKey: "k")).isConfigured)
     }
 
-    @Test func recipeSearchIsUsedFirstWhenSetUp() async throws {
-        let searched = try RemoteRecipeSearch.recipes(from: searchedJSON)
-        let search = FakeRecipeSearch(result: .success(searched))
-        let generator = FakeRecipeGenerator(recipes: [curry])
-        let discovery = RecipeDiscovery(search: search, generator: generator, cacheURL: cache)
-
-        let found = await discovery.recipes(for: preferences())
-
-        #expect(found.recipes.map(\.name) == ["Cauliflower Fried Rice"])
-        #expect(found.source == .spoonacular)
-        #expect(generator.calls == 0, "the on-device model isn't needed")
-        #expect(discovery.availability == .available)
+    @Test func searchedRecipesAreCachedUntilThePreferencesChange() async throws {
+        let search = FakeRecipeSearch(result: .success(try RemoteRecipeSearch.recipes(from: searchedJSON)))
+        let discovery = discovery(search)
 
         _ = await discovery.recipes(for: preferences())
-        #expect(search.calls == 1, "cached until the preferences change")
+        var richer = preferences()
+        richer.budgetWeekly = 120  // budget doesn't change which recipes fit
+        _ = await discovery.recipes(for: richer)
+        #expect(search.calls == 1)
+
+        _ = await discovery.recipes(for: preferences(allergies: ["soy"]))
+        #expect(search.calls == 2, "new allergies need new recipes")
     }
 
     @Test func searchedRecipesBreakingAllergiesAreDropped() async throws {
         let searched = try RemoteRecipeSearch.recipes(from: searchedJSON)
-        let discovery = RecipeDiscovery(search: FakeRecipeSearch(result: .success(searched)),
-                                        generator: FakeRecipeGenerator(recipes: []), cacheURL: cache)
+        let discovery = discovery(FakeRecipeSearch(result: .success(searched)))
 
         let found = await discovery.recipes(for: preferences(allergies: ["rice"]))
 
         #expect(found.recipes.isEmpty)
-        #expect(found.note == "No Spoonacular recipe matched all your preferences.")
+        #expect(found.note == "No recipe matched all your preferences.")
     }
 
-    @Test func failedSearchFallsBackToTheOnDeviceModel() async {
-        let search = FakeRecipeSearch(result: .failure(RemoteRecipeSearch.SearchError.server(429, "limit")))
-        let generator = FakeRecipeGenerator(recipes: [curry])
-        let discovery = RecipeDiscovery(search: search, generator: generator, cacheURL: cache)
-
-        let found = await discovery.recipes(for: preferences())
-
-        #expect(found.recipes.map(\.name) == ["Chickpea Curry"])
-        #expect(found.source == .onDevice)
-
-        _ = await discovery.recipes(for: preferences())
-        #expect(search.calls == 2, "an on-device fallback isn't kept in place of a working search")
-    }
-
-    @Test func failedSearchWithoutOnDeviceAIExplainsIt() async {
+    @Test func offlineWithNothingSavedSaysSo() async {
         let search = FakeRecipeSearch(result: .failure(URLError(.notConnectedToInternet)))
-        let generator = FakeRecipeGenerator(availability: .unavailable("No Apple Intelligence"), recipes: [])
-        let found = await RecipeDiscovery(search: search, generator: generator, cacheURL: cache).recipes(for: preferences())
+        let found = await discovery(search).recipes(for: preferences())
 
         #expect(found.recipes.isEmpty)
         #expect(found.note == RecipeDiscovery.offlineNote)
@@ -231,8 +197,7 @@ struct RecipeDiscoveryTests {
 
     @Test func serverTroubleIsNotCalledOffline() async {
         let search = FakeRecipeSearch(result: .failure(RemoteRecipeSearch.SearchError.server(502, nil)))
-        let generator = FakeRecipeGenerator(availability: .unavailable("No Apple Intelligence"), recipes: [])
-        let found = await RecipeDiscovery(search: search, generator: generator, cacheURL: cache).recipes(for: preferences())
+        let found = await discovery(search).recipes(for: preferences())
 
         #expect(found.note == "Couldn't reach recipe search; try again later.")
     }
@@ -241,8 +206,7 @@ struct RecipeDiscoveryTests {
         let searched = try RemoteRecipeSearch.recipes(from: searchedJSON)
         let search = FakeRecipeSearch(result: .success(searched))
         var today = Fixtures.now
-        let discovery = RecipeDiscovery(search: search, generator: FakeRecipeGenerator(recipes: []), cacheURL: cache,
-                                        now: { today })
+        let discovery = discovery(search, now: { today })
 
         _ = await discovery.recipes(for: preferences())
         today = Fixtures.date(daysFromNow: 6)
@@ -258,41 +222,31 @@ struct RecipeDiscoveryTests {
         let searched = try RemoteRecipeSearch.recipes(from: searchedJSON)
         let search = FakeRecipeSearch(result: .success(searched))
         var today = Fixtures.now
-        let discovery = RecipeDiscovery(search: search, generator: FakeRecipeGenerator(recipes: [curry]), cacheURL: cache,
-                                        now: { today })
+        let discovery = discovery(search, ideas: FakeDishIdeas(["Chana Masala"]), now: { today })
         _ = await discovery.recipes(for: preferences())
 
         search.result = .failure(URLError(.notConnectedToInternet))
         today = Fixtures.date(daysFromNow: 30)
         let found = await discovery.recipes(for: preferences())
 
-        #expect(found.recipes.map(\.name) == ["Cauliflower Fried Rice"], "the stored recipes, not new AI ones")
-        #expect(found.source == .spoonacular && found.note == nil)
+        #expect(found.recipes.map(\.name) == ["Cauliflower Fried Rice"], "the stored recipes")
+        #expect(found.note == nil)
         #expect(discovery.savedRecipes().map(\.name) == ["Cauliflower Fried Rice"])
     }
 
     @Test func searchedBreakfastsFromOtherCuisinesAreKept() async throws {
-        var breakfast = RecipeDiscovery.recipe(from: recipe("Shakshuka", ["Eggplant", "Tomato"], cuisine: "Middle Eastern"))
+        var breakfast = Fixtures.recipe("Shakshuka", cuisine: "Middle Eastern",
+                                        ingredients: [(Fixtures.ingredient("Eggplant"), 200), (Fixtures.ingredient("Tomato"), 200)])
         breakfast.meals = ["Breakfast"]
-        let discovery = RecipeDiscovery(search: FakeRecipeSearch(result: .success([breakfast])),
-                                        generator: FakeRecipeGenerator(recipes: []), cacheURL: cache)
+        let discovery = discovery(FakeRecipeSearch(result: .success([breakfast])))
 
         let found = await discovery.recipes(for: preferences())  // Indian only
 
         #expect(found.recipes.map(\.name) == ["Shakshuka"], "the planner decides which cuisines a meal may come from")
     }
 
-    @Test func aiRecipesWithoutASourceLinkToRecipeSites() {
-        let written = RecipeDiscovery.recipe(from: curry)
-        #expect(!written.hasVideo, "a YouTube search, not one video")
-        let links = written.findRecipeLinks
-        #expect(links.map(\.site) == ["Allerhande", "BBC Good Food"])
-        #expect(links[0].url.absoluteString == "https://www.ah.nl/allerhande/recepten-zoeken?query=Chickpea%20Curry")
-        #expect(links[1].url.absoluteString == "https://www.bbcgoodfood.com/search?q=Chickpea%20Curry")
-    }
-
-    @Test func plannerNotesSayWhereRecipesCameFrom() {
-        #expect(DiscoverySource.spoonacular.description == "from Spoonacular, adapted by AI")
-        #expect(DiscoverySource.onDevice.description == "discovered by on-device AI")
+    @Test func plannerNoteCreditsTheOriginals() {
+        #expect(RecipeDiscovery.plannerNote.hasPrefix("Recipes from Spoonacular"))
+        #expect(!RecipeDiscovery.plannerNote.contains("AI"))
     }
 }

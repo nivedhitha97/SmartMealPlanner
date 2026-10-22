@@ -2,9 +2,9 @@
 //  RecipeSearchService.swift
 //  SmartMealPlanner
 //
-//  Recipe search: real recipes from Spoonacular, adapted by Claude Haiku to the app's format, through the
-//  recipe-search Supabase Edge Function (supabase/functions/recipe-search). The Spoonacular and Anthropic keys stay
-//  on the server; the app only knows the function's address and an app key, from Data/RecipeSearch.json.
+//  Recipe search: genuine, human-made recipes from Spoonacular through the recipe-search Supabase Edge Function
+//  (supabase/functions/recipe-search), in the app's format but otherwise unchanged. The Spoonacular and YouTube keys
+//  stay on the server; the app only knows the function's address and an app key, from Data/RecipeSearch.json.
 //
 
 import Foundation
@@ -26,7 +26,8 @@ struct RecipeSearchConfig: Decodable, Equatable {
 protocol RecipeSearching {
     /// Whether a search can be made at all (the function is configured).
     var isConfigured: Bool { get }
-    func search(for preferences: UserPreferences) async throws -> [Recipe]
+    /// - Parameter ideas: dish names to look for (from the on-device model); empty to search by preferences alone.
+    func search(for preferences: UserPreferences, ideas: [String]) async throws -> [Recipe]
 }
 
 /// A recipe as the function returns it (see `AppRecipe` in logic.ts).
@@ -60,25 +61,37 @@ struct SearchedRecipe: Decodable {
     /// The app's recipe, crediting Spoonacular and linking to the original (Spoonacular's terms ask for both), with
     /// the YouTube video the function found (else the YouTube search the recipe already has).
     var recipe: Recipe {
-        let generated = GeneratedRecipe(
-            name: name, cuisine: cuisine, servings: servings, prepMinutes: prepMinutes, cookMinutes: cookMinutes,
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        let video = youtubeURL.flatMap(URL.init(string:)).flatMap { YouTubeLink.isYouTube($0) ? $0.absoluteString : nil }
+        let search = "https://www.youtube.com/results?search_query="
+            + ((trimmedName + " recipe").addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")
+        return Recipe(
+            id: Self.id(for: spoonacularId),
+            name: trimmedName,
+            cuisine: cuisine,
             ingredients: ingredients.map {
-                GeneratedIngredient(name: $0.name, grams: $0.grams, caloriesPer100g: Int($0.caloriesPer100g.rounded()),
-                                    proteinPer100g: $0.proteinPer100g, carbsPer100g: $0.carbsPer100g,
-                                    fatPer100g: $0.fatPer100g, pricePer100g: $0.pricePer100g)
+                RecipeIngredient(
+                    ingredient: SmartMealPlanner.Ingredient(
+                        name: $0.name, calories: $0.caloriesPer100g, protein: $0.proteinPer100g, carbs: $0.carbsPer100g,
+                        fat: $0.fatPer100g, defaultPrice: $0.pricePer100g),
+                    quantity: Double($0.grams))
             },
-            steps: steps)
-        var recipe = RecipeDiscovery.recipe(from: generated)
-        recipe.imageURL = imageURL
-        recipe.cookbookReference = "Spoonacular" + (sourceName.map { " · \($0)" } ?? "")
-        recipe.cookbookURL = sourceURL ?? "https://spoonacular.com/recipes/-\(spoonacularId)"
-        if let youtubeURL, let url = URL(string: youtubeURL), YouTubeLink.isYouTube(url) {
-            recipe.youtubeURL = youtubeURL
-        }
-        if let meals, !meals.isEmpty {
-            recipe.meals = meals
-        }
-        return recipe
+            servings: servings,
+            prepMinutes: prepMinutes,
+            cookMinutes: cookMinutes,
+            instructions: steps,
+            imageURL: imageURL,
+            youtubeURL: video ?? search,
+            cookbookReference: "Spoonacular" + (sourceName.map { " · \($0)" } ?? ""),
+            cookbookURL: sourceURL ?? "https://spoonacular.com/recipes/-\(spoonacularId)",
+            meals: meals?.isEmpty == false ? meals : nil
+        )
+    }
+
+    /// The same Spoonacular recipe always gets the same id, so saved plans keep pointing at it.
+    static func id(for spoonacularId: Int) -> UUID {
+        let hex = String(format: "%012X", spoonacularId)
+        return UUID(uuidString: "5F00ACA1-0000-4000-8000-\(hex.suffix(12))") ?? UUID()
     }
 }
 
@@ -93,8 +106,8 @@ struct RemoteRecipeSearch: RecipeSearching {
 
     var isConfigured: Bool { config.endpoint != nil }
 
-    func search(for preferences: UserPreferences) async throws -> [Recipe] {
-        let request = try Self.request(for: preferences, config: config)
+    func search(for preferences: UserPreferences, ideas: [String]) async throws -> [Recipe] {
+        let request = try Self.request(for: preferences, ideas: ideas, config: config)
         let (data, response) = try await session.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 200 else {
@@ -104,16 +117,17 @@ struct RemoteRecipeSearch: RecipeSearching {
         return try Self.recipes(from: data)
     }
 
-    /// Only what the search needs: diet, cuisines, allergies, dislikes and people (no postcode or budget).
-    static func request(for preferences: UserPreferences, config: RecipeSearchConfig) throws -> URLRequest {
+    /// Only what the search needs: diet, cuisines, allergies, dislikes, people and dish ideas (no postcode or budget).
+    static func request(for preferences: UserPreferences, ideas: [String] = [],
+                        config: RecipeSearchConfig) throws -> URLRequest {
         guard let endpoint = config.endpoint else { throw SearchError.notConfigured }
-        var request = URLRequest(url: endpoint, timeoutInterval: 90)  // Spoonacular and Claude can take a while
+        var request = URLRequest(url: endpoint, timeoutInterval: 60)  // several Spoonacular searches
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(config.appKey, forHTTPHeaderField: "x-app-key")
         let body: [String: Any] = [
             "diet": preferences.dietType, "cuisines": preferences.cuisines, "allergies": preferences.allergies,
-            "dislikes": preferences.dislikes, "people": preferences.people,
+            "dislikes": preferences.dislikes, "people": preferences.people, "ideas": ideas,
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
         return request
