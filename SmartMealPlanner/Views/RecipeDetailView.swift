@@ -58,12 +58,16 @@ struct RecipeDetailView: View {
                 .background(Color.brandPrimarySoft, in: Capsule())
 
             if recipe.isAIGenerated {
-                Label(recipe.isFromSpoonacular ? "Adapted by AI from Spoonacular: check ingredients for allergens"
-                                               : "AI-generated: check ingredients for allergens",
-                      systemImage: "sparkles")
+                // Only in plans saved by older versions, which could have AI-written recipes.
+                Label("AI-generated: check ingredients for allergens", systemImage: "sparkles")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.accentAmber)
                     .accessibilityIdentifier("recipe.aiGenerated")
+            } else if recipe.isFromSpoonacular {
+                Label("Published recipe: check ingredients for allergens", systemImage: "book.closed")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.textSecondary)
+                    .accessibilityIdentifier("recipe.published")
             }
 
             Text(recipe.name)

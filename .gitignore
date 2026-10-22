@@ -8,3 +8,6 @@ __pycache__/
 
 # macOS folder metadata
 .DS_Store
+
+# Supabase CLI state
+supabase/.temp/

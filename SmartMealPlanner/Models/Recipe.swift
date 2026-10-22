@@ -25,11 +25,12 @@ struct Recipe: Identifiable, Codable {
     var cookbookURL: String?
     /// The meals this dish is for ("Breakfast", "Lunch", "Dinner"); nil means any meal.
     var meals: [String]?
-    /// Found by Recipe discovery (on-device AI, or Spoonacular adapted by AI) rather than bundled with the app.
+    /// Written by AI. No longer produced (recipes only come from Spoonacular); kept so older saved plans still decode
+    /// and their AI recipes stay labelled.
     var isAIGenerated: Bool
 
-    /// A Spoonacular recipe from Recipe search; its source is credited as the cookbook reference.
-    var isFromSpoonacular: Bool { isAIGenerated && cookbookReference?.hasPrefix("Spoonacular") == true }
+    /// A recipe found on Spoonacular; its source is credited as the cookbook reference.
+    var isFromSpoonacular: Bool { cookbookReference?.hasPrefix("Spoonacular") == true }
 
     enum CodingKeys: String, CodingKey {
         case id, name, cuisine, ingredients, servings, prepMinutes, cookMinutes, instructions

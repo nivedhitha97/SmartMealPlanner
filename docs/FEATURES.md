@@ -21,24 +21,25 @@
 - **Within budget:** an over-budget week gets cheaper dishes, one swap at a time (the swap that saves most and keeps
   every rule), until it fits; "Your usual meals" are never swapped. If even the cheapest week is over, the planner
   notes say by how much and suggest raising the budget, adding cuisines or setting some meals to Outside
-- **Planner notes:** offers used, live prices used, AI recipes added, meals left open
+- **Planner notes:** offers used, live prices used, where the recipes came from, meals left open
 - Day picker, meal slots with recipe photos, weekly nutrition (calories, protein, carbs, fat)
 - A grocery card that opens the List tab
 
 ## Recipes
-- **Found for your preferences, not built in:** [recipe search](DESIGN.md#recipe-search) finds real recipes on
-  Spoonacular (up to 6 breakfasts and 12 lunch/dinner dishes) and Claude Haiku adapts them: grams, nutrition, Dutch
-  prices and 6–10 detailed steps. Searched again after a week, for variety
+- **Human-made, found for your preferences:** [recipe search](DESIGN.md#recipe-search) finds published recipes on
+  Spoonacular (up to 6 breakfasts and 12 lunch/dinner dishes) with the author's method word for word, amounts in grams
+  and nutrition per 100 g, converted from Spoonacular's own data (free). AI never writes or rewrites a recipe.
+  Searched again after a week, for variety
+- **AI picks what to look for:** where Apple Intelligence is on, Apple's free on-device model suggests up to 8 dishes
+  that suit your diet and cuisines and avoid your allergies, and recipe search finds published recipes for them
 - Each says which meals it suits: breakfasts are only planned for breakfast, mains for lunch and dinner. Breakfasts
   may come from any cuisine; lunches and dinners keep to yours
-- If recipe search can't be reached, Apple's on-device AI writes recipes (where Apple Intelligence is on)
 - Photo, cuisine, ingredients with amounts **for your household** ("For 2 people"), method steps
 - **Total, prep and cooking time** ("No cooking" for no-cook dishes)
 - **Watch:** opens a real YouTube video of the dish (found by the YouTube Data API), else a YouTube search; in the
   YouTube app, or in Safari when it isn't installed
 - **Original:** Spoonacular recipes credit Spoonacular and the site that published them, and link to that page
-- **Find this recipe:** on-device AI recipes have no source, so they link to Allerhande and BBC Good Food searches
-- Every recipe is labelled "check ingredients for allergens"
+- Every recipe is labelled "Published recipe: check ingredients for allergens"
 
 ## Offers
 - This week's offers from Jumbo, Lidl, Dirk, DekaMarkt, Hoogvliet and Poiesz with their real end dates, deals

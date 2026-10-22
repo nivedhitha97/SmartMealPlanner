@@ -96,7 +96,7 @@ final class PlanningViewModel: ObservableObject {
             }
             let discoveryNote = discovered.recipes.isEmpty
                 ? discovered.note
-                : discovered.source.plannerNote
+                : RecipeDiscovery.plannerNote
 
             var plan = try await ai.generateWeeklySuggestions(
                 preferences: prefs,
