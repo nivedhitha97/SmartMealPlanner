@@ -66,7 +66,8 @@ final class MealPlanner {
     /// Swaps dishes for cheaper ones until the week's groceries fit the budget, or no swap saves anything more.
     /// Each step makes the swap with the biggest saving that keeps every rule: the dish suits the meal, fits the diet,
     /// allergies, dislikes and cuisines (breakfasts may come from any cuisine), isn't planned twice that day nor more
-    /// than `maxTimesPerWeek` times. "Your usual meals" (fixed) are never swapped.
+    /// than `maxTimesPerWeek` times. When no single swap helps, a dish at its weekly limit may move to the slot while
+    /// one of its other days gets a cheaper dish instead. "Your usual meals" (fixed) are never swapped.
     /// - Parameters:
     ///   - cost: the week's grocery total, as the grocery list prices it.
     ///   - recipeCost: one recipe's groceries for the household, to rank swaps (the exact total decides).
@@ -91,40 +92,83 @@ final class MealPlanner {
             return value
         }
 
+        typealias Change = (day: Int, slot: MealSlot, recipe: Recipe)
+        typealias Option = (changes: [Change], saving: Double)
         var swaps = 0
         while total > preferences.budgetWeekly && swaps < 100 {
             var timesThisWeek: [String: Int] = [:]
             for recipe in plan.allPlannedRecipes { timesThisWeek[Self.dishKey(recipe), default: 0] += 1 }
-            var options: [(day: Int, slot: MealSlot, recipe: Recipe, saving: Double)] = []
-            for (index, day) in plan.days.enumerated() {
-                let today = Set(MealSlot.allCases.compactMap { day[$0] }.map(Self.dishKey))
-                for slot in MealSlot.allCases {
-                    guard let current = day[slot], routine.type(for: slot) != .fixed else { continue }
-                    let pool = slot == .breakfast ? fitting + otherBreakfasts : fitting
-                    for candidate in pool where candidate.suits(slot) {
-                        let key = Self.dishKey(candidate)
-                        guard !today.contains(key), timesThisWeek[key, default: 0] < Self.maxTimesPerWeek else { continue }
-                        let saving = price(current) - price(candidate)
-                        if saving > 0.01 { options.append((index, slot, candidate, saving)) }
+            let dishesOn = plan.days.map { day in Set(MealSlot.allCases.compactMap { day[$0] }.map(Self.dishKey)) }
+            /// Dishes that may replace the one in a slot; usual meals keep theirs.
+            func replacements(_ slot: MealSlot) -> [Recipe] {
+                guard routine.type(for: slot) != .fixed else { return [] }
+                return (slot == .breakfast ? fitting + otherBreakfasts : fitting).filter { $0.suits(slot) }
+            }
+            /// Swaps of one dish for a cheaper one that isn't on that day and is below its weekly limit.
+            func singles() -> [Option] {
+                var options: [Option] = []
+                for (index, day) in plan.days.enumerated() {
+                    for slot in MealSlot.allCases {
+                        guard let current = day[slot] else { continue }
+                        for candidate in replacements(slot) {
+                            let key = Self.dishKey(candidate)
+                            guard !dishesOn[index].contains(key),
+                                  timesThisWeek[key, default: 0] < Self.maxTimesPerWeek else { continue }
+                            let saving = price(current) - price(candidate)
+                            if saving > 0.01 { options.append(([(index, slot, candidate)], saving)) }
+                        }
                     }
                 }
+                return options
+            }
+            /// A dish at its weekly limit takes the slot, and one of its other days gets a dish below its limit
+            /// instead. Without these, a dear dish can stay when the only cheaper dishes left are on its day.
+            func exchanges() -> [Option] {
+                var options: [Option] = []
+                for (index, day) in plan.days.enumerated() {
+                    for slot in MealSlot.allCases {
+                        guard let current = day[slot] else { continue }
+                        for candidate in replacements(slot) {
+                            let key = Self.dishKey(candidate)
+                            guard !dishesOn[index].contains(key),
+                                  timesThisWeek[key, default: 0] >= Self.maxTimesPerWeek else { continue }
+                            for (other, otherDay) in plan.days.enumerated() where other != index {
+                                for otherSlot in MealSlot.allCases where otherDay[otherSlot].map(Self.dishKey) == key {
+                                    for stand in replacements(otherSlot) {
+                                        let standKey = Self.dishKey(stand)
+                                        // The swapped-out dish frees one of its own week's places.
+                                        let times = timesThisWeek[standKey, default: 0]
+                                            - (standKey == Self.dishKey(current) ? 1 : 0)
+                                        guard !dishesOn[other].contains(standKey), times < Self.maxTimesPerWeek else { continue }
+                                        let saving = price(current) - price(stand)
+                                        if saving > 0.01 {
+                                            options.append(([(index, slot, candidate), (other, otherSlot, stand)], saving))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                return options
             }
             // The estimate ranks the swaps; the first that lowers the real total (shared ingredients and pack
-            // prices make it differ) is made.
-            var improved = false
-            for option in options.sorted(by: { $0.saving > $1.saving }).prefix(8) {
-                var next = plan
-                next.days[option.day][option.slot] = option.recipe
-                let nextTotal = cost(next)
-                if nextTotal < total - 0.01 {
-                    plan = next
-                    total = nextTotal
-                    swaps += 1
-                    improved = true
-                    break
+            // prices make it differ) is made. Exchanges are only looked for when no single swap helps.
+            func improve(with options: [Option]) -> Bool {
+                for option in options.sorted(by: { $0.saving > $1.saving }).prefix(8) {
+                    var next = plan
+                    for change in option.changes { next.days[change.day][change.slot] = change.recipe }
+                    let nextTotal = cost(next)
+                    if nextTotal < total - 0.01 {
+                        plan = next
+                        total = nextTotal
+                        swaps += option.changes.count
+                        return true
+                    }
                 }
+                return false
             }
-            if !improved { break }
+            guard improve(with: singles()) || improve(with: exchanges()) else { break }
         }
         return (plan, swaps)
     }
