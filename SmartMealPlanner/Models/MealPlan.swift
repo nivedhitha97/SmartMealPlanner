@@ -30,6 +30,23 @@ struct DailyMealPlanSlot: Identifiable, Codable {
     var mealsWithSlot: [(MealSlot, Recipe?)] {
         [(.breakfast, breakfast), (.lunch, lunch), (.dinner, dinner)]
     }
+
+    subscript(slot: MealSlot) -> Recipe? {
+        get {
+            switch slot {
+            case .breakfast: return breakfast
+            case .lunch: return lunch
+            case .dinner: return dinner
+            }
+        }
+        set {
+            switch slot {
+            case .breakfast: breakfast = newValue
+            case .lunch: lunch = newValue
+            case .dinner: dinner = newValue
+            }
+        }
+    }
 }
 
 enum MealSlot: String, CaseIterable, Hashable {

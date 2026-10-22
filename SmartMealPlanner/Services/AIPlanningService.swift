@@ -62,21 +62,87 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
         // Only offers from supermarkets within 2 km of the postcode, when those are known.
         let localOffers = OffersList.nearby(scopedOffers, chains: preferences.nearbyChains)
 
-        let weeklyMealPlan = mealPlanner.generateWeeklyMealPlan(
+        let firstPlan = mealPlanner.generateWeeklyMealPlan(
             recipes: recipes,
             preferences: preferences,
             routine: routine
         )
+        func pricedLines(for plan: WeeklyMealPlan) -> [GroceryLineItem] {
+            groceryLines(for: plan, people: preferences.people, offers: localOffers, ingredientPrices: ingredientPrices,
+                         recipes: recipes)
+        }
+        // Over budget: swap dishes for cheaper ones that still fit every preference.
+        let (weeklyMealPlan, swaps) = mealPlanner.fitToBudget(
+            firstPlan, recipes: recipes, preferences: preferences, routine: routine,
+            cost: { pricedLines(for: $0).map(\.estimatedLinePrice).reduce(0, +) },
+            recipeCost: { recipeCost($0, people: preferences.people, ingredientPrices: ingredientPrices) }
+        )
+        let lines = pricedLines(for: weeklyMealPlan)
 
+        let total = lines.map(\.estimatedLinePrice).reduce(0, +)
+        var summary = makeSummary(
+            preferences: preferences,
+            weeklyMealPlan: weeklyMealPlan,
+            unplannedMeals: MealPlanner.unplannedMeals(in: weeklyMealPlan, routine: routine, preferences: preferences),
+            offerCount: localOffers.count,
+            livePriceCount: lines.filter { line in
+                line.matchedOffer == nil
+                    && ingredientPrices.contains { $0.ingredientName.caseInsensitiveCompare(line.ingredientName) == .orderedSame }
+            }.count,
+            estimatedTotal: total
+        )
+        if let note = Self.budgetNote(total: total, budget: preferences.budgetWeekly, swaps: swaps) {
+            summary += " " + note
+        }
+        let highlights = localOffers
+            .sorted { ($0.savings ?? 0) > ($1.savings ?? 0) }
+            .prefix(6)
+            .map { offer in
+                let save = offer.savings.map { String(format: "save €%.2f", $0) } ?? "promo"
+                return "\(offer.storeName): \(offer.productName) — €\(String(format: "%.2f", offer.offerPrice)) (\(save))"
+            }
+
+        return AISuggestedWeekPlan(
+            id: UUID(),
+            createdAt: Date(),
+            weeklyMealPlan: weeklyMealPlan,
+            groceryLines: lines,
+            aiSummary: summary,
+            offerHighlights: highlights,
+            estimatedGroceryTotal: total,
+            budgetWeekly: preferences.budgetWeekly
+        )
+    }
+
+    /// What the planner did about the budget, for the planner notes; nil when nothing needed saying.
+    static func budgetNote(total: Double, budget: Double, swaps: Int) -> String? {
+        let euros = { (value: Double) in String(format: "€%.2f", value) }
+        if total > budget {
+            return "Even with the cheapest dishes for your preferences, the week is \(euros(total - budget)) over your "
+                + "\(euros(budget)) budget: raise the budget, add cuisines, or set some meals to Outside."
+        }
+        guard swaps > 0 else { return nil }
+        return "Swapped \(swaps) \(swaps == 1 ? "dish" : "dishes") for cheaper ones to stay within your \(euros(budget)) budget."
+    }
+
+    /// The week's groceries: every ingredient's grams for the household, priced from a matching offer, else the live
+    /// price, else the recipe's own price.
+    func groceryLines(
+        for plan: WeeklyMealPlan,
+        people: Int,
+        offers localOffers: [SupermarketOffer],
+        ingredientPrices: [IngredientPrice],
+        recipes: [Recipe]
+    ) -> [GroceryLineItem] {
         var gramsByIngredient: [String: Double] = [:]
-        for recipe in weeklyMealPlan.allPlannedRecipes {
+        for recipe in plan.allPlannedRecipes {
             for row in recipe.ingredients {
                 let name = row.ingredient.name
-                gramsByIngredient[name, default: 0] += recipe.quantity(of: row, forPeople: preferences.people)
+                gramsByIngredient[name, default: 0] += recipe.quantity(of: row, forPeople: people)
             }
         }
 
-        let lines: [GroceryLineItem] = gramsByIngredient.keys.sorted().map { name in
+        return gramsByIngredient.keys.sorted().map { name in
             let grams = gramsByIngredient[name] ?? 0
             let offer = bestOffer(forIngredientName: name, in: localOffers)
             let livePrice = ingredientPrices.first { $0.ingredientName.caseInsensitiveCompare(name) == .orderedSame }
@@ -99,37 +165,17 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
                 rationale: rationale
             )
         }
+    }
 
-        let total = lines.map(\.estimatedLinePrice).reduce(0, +)
-        let summary = makeSummary(
-            preferences: preferences,
-            weeklyMealPlan: weeklyMealPlan,
-            unplannedMeals: MealPlanner.unplannedMeals(in: weeklyMealPlan, routine: routine, preferences: preferences),
-            offerCount: localOffers.count,
-            livePriceCount: lines.filter { line in
-                line.matchedOffer == nil
-                    && ingredientPrices.contains { $0.ingredientName.caseInsensitiveCompare(line.ingredientName) == .orderedSame }
-            }.count,
-            estimatedTotal: total
-        )
-        let highlights = localOffers
-            .sorted { ($0.savings ?? 0) > ($1.savings ?? 0) }
-            .prefix(6)
-            .map { offer in
-                let save = offer.savings.map { String(format: "save €%.2f", $0) } ?? "promo"
-                return "\(offer.storeName): \(offer.productName) — €\(String(format: "%.2f", offer.offerPrice)) (\(save))"
-            }
-
-        return AISuggestedWeekPlan(
-            id: UUID(),
-            createdAt: Date(),
-            weeklyMealPlan: weeklyMealPlan,
-            groceryLines: lines,
-            aiSummary: summary,
-            offerHighlights: highlights,
-            estimatedGroceryTotal: total,
-            budgetWeekly: preferences.budgetWeekly
-        )
+    /// One recipe's groceries for the household at live or recipe prices (offers depend on the whole week), to rank
+    /// cheaper swaps.
+    func recipeCost(_ recipe: Recipe, people: Int, ingredientPrices: [IngredientPrice]) -> Double {
+        recipe.ingredients.reduce(0) { sum, row in
+            let name = row.ingredient.name
+            let per100g = ingredientPrices.first { $0.ingredientName.caseInsensitiveCompare(name) == .orderedSame }?
+                .pricePer100g ?? row.ingredient.defaultPrice
+            return sum + per100g * recipe.quantity(of: row, forPeople: people) / 100
+        }
     }
 
     func bestOffer(forIngredientName name: String, in offers: [SupermarketOffer]) -> SupermarketOffer? {

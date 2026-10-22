@@ -117,6 +117,21 @@ final class GroceryListUITests: XCTestCase {
         XCTAssertTrue(app.element(containing: "From your plan").waitForExistence(timeout: 5))
     }
 
+    func testTheListCanBeShared() {
+        let app = XCUIApplication.launchForTesting()
+        app.openTab("Offers")
+        let add = app.buttons["offer.add.Broccoli 500g"]
+        app.scrollTo(add)
+        add.tap()
+
+        app.openTab("List")
+        let share = app.buttons["list.share"]
+        XCTAssertTrue(share.waitForExistence(timeout: 5), "a list with items can be shared")
+        share.tap()
+        XCTAssertTrue(app.otherElements["ActivityListView"].waitForExistence(timeout: 5)
+                      || app.buttons["Copy"].waitForExistence(timeout: 5), "the share sheet opens")
+    }
+
     func testTickedOffItemsShowAsSpendingInTheProfile() {
         let app = XCUIApplication.launchForTesting()
         app.openTab("List")

@@ -295,6 +295,41 @@ struct ShoppingList: Codable, Equatable {
     /// Items still to buy (counting quantities), for the List tab's badge.
     var itemsLeft: Int { items.filter { !$0.isChecked }.map(\.quantity).reduce(0, +) }
 
+    // MARK: - Sharing
+
+    /// The list as plain text for sharing (WhatsApp, Messages, Notes, email): what's still to buy in `filter`, by
+    /// store, with amounts, quantities, prices and deals. Nil when nothing is left to buy.
+    func shareText(for filter: ShoppingListFilter = .all) -> String? {
+        let groups = groups(for: filter).compactMap { group -> (String, [ShoppingListItem])? in
+            let toBuy = group.items.filter { !$0.isChecked }
+            return toBuy.isEmpty ? nil : (group.store, toBuy)
+        }
+        guard !groups.isEmpty else { return nil }
+        let toBuy = groups.flatMap(\.1)
+        let count = toBuy.map(\.quantity).reduce(0, +)
+        var lines = ["🛒 Grocery list" + (filter == .all ? "" : " · \(filter.title)"),
+                     "\(count) \(count == 1 ? "item" : "items")" + (toBuy.contains { $0.price != nil }
+                        ? " · about \(toBuy.map(\.lineTotal).reduce(0, +).euros)" : "")]
+        for (store, items) in groups {
+            lines.append("")
+            lines.append(store)
+            for item in items {
+                var line = "• " + item.name
+                // Real amounts ("500 g"), not "pack" or "item".
+                if let amount = item.amountText, amount.contains(where: \.isNumber), !item.name.contains(amount) {
+                    line += " (\(amount))"
+                }
+                if item.quantity > 1 { line += " ×\(item.quantity)" }
+                if item.price != nil { line += " – \(item.lineTotal.euros)" }
+                if let deal = item.dealText, !deal.isEmpty { line += " [\(deal)]" }
+                lines.append(line)
+            }
+        }
+        lines.append("")
+        lines.append("Made with Smart Meal Planner")
+        return lines.joined(separator: "\n")
+    }
+
     private static func normalisedStore(_ name: String?) -> String? {
         let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty || trimmed == anyStore ? nil : trimmed

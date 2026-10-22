@@ -2,8 +2,8 @@
 
 | Kind | Count | Where | Runs in CI |
 |---|---|---|---|
-| Unit tests (Swift Testing) | 217 | `SmartMealPlannerTests` | iOS build |
-| UI tests (XCUITest) | 23 (+ 1 screenshot test, skipped unless asked for) | `SmartMealPlannerUITests` | iOS build |
+| Unit tests (Swift Testing) | 224 | `SmartMealPlannerTests` | iOS build |
+| UI tests (XCUITest) | 24 (+ 1 screenshot test, skipped unless asked for) | `SmartMealPlannerUITests` | iOS build |
 | Grocery database tests (Python unittest) | 64 | `scripts/grocery_db/tests` | Grocery database |
 | API and security checks (Postman/Newman) | 29 | `docs/api` | API checks |
 | Recipe-search function tests (Node test runner) | 13 | `supabase/functions/recipe-search` | API checks |
@@ -16,7 +16,7 @@ Google Sheet (see below).
 
 | Suite | Covers |
 |---|---|
-| Plan generation | 7-day structure, diet/allergy/dislike/cuisine filtering, meal types, **no dish twice a day or more than twice a week**, unfilled slots, grocery aggregation scaled to people, offer matching (regional, national, nearby only), live prices, nutrition |
+| Plan generation | 7-day structure, **staying within budget** (cheaper swaps, usual meals kept, impossible budgets explained), diet/allergy/dislike/cuisine filtering, meal types, **no dish twice a day or more than twice a week**, unfilled slots, grocery aggregation scaled to people, offer matching (regional, national, nearby only), live prices, nutrition |
 | Planning view model | Missing setup errors, generating/caching/clearing a plan, live prices and AI recipes reaching the planner |
 | Weekly plan screen | Budget card, day picker, empty-slot labels |
 | Recipe detail screen | Calories per serving, servings scaling, prep/cook/total times, links, bundled recipes complete |
@@ -24,7 +24,7 @@ Google Sheet (see below).
 | Deals you add | Validity, saving on the phone, ending on Sunday (Amsterdam time), dropping ended deals, the planner using a linked deal, Open Prices credit |
 | External links | YouTube and Albert Heijn apps first, Safari fallback, short links |
 | Offers screen | Store and category filters, ending soon, ordering, savings, store badges, next update, store statuses |
-| Grocery list | Offers, own items, editing, ticking off, plan items, filters, totals, saving, **purchases and weekly spending** |
+| Grocery list | Offers, own items, editing, ticking off, plan items, filters, totals, saving, **purchases and weekly spending**, **sharing** |
 | Live grocery data | No request before the next update, meta-only checks, rebuilt feed, offline: the saved copy, else **no data (never samples)** |
 | Nearby stores | Chain matching, 2 km radius, nearest per chain, de-duplication, nearby-only offers |
 | Offer alerts | Weekday mapping, weekly triggers, turning off, default store choice, permission |
@@ -43,7 +43,7 @@ don't depend on the network. Users never see that data: without it the app only 
 | Weekly plan | Setup checklist, generating before setup, full flow with 2 people (recipe shows "2 people", times, YouTube falls back to Safari), picking another day |
 | Offers & preferences | Category filter, **adding an Albert Heijn Bonus deal**, postcode errors and region, **first save keeps the postcode** (lookup delayed so the save happens during it), edits survive Meal routine |
 | Screenshots | Takes the README screenshots with live data; runs only with `TEST_RUNNER_SCREENSHOT_DIR` set (see below) |
-| Grocery list | Store filter, adding offers and totals, own items (add/edit/tick/delete), plan groceries on the List tab, ticked items in the Profile |
+| Grocery list | Store filter, adding offers and totals, own items (add/edit/tick/delete), sharing the list, plan groceries on the List tab, ticked items in the Profile |
 | Settings | Version, theme choice and persistence, dark theme everywhere, **offer alerts per store** |
 
 ## Grocery database tests

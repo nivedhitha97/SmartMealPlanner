@@ -284,4 +284,45 @@ struct ShoppingListTests {
         #expect(list.items.map(\.name) == ["Milk"])
         #expect(list.purchases.isEmpty)
     }
+
+    // MARK: - Sharing
+
+    @Test func sharedListHasWhatsLeftToBuyByStore() throws {
+        var list = ShoppingList()
+        list.add(broccoli)
+        list.add(broccoli)
+        list.add(vla)
+        list.addManual(name: "Bread", storeName: nil, price: nil)
+        list.addManual(name: "Milk", storeName: "Jumbo", price: 1.09)
+        list.toggleChecked(try #require(list.items.first { $0.name == "Milk" }).id)  // already bought
+
+        let text = try #require(list.shareText())
+        let lines = text.components(separatedBy: "\n")
+        #expect(lines.first == "🛒 Grocery list")
+        #expect(lines[1] == "4 items · about \(2.58.euros)", "bought items aren't counted (prices in the phone's format)")
+        #expect(lines.contains("Lidl") && lines.contains("Jumbo") && lines.contains("Any store"))
+        #expect(lines.contains("• Broccoli ×2 – \(1.78.euros)"))
+        #expect(lines.contains("• Campina vla – \(0.80.euros)"), "'pack' isn't an amount worth sharing")
+        #expect(lines.contains("• Bread"), "no price, no price text")
+        #expect(!text.contains("Milk"), "ticked off: already bought")
+        #expect(lines.last == "Made with Smart Meal Planner")
+    }
+
+    @Test func sharingFollowsTheFilter() throws {
+        var list = ShoppingList()
+        list.add(broccoli)
+        list.add(vla)
+
+        let text = try #require(list.shareText(for: .store("Jumbo")))
+        #expect(text.hasPrefix("🛒 Grocery list · Jumbo"))
+        #expect(text.contains("Campina vla") && !text.contains("Broccoli"))
+    }
+
+    @Test func nothingToShareOnceEverythingIsBought() {
+        var list = ShoppingList()
+        #expect(list.shareText() == nil, "empty list")
+        list.add(broccoli)
+        list.toggleChecked(list.items[0].id)
+        #expect(list.shareText() == nil, "all ticked off")
+    }
 }

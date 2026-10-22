@@ -35,6 +35,9 @@ UI designed in Figma: [Smart Meal Planner – UI Revamp](https://www.figma.com/d
   the slot says so and the notes suggest adding cuisines.
 - **Budget card.** The estimated grocery cost against your weekly budget, priced from this week's offers and live
   supermarket prices.
+- **Kept within budget.** When the week costs more than your budget, the planner swaps dishes for cheaper ones that
+  still fit your diet, cuisines and variety rules (your usual meals stay). If no week can fit, the notes say by how
+  much and what to change.
 - **Planner notes.** What the planner did: offers used, live prices used, where the recipes came from, meals left open.
 - **Daily meals and nutrition.** Pick a day to see its meals with photos; weekly calories, protein, carbs and fat.
 
@@ -65,6 +68,7 @@ UI designed in Figma: [Smart Meal Planner – UI Revamp](https://www.figma.com/d
 - **One editable list.** Your plan's groceries, offers you added and your own items, grouped by store.
 - **Totals.** The overall total, each store's subtotal and what's left to buy.
 - **Tick off as you shop.** Ticked items count as spent this week; edit, delete or add items any time.
+- **Share it.** Send what's left to buy, by store with prices, to WhatsApp, Messages, Notes or email.
 
 ### Preferences
 - **Diet, people, breakfast, cuisines and exclusions.** Everything the planner needs, saved on the first tap.

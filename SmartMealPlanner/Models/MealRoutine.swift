@@ -17,6 +17,14 @@ struct MealRoutine: Codable, Equatable {
 
     static let defaultsKey = "mealRoutine"
 
+    func type(for slot: MealSlot) -> MealType {
+        switch slot {
+        case .breakfast: return breakfastType
+        case .lunch: return lunchType
+        case .dinner: return dinnerType
+        }
+    }
+
     /// "Fixed · Outside · Home Cooked" (breakfast · lunch · dinner).
     var summary: String {
         [breakfastType, lunchType, dinnerType].map(\.rawValue).joined(separator: " · ")

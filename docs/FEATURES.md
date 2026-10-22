@@ -18,6 +18,9 @@
 - **Variety rules:** a dish is never planned twice on one day, and at most twice a week. When every matching dish has
   reached the limit, the slot shows "No recipe left" and the planner notes suggest adding cuisines
 - **Budget card:** estimated groceries against the weekly budget
+- **Within budget:** an over-budget week gets cheaper dishes, one swap at a time (the swap that saves most and keeps
+  every rule), until it fits; "Your usual meals" are never swapped. If even the cheapest week is over, the planner
+  notes say by how much and suggest raising the budget, adding cuisines or setting some meals to Outside
 - **Planner notes:** offers used, live prices used, AI recipes added, meals left open
 - Day picker, meal slots with recipe photos, weekly nutrition (calories, protein, carbs, fat)
 - A grocery card that opens the List tab
@@ -56,6 +59,8 @@
 - Filters: **All**, **Added**, and each store (logo badges); grouped by store with subtotals, the overall total and
   what's left to buy
 - Tick items off, edit name/store/price/quantity, delete, add your own; the tab badge shows items left to buy
+- **Share:** sends what's left to buy in the current filter as text, by store, with amounts, quantities, prices and
+  deals, and the total (WhatsApp, Messages, Notes, email…)
 - A new plan replaces only the plan's items; everything you added stays
 
 ## Settings
