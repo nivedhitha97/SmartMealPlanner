@@ -154,9 +154,13 @@ struct GroceryListView: View {
                 VStack(spacing: 8) {
                     ForEach(groups) { group in
                         HStack {
-                            if group.store != ShoppingList.anyStore {
-                                StoreBadge(store: group.store, size: 18)
+                            // One column for every badge width (and none, for Any store), so the names line up.
+                            ZStack(alignment: .leading) {
+                                if group.store != ShoppingList.anyStore {
+                                    StoreBadge(store: group.store, size: 18)
+                                }
                             }
+                            .frame(width: StoreBadge.columnWidth(size: 18), alignment: .leading)
                             Text(group.store)
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(Color.textPrimary)

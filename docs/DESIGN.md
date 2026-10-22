@@ -152,7 +152,7 @@ also in the API checks workflow.
 | Recipe search on a server function | Spoonacular gives real, tested recipes; Claude Haiku is fast and cheap for converting them to the app's format. Both keys stay on the server, results are cached, and searches are capped, so an extracted app key can't run up costs |
 | Free, permission-light data sources | No paid APIs or keys in the app. Store websites and Checkjebon (MIT) for personal use; AH is not scraped because it blocks automated access |
 | Albert Heijn through Open Prices and your own deals | Open Prices (Open Food Facts, ODbL) is free, open and legal but crowdsourced, so it has only a few AH discounts a week. It is checked once a day (about 2 requests), outside the weekly schedule. The app links to AH's own Bonus page and lets you add deals from it, stored only on the phone |
-| Store badges instead of logo files | Brand-coloured monograms drawn by the app: no logo artwork to license, nothing to download or block |
+| Real store logos, only public-domain ones | The logos are the stores' trademarks, shown only to say which store an offer is from. Only versions marked public domain on Wikimedia Commons are bundled (in the app, not downloaded); stores without one keep a monogram |
 | Apple Maps for location and nearby stores | Free, no key, accurate to street level for full Dutch postcodes |
 | Local notifications instead of push | Offer days are known in advance, so the phone can schedule alerts itself: no server or push certificate |
 | On-device AI for recipe discovery | Free and private; AI recipes are re-checked against allergies/diet and labelled |
@@ -168,6 +168,25 @@ implemented in `Views/DesignSystem`:
 - **Typography:** large screen titles, section and card titles, system text styles for Dynamic Type
 - **Components:** cards, chips, store chips (logo badges), badges, icon tiles and circles, primary/secondary
   buttons, section and screen headers, flow layout, food gradients for missing photos
-- **Store badges:** each chain's monogram in its brand colours (AH blue, Jumbo yellow, Lidl blue/yellow, …)
+- **Store badges:** the store's real logo on a white tile, as wide as the logo needs (up to 2.6× its height) and white
+  in dark mode too; in lists, badges sit in a fixed-width column so names line up. Stores without a public-domain logo
+  (Poiesz, Plus) show their monogram in brand colours
+
+### Store logo sources
+
+Bundled in `SmartMealPlanner/Assets.xcassets/StoreLogos`, all from Wikimedia Commons and marked public domain there
+(simple text or shape logos). The logos remain the supermarkets' trademarks.
+
+| Store | Commons file |
+|---|---|
+| Albert Heijn | [Albert Heijn Logo.svg](https://commons.wikimedia.org/wiki/File:Albert_Heijn_Logo.svg) |
+| Aldi | [Aldi Nord 201x logo.svg](https://commons.wikimedia.org/wiki/File:Aldi_Nord_201x_logo.svg) |
+| DekaMarkt | [Logo of Dekamarkt.svg](https://commons.wikimedia.org/wiki/File:Logo_of_Dekamarkt.svg) |
+| Dirk | [Logo of Dirk.svg](https://commons.wikimedia.org/wiki/File:Logo_of_Dirk.svg) |
+| Hoogvliet | [Hoogvliet logo.png](https://commons.wikimedia.org/wiki/File:Hoogvliet_logo.png) |
+| Jumbo | [Jumbo Logo.svg](https://commons.wikimedia.org/wiki/File:Jumbo_Logo.svg) |
+| Lidl | [Lidl logo.svg](https://commons.wikimedia.org/wiki/File:Lidl_logo.svg) (CC0) |
+| Spar | [Spar-logo.svg](https://commons.wikimedia.org/wiki/File:Spar-logo.svg) |
+| Vomar | [Logo Vomar.svg](https://commons.wikimedia.org/wiki/File:Logo_Vomar.svg) |
 - **Accessibility:** combined elements for cards, decorative icons hidden from VoiceOver, logo chips read the store
   name, 44 pt touch targets

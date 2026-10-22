@@ -2,7 +2,7 @@
 
 | Kind | Count | Where | Runs in CI |
 |---|---|---|---|
-| Unit tests (Swift Testing) | 224 | `SmartMealPlannerTests` | iOS build |
+| Unit tests (Swift Testing) | 226 | `SmartMealPlannerTests` | iOS build |
 | UI tests (XCUITest) | 24 (+ 1 screenshot test, skipped unless asked for) | `SmartMealPlannerUITests` | iOS build |
 | Grocery database tests (Python unittest) | 64 | `scripts/grocery_db/tests` | Grocery database |
 | API and security checks (Postman/Newman) | 29 | `docs/api` | API checks |
@@ -23,7 +23,7 @@ Google Sheet (see below).
 | Recipe discovery | Recipe search is the only source (Spoonacular credit and link, real YouTube video, meal tags, request without postcode or budget, only HTTPS); saved for a week then searched again; **offline the saved recipes however old**; on-device model as fallback with Allerhande / BBC Good Food links; clear notes when offline or not set up; allergen re-check |
 | Deals you add | Validity, saving on the phone, ending on Sunday (Amsterdam time), dropping ended deals, the planner using a linked deal, Open Prices credit |
 | External links | YouTube and Albert Heijn apps first, Safari fallback, short links |
-| Offers screen | Store and category filters, ending soon, ordering, savings, store badges, next update, store statuses |
+| Offers screen | Store and category filters, ending soon, ordering, savings, store badges (real logos present in the app, monograms otherwise, tile widths), next update, store statuses |
 | Grocery list | Offers, own items, editing, ticking off, plan items, filters, totals, saving, **purchases and weekly spending**, **sharing** |
 | Live grocery data | No request before the next update, meta-only checks, rebuilt feed, offline: the saved copy, else **no data (never samples)** |
 | Nearby stores | Chain matching, 2 km radius, nearest per chain, de-duplication, nearby-only offers |
