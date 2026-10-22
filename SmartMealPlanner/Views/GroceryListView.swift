@@ -79,6 +79,13 @@ struct GroceryListView: View {
                 }
                 .accessibilityLabel("More")
             }
+            if let text = list.shareText(for: filter) {
+                ShareLink(item: text, subject: Text("Grocery list"), preview: SharePreview("Grocery list")) {
+                    IconCircle(systemName: "square.and.arrow.up", tint: .textPrimary, background: .bgSurface, size: 40)
+                }
+                .accessibilityLabel("Share list")
+                .accessibilityIdentifier("list.share")
+            }
             // An empty list has its own "Add item" button, so the + only shows once there are items.
             if !list.items.isEmpty {
                 Button {
