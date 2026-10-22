@@ -7,6 +7,7 @@
 
 import Foundation
 import Testing
+import UIKit
 @testable import SmartMealPlanner
 
 @MainActor
@@ -182,6 +183,25 @@ struct OffersTests {
     @Test func everyStoreInTheFeedHasABrand() {
         let feedStores = ["Albert Heijn", "Jumbo", "Lidl", "Dirk", "DekaMarkt", "Hoogvliet", "Poiesz", "Plus", "Spar", "Vomar"]
         #expect(feedStores.allSatisfy { StoreBrand.forStore($0).background != .bgMuted })
+    }
+
+    @Test func storesWithAPublicDomainLogoShowItAndItIsInTheApp() throws {
+        let withLogo = ["Albert Heijn", "Jumbo", "Lidl", "Dirk", "DekaMarkt", "Hoogvliet", "Spar", "Vomar", "Aldi"]
+        for store in withLogo {
+            let logo = try #require(StoreBrand.forStore(store).logo, "\(store) has its logo")
+            #expect(UIImage(named: logo.asset) != nil, "\(logo.asset) is in the asset catalog")
+        }
+        #expect(StoreBrand.forStore("Poiesz").logo == nil && StoreBrand.forStore("Plus").logo == nil,
+                "no public-domain logo: the monogram stays")
+        #expect(StoreBrand.forStore("Ekoplaza").logo == nil)
+    }
+
+    @Test func logoTilesAreAsWideAsTheLogoUpToALimit() {
+        #expect(StoreBadge.width(for: "Lidl", size: 20) == 20, "square logos get a square tile")
+        #expect(StoreBadge.width(for: "Albert Heijn", size: 20) == 20, "narrower than square: still square")
+        #expect(abs(StoreBadge.width(for: "Vomar", size: 20) - 41.4) < 0.01)
+        #expect(StoreBadge.width(for: "Spar", size: 20) == 52, "very wide wordmarks are capped at 2.6×")
+        #expect(StoreBadge.width(for: "Plus", size: 20) == 20, "monograms are square")
     }
 
     @Test func offersCanBeFilteredByStoreAndListTheirStores() {

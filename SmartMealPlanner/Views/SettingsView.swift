@@ -169,6 +169,7 @@ struct SettingsView: View {
                                              set: { setAlert($0, for: store) })) {
                             HStack(spacing: 10) {
                                 StoreBadge(store: store.name, size: 24)
+                                    .frame(width: StoreBadge.columnWidth(size: 24), alignment: .leading)
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(store.name)
                                         .font(.subheadline.weight(.medium))
