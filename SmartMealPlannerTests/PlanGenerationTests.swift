@@ -218,6 +218,66 @@ struct PlanGenerationTests {
 
     // MARK: - Grocery list and offers
 
+    // MARK: - Budget
+
+    /// Ten lunch/dinner dishes costing €0.50 to €40 each (200 g at €0.25–€20 per 100 g). Fourteen meals need all ten,
+    /// so a first plan costs over €163; the cheapest week the rules allow (the 7 cheapest, twice each) is €115.
+    private static let perHundredGrams: [Double] = [0.25, 0.5, 1, 2, 4, 8, 13, 15, 18, 20]
+    private static let cheapestWeek = 115.0
+    private var pricedDishes: [Recipe] {
+        Self.perHundredGrams.enumerated().map { index, per100g in
+            var recipe = Fixtures.recipe("Dish \(index + 1)", ingredients: [
+                (Fixtures.ingredient("Ingredient \(index + 1)", calories: 100, price: per100g), 200)])
+            recipe.meals = [MealSlot.lunch.rawValue, MealSlot.dinner.rawValue]
+            return recipe
+        }
+    }
+    private let lunchAndDinner = MealRoutine(breakfastType: .outside, lunchType: .homeCooked, dinnerType: .homeCooked)
+
+    private func suggestions(budget: Double, routine: MealRoutine? = nil,
+                             recipes: [Recipe]? = nil) async throws -> AISuggestedWeekPlan {
+        try await LocalHeuristicAIPlanner().generateWeeklySuggestions(
+            preferences: Fixtures.preferences(budget: budget), routine: routine ?? lunchAndDinner,
+            recipes: recipes ?? pricedDishes,
+            weeklyOffers: []
+        )
+    }
+
+    @Test func overBudgetWeeksGetCheaperDishesUntilTheyFit() async throws {
+        let plan = try await suggestions(budget: 150)
+
+        #expect(plan.estimatedGroceryTotal <= 150)
+        #expect(plan.weeklyMealPlan.allPlannedRecipes.count == 14, "every meal still planned")
+        expectVarietyRules(plan.weeklyMealPlan)
+        #expect(plan.aiSummary.contains("for cheaper ones to stay within your €150.00 budget"))
+    }
+
+    @Test func weeksWithinBudgetAreLeftAlone() async throws {
+        let plan = try await suggestions(budget: 500)
+
+        #expect(!plan.aiSummary.contains("cheaper ones"))
+        #expect(!plan.aiSummary.contains("over your"))
+    }
+
+    @Test func aBudgetTooLowForAnyWeekIsExplained() async throws {
+        let plan = try await suggestions(budget: 20)
+
+        #expect(plan.weeklyMealPlan.allPlannedRecipes.count == 14, "the meals stay; the user decides")
+        #expect(abs(plan.estimatedGroceryTotal - Self.cheapestWeek) < 0.01, "as cheap as the rules allow")
+        #expect(plan.aiSummary.contains("over your €20.00 budget: raise the budget, add cuisines, or set some meals to Outside"))
+    }
+
+    @Test func usualMealsAreNeverSwappedForBudget() async throws {
+        // Usual lunches take the first dishes in order: here the dearest (Dish 10, Dish 9, …).
+        let fixed = MealRoutine(breakfastType: .outside, lunchType: .fixed, dinnerType: .outside)
+        let plan = try await suggestions(budget: 20, routine: fixed, recipes: pricedDishes.reversed())
+
+        #expect(plan.weeklyMealPlan.days.map { $0.lunch?.name } == ["Dish 10", "Dish 10", "Dish 9", "Dish 9", "Dish 8",
+                                                                    "Dish 8", "Dish 7"],
+                "the lunches the user always has stay, even over budget")
+        #expect(plan.aiSummary.contains("over your €20.00 budget"))
+    }
+
     @Test func groceryListAddsUpIngredientsAcrossTheWeek() async throws {
         let plan = try await LocalHeuristicAIPlanner().generateWeeklySuggestions(
             preferences: Fixtures.preferences(), routine: lunchOnly, recipes: [greekSalad], weeklyOffers: []
