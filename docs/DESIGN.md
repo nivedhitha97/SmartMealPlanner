@@ -45,7 +45,7 @@ SmartMealPlanner/
 ├── Views/                         MainTabView, SplashView, WeeklyPlanView, RecipeDetailView, WeeklyOffersView,
 │                                  GroceryListView, PreferencesView, MealRoutineView, SettingsView
 │   └── DesignSystem/              Theme (tokens, components), StoreBadge
-└── Data/                          RecipeSearch.json (recipe-search address and app key; empty = off);
+└── Data/                          RecipeSearch.json (recipe-search address and app key, committed; empty = off);
                                    UITestRecipes.json, UITestOffers.json: fixed data for UI tests only
 scripts/grocery_db/                Grocery database (Python, stdlib): store fetchers, schedule, SQLite, export,
                                    Supabase mirror, tests
@@ -149,7 +149,10 @@ app only keeps out casual callers, since anything shipped in an app can be extra
    supabase secrets set SPOONACULAR_API_KEY=… YOUTUBE_API_KEY=… RECIPE_SEARCH_APP_KEY=<any long random string>
    supabase functions deploy recipe-search --no-verify-jwt
    ```
-4. Put the function's address and the app key in `SmartMealPlanner/Data/RecipeSearch.json`:
+4. Put the function's address and the app key in `SmartMealPlanner/Data/RecipeSearch.json` and commit it, so every
+   clone builds with recipe search on. The app key is public (the repository is public, and any app's contents can
+   be extracted); the daily limits above are what protect the free quotas, so a stranger can at most use up a day's
+   searches. To change the key, set a new `RECIPE_SEARCH_APP_KEY` secret and update this file:
    `{"url": "https://<project-ref>.supabase.co/functions/v1/recipe-search", "appKey": "<the same random string>"}`.
 
 The function's logic is tested with `node --test supabase/functions/recipe-search/logic.test.ts` (Node 22.6+),
