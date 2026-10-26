@@ -75,24 +75,29 @@ struct OffersList {
         offers.compactMap(\.savings).reduce(0, +)
     }
 
-    /// Which stores refresh next: "Next update: Poiesz on Sunday". Nil when nothing is scheduled.
-    static func nextUpdateText(stores: [StoreSchedule], now: Date = Date()) -> String? {
-        let upcoming = stores.compactMap { store in store.nextUpdateAt.map { (store, $0) } }
-        guard let soonest = upcoming.map(\.1).min() else { return nil }
-        let next = upcoming.filter { abs($0.1.timeIntervalSince(soonest)) < 60 * 60 }.map(\.0)
-        let names = ListFormatter.localizedString(byJoining: next.map(\.name).sorted())
-        let when = soonest <= now ? "today" : "on \(next[0].updateDay)"
-        return "Next update: \(names) \(when)"
+    /// When shopper-reported prices are next checked (daily): "Next update: tomorrow morning". Nil when unknown.
+    static func nextUpdateText(stores: [StoreSchedule], now: Date = Date(), calendar: Calendar = .current) -> String? {
+        guard let soonest = stores.compactMap(\.nextUpdateAt).min() else { return nil }
+        if soonest <= now { return "Next update: today" }
+        if calendar.isDate(soonest, inSameDayAs: now) { return "Next update: later today" }
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now), calendar.isDate(soonest, inSameDayAs: tomorrow) {
+            return "Next update: tomorrow morning"
+        }
+        return "Next update: " + soonest.formatted(.dateTime.weekday(.wide))
     }
+
+    /// Where every offer and price comes from, shown under the offers (the ODbL asks for the credit).
+    static let openPricesCredit = "Offers and prices are reported by shoppers on Open Prices (prices.openfoodfacts.org), "
+        + "© Open Food Facts contributors, ODbL. Smart Meal Planner is not affiliated with any supermarket; store "
+        + "names are trademarks of their owners."
 
     /// One line per store for the "Store updates" section, stores with problems last.
     static func storeStatuses(_ stores: [StoreSchedule], now: Date = Date()) -> [StoreStatus] {
         let formatter = RelativeDateTimeFormatter()
         formatter.dateTimeStyle = .named
         return stores.map { store in
-            let updated = store.lastUpdatedAt.map { "updated \(formatter.localizedString(for: $0, relativeTo: now))" }
-            var detail = [store.fetchesOffers ? "Offers" : "Shelf prices only", updated].compactMap { $0 }
-                .joined(separator: " · ")
+            let updated = store.lastUpdatedAt.map { "checked \(formatter.localizedString(for: $0, relativeTo: now))" }
+            var detail = ["Shopper-reported prices", updated].compactMap { $0 }.joined(separator: " · ")
             var warning = false
             if store.lastError != nil {
                 detail = "Last update failed; trying again"
@@ -101,7 +106,7 @@ struct OffersList {
                 detail = "Prices out of date: the source stopped updating this store"
                 warning = true
             }
-            return StoreStatus(id: store.id, name: store.name, schedule: "Every \(store.updateDay)",
+            return StoreStatus(id: store.id, name: store.name, schedule: "Week starts \(store.updateDay)",
                                detail: detail, isWarning: warning)
         }
         .sorted { ($0.isWarning ? 1 : 0, $0.name) < ($1.isWarning ? 1 : 0, $1.name) }

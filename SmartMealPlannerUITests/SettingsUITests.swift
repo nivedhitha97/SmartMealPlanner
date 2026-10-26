@@ -2,7 +2,7 @@
 //  SettingsUITests.swift
 //  SmartMealPlannerUITests
 //
-//  Settings screen: light / dark theme, sharing and version number.
+//  Settings screen: light / dark theme, offer alerts, sharing, privacy and legal, and version number.
 //
 
 import XCTest
@@ -110,5 +110,20 @@ final class SettingsUITests: XCTestCase {
         // The iOS share sheet opens with the app's link.
         XCTAssertTrue(app.otherElements["ActivityListView"].waitForExistence(timeout: 5)
                       || app.navigationBars["UIActivityContentView"].waitForExistence(timeout: 2))
+    }
+
+    func testPrivacyTermsAndDataSourcesCanBeRead() {
+        let app = XCUIApplication.launchForTesting()
+        app.openTab("Settings")
+
+        for (id, text) in [("privacy", "everything you enter stays on your phone"),
+                           ("terms", "Always check the ingredients"),
+                           ("credits", "No supermarket website is read")] {
+            let row = app.buttons["settings.legal.\(id)"]
+            app.scrollTo(row)
+            row.tap()
+            XCTAssertTrue(app.element(containing: text).waitForExistence(timeout: 5), "\(id) shows its text")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
     }
 }

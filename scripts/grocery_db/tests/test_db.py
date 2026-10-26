@@ -46,12 +46,12 @@ class DatabaseTests(unittest.TestCase):
 
     def test_offer_image_is_kept_when_a_later_fetch_has_none(self):
         offer = Offer("1", "Hak", "2026-10-14T00:00:00+02:00", "2026-10-20T23:59:59+02:00", 2.0,
-                      image_url="https://static.hoogvliet.nl/ecom/product/1.jpg")
+                      image_url="https://example.org/1.jpg")
         self.db.save_offers("hoogvliet", [offer], "2026-10-14T04:00:00Z")
         offer.image_url = None
         self.db.save_offers("hoogvliet", [offer], "2026-10-15T04:00:00Z")
         [row] = self.db.current_offers(at("2026-10-15 12:00"))
-        self.assertEqual(row["image_url"], "https://static.hoogvliet.nl/ecom/product/1.jpg")
+        self.assertEqual(row["image_url"], "https://example.org/1.jpg")
 
     def test_existing_database_gets_the_image_column(self):
         path = Path(self.folder.name) / "old.db"
@@ -67,6 +67,23 @@ class DatabaseTests(unittest.TestCase):
         migrated.connection.close()
         self.assertIn("image_url", columns)
 
+    def test_data_not_from_open_prices_is_removed(self):
+        open_prices = "https://prices.openfoodfacts.org/prices/1"
+        self.db.save_catalog("jumbo", [Product("old", "Kaas", 3.0, url="https://www.jumbo.com/kaas"),
+                                       Product("new", "Melk", 1.0, url=open_prices)], "2026-10-05T04:00:00Z")
+        self.db.save_offers("jumbo", [
+            Offer("site", "Hak", "2026-10-14T00:00:00+02:00", "2026-10-20T23:59:59+02:00", 2.0,
+                  url="https://www.jumbo.com/hak", image_url="https://static.jumbo.com/hak.jpg"),
+            Offer("op", "Kip", "2026-10-14T00:00:00+02:00", "2026-10-20T23:59:59+02:00", 2.0, url=open_prices,
+                  image_url="https://images.openfoodfacts.org/kip.jpg"),
+        ], "2026-10-14T04:00:00Z")
+
+        self.assertEqual(self.db.remove_data_not_from_open_prices(), 3, "a product, its price history and an offer")
+        self.assertEqual([r["product_key"] for r in self.db.catalog("jumbo")], ["new"])
+        [offer] = self.db.current_offers(at("2026-10-15 12:00"))
+        self.assertEqual((offer["offer_key"], offer["image_url"]), ("op", None), "no product photos")
+        self.assertEqual(self.db.remove_data_not_from_open_prices(), 0, "nothing left to remove")
+
     def test_current_offers_are_valid_now_or_starting_within_a_day(self):
         make = lambda key, start, end: Offer(key, key, start, end, 1.0)
         self.db.save_offers("dirk", [
@@ -80,130 +97,64 @@ class DatabaseTests(unittest.TestCase):
 
 
 class UpdateTests(unittest.TestCase):
-    """The weekly schedule end to end, with the network replaced by fakes."""
+    """The daily Open Prices update end to end, with the network replaced by a fake."""
 
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
         self.db = Database(Path(self.folder.name) / "grocery.db")
         self.db.sync_stores(STORES)
         self.calls = []
-        self.unexpected = []
-        self.daily_calls = []
-        self.daily_result = []
 
     def tearDown(self):
-        self.assertEqual(self.unexpected, [], "stores fetched although not due")
         self.db.connection.close()
         self.folder.cleanup()
 
-    def fake_offers(self, store_id, start):
-        def fetch(http):
-            self.calls.append(store_id)
-            http.requests += 1
-            day = dt.date.fromisoformat(start)
-            return [Offer(f"{store_id}-{i}", "Kipfilet", dates.local_start(day),
-                          dates.local_end(day + dt.timedelta(days=6)), 2.0, 3.0) for i in range(12)]
-        return fetch
+    def fake_fetch(self, http, chain, today=None):
+        self.calls.append(chain)
+        http.requests += 2
+        monday = today - dt.timedelta(days=today.weekday())
+        offers = [Offer(f"{chain}-1", "Kipfilet", dates.local_start(monday),
+                        dates.local_end(monday + dt.timedelta(days=6)), 2.0, 3.0)] if chain == "Jumbo" else []
+        products = [Product("p", "Kipfilet 500 g", 5.0, "500 g")] if chain == "Albert Heijn" else []
+        return offers, products
 
-    def run_update(self, now, starts):
-        """Runs an update where the stores in `starts` publish offers starting that day; fetching any other
-        store's offers fails the test (see tearDown)."""
-        patched = {
-            store.id: dataclasses.replace(store, fetch_offers=self.fake_offers(store.id, starts[store.id])
-                                          if store.id in starts else self.not_due(store.id))
-            if store.fetch_offers else dataclasses.replace(store, daily_offers=self.fake_daily(store.id))
-            if store.daily_offers else store
-            for store in STORES
-        }
+    def run_update(self, now, forced=()):
+        with mock.patch.object(cli.openprices, "fetch", self.fake_fetch):
+            return cli.update(self.db, now, forced)
 
-        def catalog(http):
-            http.requests += 1
-            return {store_id: [Product("p", "Kipfilet 500 g", 5.0, "500 g")] for store_id in patched}
-
-        with mock.patch.dict(cli.BY_ID, patched), \
-             mock.patch.object(cli.checkjebon, "fetch_catalogs", catalog), \
-             mock.patch.object(cli.checkjebon, "fetch_catalogs_at", lambda *a, **k: None):
-            return cli.update(self.db, now)
-
-    def fake_daily(self, store_id):
-        def fetch(http):
-            self.daily_calls.append(store_id)
-            http.requests += 1
-            return self.daily_result
-        return fetch
-
-    def not_due(self, store_id):
-        def fetch(http):
-            self.unexpected.append(store_id)
-            return []
-        return fetch
-
-    def test_first_run_fetches_every_store_then_nothing_until_an_update_day(self):
-        starts = {"jumbo": "2026-10-14", "lidl": "2026-10-12", "dirk": "2026-10-14", "dekamarkt": "2026-10-13",
-                  "hoogvliet": "2026-10-14", "poiesz": "2026-10-11"}
-        requests = self.run_update(at("2026-10-15 07:00"), starts)
-        self.assertEqual(sorted(self.calls), sorted(starts))
-        self.assertEqual(requests, len(starts) + 2,
-                         "one request per store, one shared catalog download and the daily Open Prices check")
+    def test_every_store_is_fetched_once_a_day(self):
+        requests = self.run_update(at("2026-10-15 07:00"))
+        self.assertEqual(sorted(self.calls), sorted(store.osm_name for store in STORES))
+        self.assertEqual(requests, 2 * len(STORES))
 
         self.calls.clear()
-        self.assertIsNone(self.run_update(at("2026-10-15 18:00"), starts), "same day: nothing due")
-        self.assertIsNone(self.run_update(at("2026-10-17 07:00"), starts), "Saturday: nothing due")
+        self.assertIsNone(self.run_update(at("2026-10-15 18:00")), "same day: nothing to do")
         self.assertEqual(self.calls, [])
+        self.run_update(at("2026-10-16 07:00"))
+        self.assertEqual(len(self.calls), len(STORES), "the next day, everything again")
 
-    def test_on_an_update_day_only_that_store_is_fetched(self):
-        starts = {"jumbo": "2026-10-14", "lidl": "2026-10-12", "dirk": "2026-10-14", "dekamarkt": "2026-10-13",
-                  "hoogvliet": "2026-10-14", "poiesz": "2026-10-11"}
-        self.run_update(at("2026-10-15 07:00"), starts)
+    def test_a_forced_store_is_fetched_again_the_same_day(self):
+        self.run_update(at("2026-10-15 07:00"))
         self.calls.clear()
+        self.run_update(at("2026-10-15 09:00"), forced=["jumbo"])
+        self.assertEqual(self.calls, ["Jumbo"])
 
-        requests = self.run_update(at("2026-10-18 07:00"), {"poiesz": "2026-10-18"})  # Sunday
-        self.assertEqual(self.calls, ["poiesz"])
-        self.assertEqual(requests, 3, "Poiesz, the shared catalog download and the daily Open Prices check")
-        self.assertEqual(self.db.store("poiesz")["fetched_week"], "2026-10-18")
+    def test_offers_and_shelf_prices_are_saved(self):
+        self.run_update(at("2026-10-15 07:00"))
+        self.assertEqual([row["store_id"] for row in self.db.current_offers(at("2026-10-15 07:00"))], ["jumbo"])
+        self.assertEqual([row["name"] for row in self.db.catalog("ah")], ["Kipfilet 500 g"])
+        self.assertIsNotNone(self.db.store("ah")["catalog_changed_at"])
 
-    def test_crowdsourced_offers_are_checked_once_a_day(self):
-        starts = {"jumbo": "2026-10-14", "lidl": "2026-10-12", "dirk": "2026-10-14", "dekamarkt": "2026-10-13",
-                  "hoogvliet": "2026-10-14", "poiesz": "2026-10-11"}
-        self.run_update(at("2026-10-15 07:00"), starts)
-        self.assertEqual(self.daily_calls, ["ah"])
-        self.assertIsNone(self.run_update(at("2026-10-15 09:00"), starts), "second run that day: nothing new")
-        self.assertEqual(self.daily_calls, ["ah"], "checked only once that day")
-
-        # Friday: no store is due, but a shopper reported an AH Bonus price, so the files are rebuilt.
-        self.daily_result = [Offer("871", "AH Kipfilet", dates.local_start(dt.date(2026, 10, 12)),
-                                   dates.local_end(dt.date(2026, 10, 18)), 1.99, 2.79)]
-        self.assertEqual(self.run_update(at("2026-10-16 07:00"), starts), 1)
-        self.assertEqual(self.daily_calls, ["ah", "ah"])
-        self.assertEqual([row["title"] for row in self.db.current_offers(at("2026-10-16 07:00"))
-                          if row["store_id"] == "ah"], ["AH Kipfilet"])
-        self.assertIsNone(self.run_update(at("2026-10-17 07:00"), starts), "same sighting again: nothing new")
-
-    def test_store_that_has_not_published_is_retried_next_morning(self):
-        starts = {"jumbo": "2026-10-14", "lidl": "2026-10-12", "dirk": "2026-10-14", "dekamarkt": "2026-10-13",
-                  "hoogvliet": "2026-10-14", "poiesz": "2026-10-11"}
-        self.run_update(at("2026-10-15 07:00"), starts)
-        self.calls.clear()
-
-        # Monday: Lidl still shows last week's offers; Poiesz's Sunday update is caught up.
-        self.run_update(at("2026-10-19 07:00"), {"lidl": "2026-10-12", "poiesz": "2026-10-18"})
-        self.assertEqual(sorted(self.calls), ["lidl", "poiesz"])
-        self.assertEqual(self.db.store("lidl")["fetched_week"], "2026-10-12", "new week not published yet")
-        self.calls.clear()
-        self.run_update(at("2026-10-20 07:00"), {"lidl": "2026-10-19", "dekamarkt": "2026-10-20"})  # Tuesday
-        self.assertEqual(sorted(self.calls), ["dekamarkt", "lidl"])
-        self.assertEqual(self.db.store("lidl")["fetched_week"], "2026-10-19")
-
-    def test_export_writes_the_app_files_with_the_schedule(self):
-        starts = {"jumbo": "2026-10-14", "lidl": "2026-10-12", "dirk": "2026-10-14", "dekamarkt": "2026-10-13",
-                  "hoogvliet": "2026-10-14", "poiesz": "2026-10-11"}
+    def test_export_credits_open_prices_and_says_when_the_next_update_is(self):
         now = at("2026-10-15 07:00")
-        requests = self.run_update(now, starts)
+        requests = self.run_update(now)
         meta = export.export(self.db, now, Path(self.folder.name), requests)
         self.assertEqual(meta["requests"]["thisRun"], requests)
-        self.assertEqual(meta["nextUpdateAt"], utc(at("2026-10-18 06:00")), "Poiesz on Sunday is next")
+        self.assertEqual(meta["nextUpdateAt"], utc(at("2026-10-16 06:00")), "tomorrow morning")
+        self.assertEqual(meta["license"], "ODbL-1.0")
+        self.assertIn("Open Food Facts contributors", meta["attribution"])
         poiesz = next(s for s in meta["stores"] if s["id"] == "poiesz")
-        self.assertEqual((poiesz["updateDay"], poiesz["fetchesOffers"]), ("Sunday", True))
+        self.assertEqual(poiesz["updateDay"], "Sunday")
         for name in ("offers.json", "prices.json", "meta.json"):
             self.assertTrue((Path(self.folder.name) / name).exists())
 

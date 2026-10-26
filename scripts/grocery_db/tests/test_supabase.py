@@ -125,17 +125,17 @@ class MirrorTests(unittest.TestCase):
 
 
 class FirstSyncTests(unittest.TestCase):
-    """`update` on a day when no store is due: it fills an empty mirror once, and otherwise does nothing."""
+    """`update` when everything was fetched today: it fills an empty mirror once, and otherwise does nothing."""
 
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
         self.data = Path(self.folder.name)
         db = Database(self.data / "grocery.db")
         db.sync_stores(STORES)
-        for store in STORES:  # every store already fetched for its current week, so none is due
-            week = schedule.week_start(at("2026-10-15 12:00"), store.update_weekday).isoformat()
-            db.update_store(store.id, fetched_week=week, attempts_week=week, attempts=1)
-        db.save_catalog("jumbo", [Product("p1", "Jumbo Kipfilet 500 g", 5.99, "500 g")], "2026-10-14T04:15:00Z")
+        for store in STORES:  # every store already fetched today
+            db.set_sync_value(f"open_prices:{store.id}", "2026-10-15")
+        db.save_catalog("jumbo", [Product("p1", "Jumbo Kipfilet 500 g", 5.99, "500 g",
+                                          "https://prices.openfoodfacts.org/prices/1")], "2026-10-14T04:15:00Z")
         db.connection.commit()
         db.connection.close()
         self.mirror = FakeSupabase()
@@ -149,7 +149,7 @@ class FirstSyncTests(unittest.TestCase):
         output = self.data / "github_output"
         with mock.patch.object(cli.mirror.Supabase, "from_environment", lambda: self.mirror), \
              mock.patch.dict("os.environ", {"GITHUB_OUTPUT": str(output)}), \
-             mock.patch.object(cli, "update", lambda db, now, forced=(): None):  # no store due, no requests
+             mock.patch.object(cli, "update", lambda db, now, forced=(): None):  # already fetched today, no requests
             cli.main(["update", "--data", str(self.data), "--now", "2026-10-15T12:00:00+02:00"])
         return output.read_text().strip().splitlines()[-1]
 
@@ -200,7 +200,7 @@ class RestTests(unittest.TestCase):
     def test_the_client_does_not_identify_as_a_browser(self):
         client = supabase.Supabase("https://abc.supabase.co", "sb_secret_abc")
         self.assertNotIn("Mozilla", client.http.user_agent)
-        self.assertIn("Mozilla", supabase.Http().user_agent, "store fetchers still look like a browser")
+        self.assertNotIn("Mozilla", supabase.Http().user_agent, "nothing poses as a browser")
 
     def test_select_pages_until_a_short_page(self):
         recorder = self.Recorder([[{"id": i} for i in range(1000)], [{"id": 1000}]])

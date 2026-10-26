@@ -1,13 +1,11 @@
-"""The supermarkets, how each is fetched, and the day of the week each starts its offer week.
+"""The supermarkets and the day of the week each starts its offer week.
 
-`update_weekday` is the starting point; after every offers fetch it is re-learned from the offers' own start
-dates (see schedule.learn_weekday), so a store that moves its offer week is followed automatically.
+No supermarket website is read: every chain's offers and shelf prices come from Open Prices (shopper-reported
+open data, see openprices.py), checked once a day. The offer-week days are public facts, used by the app's offer
+alerts and the Store updates list.
 """
 
 from dataclasses import dataclass
-from typing import Callable, Optional
-
-from . import detailresult, hoogvliet, jumbo, lidl, openprices, poiesz
 
 MON, TUE, WED, THU, FRI, SAT, SUN = range(7)
 
@@ -18,28 +16,24 @@ class Store:
     name: str
     update_weekday: int
     weekday_note: str
-    fetch_offers: Optional[Callable] = None   # web.Http -> [records.Offer]
-    catalog: bool = True                       # shelf prices from Checkjebon
-    daily_offers: Optional[Callable] = None    # crowdsourced offers, checked every day: web.Http -> [records.Offer]
+    open_prices_name: str = ""   # the chain's name on OpenStreetMap, as Open Prices locations use it
+
+    @property
+    def osm_name(self):
+        return self.open_prices_name or self.name
 
 
 STORES = [
-    Store("ah", "Albert Heijn", MON, "Bonus week runs Monday to Sunday (AH blocks automated requests, so offers "
-          "come from shopper-reported Open Prices data, checked daily, and shelf prices from Checkjebon)",
-          daily_offers=openprices.fetch_ah_offers),
-    Store("jumbo", "Jumbo", WED, "Offers run Wednesday to Tuesday (from jumbo.com promotion dates)",
-          jumbo.fetch_offers),
-    Store("lidl", "Lidl", MON, "Offers run Monday to Sunday (from lidl.nl offer dates)", lidl.fetch_offers),
-    Store("dirk", "Dirk", WED, "Offers run Wednesday to Tuesday (from dirk.nl offer dates)",
-          detailresult.fetch_dirk),
-    Store("dekamarkt", "DekaMarkt", TUE, "Offers run Tuesday to Monday (from dekamarkt.nl offer dates)",
-          detailresult.fetch_dekamarkt),
-    Store("hoogvliet", "Hoogvliet", WED, "Offers run Wednesday to Tuesday (from hoogvliet.nl offer periods)",
-          hoogvliet.fetch_offers),
-    Store("poiesz", "Poiesz", SUN, "Offers run Sunday to Saturday (from the Poiesz web shop offer dates)",
-          poiesz.fetch_offers),
-    Store("plus", "Plus", MON, "Offer day not verified; checked weekly"),
-    Store("spar", "Spar", MON, "Most catalog changes appear on Mondays"),
+    Store("ah", "Albert Heijn", MON, "Bonus week runs Monday to Sunday"),
+    Store("aldi", "Aldi", MON, "Offers run Monday to Sunday"),
+    Store("dekamarkt", "DekaMarkt", TUE, "Offers run Tuesday to Monday"),
+    Store("dirk", "Dirk", WED, "Offers run Wednesday to Tuesday"),
+    Store("hoogvliet", "Hoogvliet", WED, "Offers run Wednesday to Tuesday"),
+    Store("jumbo", "Jumbo", WED, "Offers run Wednesday to Tuesday"),
+    Store("lidl", "Lidl", MON, "Offers run Monday to Sunday"),
+    Store("plus", "Plus", MON, "Offers run Monday to Sunday"),
+    Store("poiesz", "Poiesz", SUN, "Offers run Sunday to Saturday"),
+    Store("spar", "Spar", MON, "Offers run Monday to Sunday"),
     Store("vomar", "Vomar", SUN, "Folder starts on Sunday"),
 ]
 

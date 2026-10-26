@@ -2,14 +2,12 @@
 //  RecipeDiscovery.swift
 //  SmartMealPlanner
 //
-//  The recipes the planner uses: genuine, human-made recipes found on Spoonacular (published on real recipe sites)
-//  through the recipe-search function (RecipeSearchService), never written or rewritten by AI. AI only helps find
-//  them: where Apple Intelligence is on, the on-device model (Foundation Models) suggests dish names that fit the
-//  preferences, and the search looks those dishes up. Every recipe is checked against the diet, allergies and dislikes
-//  before it can be planned, and the last results are kept for offline use.
+//  The recipes the planner uses: human-written recipes from the Wikibooks Cookbook (RecipeLibrary), never written or
+//  rewritten by AI. AI only helps choose: where Apple Intelligence is on, the on-device model (Foundation Models)
+//  suggests dish names that fit the preferences, and recipes with those names are preferred. Every recipe is checked
+//  against the diet, allergies and dislikes on the phone, so preferences never leave it.
 //
 
-import CryptoKit
 import Foundation
 import FoundationModels
 
@@ -90,81 +88,71 @@ struct DiscoveredRecipes: Equatable {
 
 @MainActor
 final class RecipeDiscovery {
-    /// UI tests (`-uiTestingBundledData`, `-uiTestingFixtureRecipes`) get their fixed recipes; everyone else searches.
+    /// UI tests (`-uiTestingBundledData`) get their fixed recipes; everyone else the Wikibooks recipes.
     static let shared = LaunchArguments.contains(LaunchArguments.bundledData)
-        || LaunchArguments.contains(LaunchArguments.fixtureRecipes)
-        ? RecipeDiscovery(search: FixtureRecipeSearch(), ideas: NoDishIdeas(),
-                          cacheURL: URL.temporaryDirectory.appending(path: "ui-test-recipes.json"))
+        ? RecipeDiscovery(library: FixtureRecipeLibrary(), ideas: NoDishIdeas())
         : RecipeDiscovery()
 
-    /// Searched recipes are kept this long before a new search (the function's cache lasts as long).
-    static let freshDays = 7
+    /// How many recipes the planner gets per kind: enough for variety, the dish ideas first.
+    static let maxMains = 40
+    static let maxBreakfasts = 20
 
-    static let offlineNote = "No internet connection. Connect to find recipes for your preferences."
-    static let notSetUpNote = "Recipe search isn't set up yet, so there are no recipes to plan with."
-    static let plannerNote = "Recipes from Spoonacular, as their authors published them; each links to the original."
+    static let offlineNote = "No internet connection. Connect once to download the recipes; after that they work offline."
+    static let unreachableNote = "Couldn't download the recipes; try again later."
+    static let noMatchNote = "No recipe matched all your preferences."
+    static let plannerNote = "Recipes from the Wikibooks Cookbook, written by its contributors (CC BY-SA 4.0); each "
+        + "recipe credits its authors and links to its source."
 
-    /// Where recipes are kept. Recipes saved by earlier versions (`ai-recipes.json`) may have been written by AI, so
-    /// they are never used: the file is removed.
-    nonisolated static let defaultCacheURL = URL.applicationSupportDirectory.appending(path: "searched-recipes.json")
-    private static let oldAIRecipesURL = URL.applicationSupportDirectory.appending(path: "ai-recipes.json")
-
-    private let search: RecipeSearching
+    private let library: RecipeLibrary
     private let ideas: DishIdeaSuggesting
-    private let cacheURL: URL
-    private let now: () -> Date
 
-    init(search: RecipeSearching = RemoteRecipeSearch(),
-         ideas: DishIdeaSuggesting = OnDeviceDishIdeas(),
-         cacheURL: URL = RecipeDiscovery.defaultCacheURL,
-         now: @escaping () -> Date = Date.init) {
-        self.search = search
+    init(library: RecipeLibrary = RemoteRecipeLibrary(), ideas: DishIdeaSuggesting = OnDeviceDishIdeas()) {
+        self.library = library
         self.ideas = ideas
-        self.cacheURL = cacheURL
-        self.now = now
-        if cacheURL == Self.defaultCacheURL {
-            try? FileManager.default.removeItem(at: Self.oldAIRecipesURL)
-        }
     }
 
-    var isAvailable: Bool { search.isConfigured }
-
-    /// Recipes for these preferences, the only recipes the planner uses:
-    /// 1. the saved ones, while the preferences are unchanged and they are less than a week old;
-    /// 2. a new search (with the on-device model's dish ideas, where it has some);
-    /// 3. when that can't be reached, the saved ones however old (offline, the app shows what it stored);
-    /// 4. else none, with a note saying why.
-    /// Recipes that break the diet, allergies or dislikes are always dropped.
-    func recipes(for preferences: UserPreferences, forceNew: Bool = false) async -> DiscoveredRecipes {
-        let key = Self.cacheKey(for: preferences)
-        let saved = loadCache().flatMap { $0.key == key ? $0 : nil }
-        if !forceNew, let saved, now().timeIntervalSince(saved.savedAt) < Double(Self.freshDays) * 86_400 {
-            return DiscoveredRecipes(recipes: saved.recipes, note: nil)
-        }
-        guard search.isConfigured else {
-            return DiscoveredRecipes(recipes: saved?.recipes ?? [], note: saved == nil ? Self.notSetUpNote : nil)
-        }
+    /// Recipes for these preferences: those that fit the diet, allergies and dislikes, breakfasts from any cuisine and
+    /// lunches and dinners from the chosen cuisines (the planner keeps to them), dishes the on-device model suggests
+    /// first. With no recipes on the phone and no connection, none, with a note saying why.
+    func recipes(for preferences: UserPreferences) async -> DiscoveredRecipes {
+        let all: [Recipe]
         do {
-            let dishIdeas = await ideas.ideas(for: preferences)
-            let safe = Self.safe(try await search.search(for: preferences, ideas: dishIdeas), for: preferences)
-            saveCache(Cache(key: key, recipes: safe, savedAt: now()))
-            return DiscoveredRecipes(recipes: safe, note: safe.isEmpty ? "No recipe matched all your preferences." : nil)
+            all = try await library.recipes()
         } catch {
-            if let saved, !saved.recipes.isEmpty {
-                return DiscoveredRecipes(recipes: saved.recipes, note: nil)
-            }
-            return DiscoveredRecipes(recipes: [], note: Self.isOffline(error)
-                ? Self.offlineNote : "Couldn't reach recipe search; try again later.")
+            return DiscoveredRecipes(recipes: [], note: Self.isOffline(error) ? Self.offlineNote : Self.unreachableNote)
         }
+        let safe = Self.safe(all, for: preferences)
+        let breakfasts = safe.filter { $0.meals?.contains(MealSlot.breakfast.rawValue) == true }
+        let mains = safe.filter { recipe in
+            recipe.meals?.contains(MealSlot.breakfast.rawValue) != true
+                && (preferences.cuisines.isEmpty || preferences.cuisines.contains(recipe.cuisine))
+        }
+        let dishIdeas = mains.count > Self.maxMains ? await ideas.ideas(for: preferences) : []
+        let chosen = Array(Self.ranked(mains, ideas: dishIdeas).prefix(Self.maxMains))
+            + Array(breakfasts.shuffled().prefix(Self.maxBreakfasts))
+        return DiscoveredRecipes(recipes: chosen, note: chosen.isEmpty ? Self.noMatchNote : nil)
     }
 
-    /// The recipes saved by the last search, whatever the preferences (e.g. for picking ingredient names).
+    /// The recipes kept on this phone, whatever the preferences (e.g. for picking ingredient names).
     func savedRecipes() -> [Recipe] {
-        loadCache()?.recipes ?? []
+        library.savedRecipes()
     }
 
-    /// Diet, allergies and dislikes only: the search already chose the cuisines, and breakfasts may come from any
-    /// cuisine (the planner keeps lunches and dinners to the chosen ones).
+    /// Recipes whose name contains one of the dish ideas first, the rest in random order (a new mix each week).
+    static func ranked(_ recipes: [Recipe], ideas: [String]) -> [Recipe] {
+        let wanted = ideas.map { $0.lowercased() }
+        let (matching, others) = recipes.shuffled().reduce(into: ([Recipe](), [Recipe]())) { result, recipe in
+            let name = recipe.name.lowercased()
+            if wanted.contains(where: { name.contains($0) || $0.contains(name) }) {
+                result.0.append(recipe)
+            } else {
+                result.1.append(recipe)
+            }
+        }
+        return matching + others
+    }
+
+    /// Diet, allergies and dislikes only: the planner decides which cuisines a meal may come from.
     private static func safe(_ recipes: [Recipe], for preferences: UserPreferences) -> [Recipe] {
         var anyCuisine = preferences
         anyCuisine.cuisines = []
@@ -175,40 +163,5 @@ final class RecipeDiscovery {
         guard let code = (error as? URLError)?.code else { return false }
         return [.notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost,
                 .timedOut, .dataNotAllowed, .internationalRoamingOff].contains(code)
-    }
-
-    /// Recipes depend on these preferences; anything else (budget, postcode) doesn't need new recipes.
-    static func cacheKey(for preferences: UserPreferences) -> String {
-        let parts = [preferences.dietType, preferences.cuisines.sorted().joined(separator: ","),
-                     preferences.allergies.map { $0.lowercased() }.sorted().joined(separator: ","),
-                     preferences.dislikes.map { $0.lowercased() }.sorted().joined(separator: ",")]
-        let digest = SHA256.hash(data: Data(parts.joined(separator: "|").utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
-    }
-
-    // MARK: - Cache
-
-    private struct Cache: Codable {
-        let key: String
-        let recipes: [Recipe]
-        let savedAt: Date
-    }
-
-    private func loadCache() -> Cache? {
-        guard let data = try? Data(contentsOf: cacheURL) else { return nil }
-        return try? JSONDecoder().decode(Cache.self, from: data)
-    }
-
-    private func saveCache(_ cache: Cache) {
-        try? FileManager.default.createDirectory(at: cacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? JSONEncoder().encode(cache).write(to: cacheURL, options: .atomic)
-    }
-}
-
-/// For UI tests: the fixed recipes in Data/UITestRecipes.json, as if a search had found them.
-struct FixtureRecipeSearch: RecipeSearching {
-    var isConfigured: Bool { true }
-    func search(for preferences: UserPreferences, ideas: [String]) async throws -> [Recipe] {
-        try JSONLoader.load("UITestRecipes", as: [Recipe].self)
     }
 }

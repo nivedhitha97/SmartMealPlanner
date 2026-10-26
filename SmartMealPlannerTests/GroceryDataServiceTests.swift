@@ -65,7 +65,7 @@ struct GroceryDataServiceTests {
       "category": "Produce", "offerPrice": 0.99, "regularPrice": 1.49, "unitLabel": "500 Gram",
       "validUntil": "2026-10-22T06:30:00Z", "observedAt": "2026-10-15T06:30:00Z", "regionId": "NL",
       "notes": "Was €1.49 in the last two weeks", "ingredientName": "Broccoli", "dealText": "1+1 gratis",
-      "imageURL": "https://static.hoogvliet.nl/ecom/product/719501000.jpg"
+      "imageURL": "https://example.org/719501000.jpg"
     }]
     """
     private static let pricesJSON = """
@@ -127,7 +127,7 @@ struct GroceryDataServiceTests {
         #expect(offer.ingredientName == "Broccoli")
         #expect(offer.isLivePriceDrop)
         #expect(offer.dealText == "1+1 gratis")
-        #expect(offer.imageURL == URL(string: "https://static.hoogvliet.nl/ecom/product/719501000.jpg"))
+        #expect(offer.imageURL == URL(string: "https://example.org/719501000.jpg"))
         #expect(data.price(forIngredient: "rice")?.pricePer100g == 0.19, "Ingredient lookup ignores case")
         #expect(data.updatedAt == ISO8601DateFormatter().date(from: "2026-10-15T06:30:00Z"))
     }

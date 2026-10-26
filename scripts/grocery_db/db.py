@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS stores (
     weekday_source TEXT NOT NULL,         -- 'configured' or 'learned' (from offer start dates)
     weekday_note TEXT,
     has_offers INTEGER NOT NULL,          -- fetched from the store itself
-    has_catalog INTEGER NOT NULL,         -- shelf prices from Checkjebon
+    has_catalog INTEGER NOT NULL,         -- has shelf prices (from Open Prices)
     fetched_week TEXT,                    -- start date of the last offer week fetched
     attempts_week TEXT,                   -- offer week the attempt counter belongs to
     attempts INTEGER NOT NULL DEFAULT 0,
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS sync_state (     -- bookkeeping for the Supabase mirr
 
 CREATE TABLE IF NOT EXISTS fetch_log (
     id INTEGER PRIMARY KEY,
-    store_id TEXT,                        -- NULL for the shared Checkjebon download
+    store_id TEXT,                        -- NULL for requests not tied to one store
     kind TEXT NOT NULL,                   -- 'offers', 'catalog' or 'catalog-baseline'
     started_at TEXT NOT NULL,
     finished_at TEXT NOT NULL,
@@ -109,6 +109,28 @@ class Database:
         self.connection.execute("VACUUM")
         self.connection.close()
 
+    # ---- Only open data ----
+
+    OPEN_DATA_URL = "https://prices.openfoodfacts.org/%"
+
+    def remove_data_not_from_open_prices(self):
+        """Deletes every offer, product and price that didn't come from Open Prices (data read from supermarket
+        websites or Checkjebon by earlier versions), and every product photo. Returns how many rows went."""
+        removed = 0
+        for table in ("offers", "products"):
+            removed += self.connection.execute(
+                f"DELETE FROM {table} WHERE url IS NULL OR url NOT LIKE ?", (self.OPEN_DATA_URL,)).rowcount
+        removed += self.connection.execute(
+            """DELETE FROM price_history WHERE NOT EXISTS (SELECT 1 FROM products p WHERE
+                   p.store_id = price_history.store_id AND p.product_key = price_history.product_key)""").rowcount
+        self.connection.execute("UPDATE offers SET image_url = NULL WHERE image_url IS NOT NULL")
+        if removed:
+            self.connection.execute("DELETE FROM fetch_log")  # the old log describes requests to store websites
+            self.connection.execute("UPDATE stores SET catalog_changed_at = NULL, fetched_week = NULL, "
+                                    "attempts_week = NULL, attempts = 0, last_error = NULL")
+        self.connection.commit()
+        return removed
+
     # ---- Stores ----
 
     def sync_stores(self, stores):
@@ -121,8 +143,7 @@ class Database:
                        has_catalog = excluded.has_catalog,
                        weekday_note = CASE WHEN stores.weekday_source = 'configured'
                                            THEN excluded.weekday_note ELSE stores.weekday_note END""",
-                (store.id, store.name, store.update_weekday, store.weekday_note,
-                 int(store.fetch_offers is not None), int(store.catalog)))
+                (store.id, store.name, store.update_weekday, store.weekday_note, 1, 1))
         self.connection.commit()
 
     def store(self, store_id):

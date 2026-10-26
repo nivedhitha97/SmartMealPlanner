@@ -181,7 +181,7 @@ struct PlanningViewModelTests {
         await viewModel.generatePlan()
 
         #expect(planner.calls.last?.recipes.map(\.name) == ["Chana Masala"])
-        #expect(viewModel.suggestedPlan?.aiSummary.contains("Recipes from Spoonacular") == true)
+        #expect(viewModel.suggestedPlan?.aiSummary.contains("Wikibooks Cookbook") == true)
     }
 
     @Test func withoutRecipesThePlanStaysAndTheReasonIsShown() async {
