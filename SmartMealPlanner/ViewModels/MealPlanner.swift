@@ -63,6 +63,51 @@ final class MealPlanner {
         return (fitting, otherBreakfasts)
     }
 
+    /// How far over the budget a week may go when no cheaper dishes are left: 10%.
+    static let budgetMargin = 0.10
+
+    /// The most a week's groceries may cost: the budget plus the margin.
+    static func budgetCeiling(_ budget: Double) -> Double {
+        budget * (1 + budgetMargin)
+    }
+
+    /// Leaves meals open until the week costs no more than `ceiling`, for when even the cheapest dishes are too dear.
+    /// Each step removes the cheapest dish that brings the week under the ceiling, or, when none does on its own, the
+    /// dearest one, so as few meals as possible are lost. "Your usual meals" go only when nothing else is left.
+    /// - Returns: the plan and how many meals were left open.
+    func capToBudget(
+        _ plan: WeeklyMealPlan,
+        ceiling: Double,
+        routine: MealRoutine,
+        cost: (WeeklyMealPlan) -> Double
+    ) -> (plan: WeeklyMealPlan, leftOpen: Int) {
+        var plan = plan
+        var total = cost(plan)
+        var leftOpen = 0
+        while total > ceiling + 0.005 {
+            var choices: [(day: Int, slot: MealSlot, plan: WeeklyMealPlan, total: Double)] = []
+            for (index, day) in plan.days.enumerated() {
+                for slot in MealSlot.allCases where day[slot] != nil {
+                    var next = plan
+                    next.days[index][slot] = nil
+                    choices.append((index, slot, next, cost(next)))
+                }
+            }
+            let flexible = choices.filter { routine.type(for: $0.slot) != .fixed }
+            let pool = flexible.isEmpty ? choices : flexible
+            guard !pool.isEmpty else { break }
+            let enough = pool.filter { $0.total <= ceiling + 0.005 }
+            // Enough on its own: the one that removes least (highest remaining total). Else the biggest saving.
+            guard let pick = enough.max(by: { $0.total < $1.total }) ?? pool.min(by: { $0.total < $1.total }),
+                  pick.total < total - 0.005 else { break }
+            plan = pick.plan
+            plan.days[pick.day].budgetOpenSlots = (plan.days[pick.day].budgetOpenSlots ?? []) + [pick.slot.rawValue]
+            total = pick.total
+            leftOpen += 1
+        }
+        return (plan, leftOpen)
+    }
+
     /// Swaps dishes for cheaper ones until the week's groceries fit the budget, or no swap saves anything more.
     /// Each step makes the swap with the biggest saving that keeps every rule: the dish suits the meal, fits the diet,
     /// allergies, dislikes and cuisines (breakfasts may come from any cuisine), isn't planned twice that day nor more
@@ -178,7 +223,8 @@ final class MealPlanner {
     static func unplannedMeals(in plan: WeeklyMealPlan, routine: MealRoutine, preferences: UserPreferences) -> Int {
         let wantsBreakfast = preferences.breakfastRecipePreference == .includeRecipes && routine.breakfastType != .outside
         let wanted = [wantsBreakfast, routine.lunchType != .outside, routine.dinnerType != .outside].filter { $0 }.count
-        return max(0, wanted * plan.days.count - plan.allPlannedRecipes.count)
+        let openForBudget = plan.days.map { $0.budgetOpenSlots?.count ?? 0 }.reduce(0, +)
+        return max(0, wanted * plan.days.count - plan.allPlannedRecipes.count - openForBudget)
     }
 
     /// Recipes are the same dish when their names match.

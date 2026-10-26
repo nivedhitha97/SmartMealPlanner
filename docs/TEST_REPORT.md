@@ -16,9 +16,9 @@ Google Sheet (see below).
 
 | Suite | Covers |
 |---|---|
-| Plan generation | 7-day structure, **staying within budget** (cheaper swaps, usual meals kept, impossible budgets explained), diet/allergy/dislike/cuisine filtering, meal types, **no dish twice a day or more than twice a week**, unfilled slots, grocery aggregation scaled to people, offer matching (regional, national, nearby only), live prices, nutrition |
+| Plan generation | 7-day structure, **staying within budget** (cheaper swaps, usual meals kept, **never more than the budget plus 10%**: as few meals left open as possible, usual meals last, marked and explained), diet/allergy/dislike/cuisine filtering, meal types, **no dish twice a day or more than twice a week**, unfilled slots, grocery aggregation scaled to people, offer matching (regional, national, nearby only), live prices, nutrition |
 | Planning view model | Missing setup errors, generating/caching/clearing a plan, live prices and searched recipes reaching the planner |
-| Weekly plan screen | Budget card, day picker, empty-slot labels |
+| Weekly plan screen | Budget card, day picker, empty-slot labels (including meals left open for the budget) |
 | Recipe detail screen | Calories per serving, servings scaling, prep/cook/total times, links, bundled recipes complete |
 | Recipe discovery | Recipe search is the only source and recipes are never AI-written (Spoonacular credit and link, same id for the same recipe, real YouTube video, meal tags, request with dish ideas but without postcode or budget, only HTTPS); **the on-device model's dish ideas reach the search**, tidied and limited to 8, and the prompt carries the preferences; no ideas means a search by preferences alone; saved for a week then searched again; **offline the saved recipes however old**; clear notes when offline or not set up; allergen re-check |
 | Deals you add | Validity, saving on the phone, ending on Sunday (Amsterdam time), dropping ended deals, the planner using a linked deal, Open Prices credit |
@@ -44,7 +44,7 @@ don't depend on the network. Users never see that data: without it the app only 
 | Offers & preferences | Category filter, **adding an Albert Heijn Bonus deal**, postcode errors and region, **first save keeps the postcode** (lookup delayed so the save happens during it), edits survive Meal routine |
 | Screenshots | Takes the README screenshots with live data; runs only with `TEST_RUNNER_SCREENSHOT_DIR` set (see below) |
 | Grocery list | Store filter, adding offers and totals, own items (add/edit/tick/delete), sharing the list, plan groceries on the List tab, ticked items in the Profile |
-| Settings | Version, theme choice and persistence, dark theme everywhere, **offer alerts per store** |
+| Settings | Version, theme choice and persistence, dark theme everywhere, **offer alerts per store**, **sharing the app** |
 
 ## Grocery database tests
 

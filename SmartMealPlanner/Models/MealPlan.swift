@@ -12,6 +12,8 @@ struct DailyMealPlanSlot: Identifiable, Codable {
     var breakfast: Recipe?
     var lunch: Recipe?
     var dinner: Recipe?
+    /// Meals ("Lunch", …) left without a recipe to keep the week within the budget's 10% margin; nil when none.
+    var budgetOpenSlots: [String]?
 
     init(
         id: UUID = UUID(),
@@ -25,6 +27,10 @@ struct DailyMealPlanSlot: Identifiable, Codable {
         self.breakfast = breakfast
         self.lunch = lunch
         self.dinner = dinner
+    }
+
+    func isOpenForBudget(_ slot: MealSlot) -> Bool {
+        budgetOpenSlots?.contains(slot.rawValue) == true
     }
 
     var mealsWithSlot: [(MealSlot, Recipe?)] {

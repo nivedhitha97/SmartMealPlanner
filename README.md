@@ -36,8 +36,9 @@ UI designed in Figma: [Smart Meal Planner – UI Revamp](https://www.figma.com/d
 - **Budget card.** The estimated grocery cost against your weekly budget, priced from this week's offers and live
   supermarket prices.
 - **Kept within budget.** When the week costs more than your budget, the planner swaps dishes for cheaper ones that
-  still fit your diet, cuisines and variety rules (your usual meals stay). If no week can fit, the notes say by how
-  much and what to change.
+  still fit your diet, cuisines and variety rules (your usual meals stay). A week never costs more than the budget plus
+  10%: if even the cheapest dishes cost more, meals are left open ("Left open for your budget") and the notes say what
+  to change.
 - **Planner notes.** What the planner did: offers used, live prices used, where the recipes came from, meals left open.
 - **Daily meals and nutrition.** Pick a day to see its meals with photos; weekly calories, protein, carbs and fat.
 
@@ -83,6 +84,7 @@ UI designed in Figma: [Smart Meal Planner – UI Revamp](https://www.figma.com/d
   past three weeks.
 - **Offer alerts.** A notification on each chosen supermarket's offer day, when its new offers are in.
 - **Appearance.** System, light or dark.
+- **Share Smart Meal Planner.** Sends the app's link with the iOS share sheet.
 
 Every feature in detail, screen by screen: [Features](docs/FEATURES.md).
 

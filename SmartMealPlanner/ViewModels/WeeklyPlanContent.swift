@@ -57,14 +57,19 @@ enum WeeklyPlanContent {
 
     /// Title for a slot that has no recipe.
     static func emptySlotTitle(slot: MealSlot, breakfastPreference: BreakfastRecipePreference,
-                               mealType: MealType? = nil) -> String {
+                               mealType: MealType? = nil, openForBudget: Bool = false) -> String {
+        if openForBudget { return "Left open for your budget" }
         if isGranolaSlot(slot, breakfastPreference) { return "Granola / muesli" }
         return wantsRecipe(mealType) ? "No recipe left" : "Outside / flexible"
     }
 
     /// Detail line for a slot that has no recipe.
     static func emptySlotDetail(slot: MealSlot, breakfastPreference: BreakfastRecipePreference,
-                                mealType: MealType? = nil) -> String {
+                                mealType: MealType? = nil, openForBudget: Bool = false) -> String {
+        if openForBudget {
+            return "Keeps the week within \(Int((MealPlanner.budgetMargin * 100).rounded()))% of your budget. "
+                + "Raise the budget or add cuisines for more dishes."
+        }
         if isGranolaSlot(slot, breakfastPreference) { return "Buy granola or muesli separately" }
         return wantsRecipe(mealType)
             ? "Matching dishes are already planned \(MealPlanner.maxTimesPerWeek)× this week. Add cuisines for more variety."

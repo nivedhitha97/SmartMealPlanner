@@ -259,23 +259,68 @@ struct PlanGenerationTests {
         #expect(!plan.aiSummary.contains("over your"))
     }
 
-    @Test func aBudgetTooLowForAnyWeekIsExplained() async throws {
+    @Test func aWeekWithinTenPercentOfTheBudgetKeepsEveryMeal() async throws {
+        let plan = try await suggestions(budget: 105)  // the cheapest week, €115, is within €105 + 10%
+
+        #expect(plan.weeklyMealPlan.allPlannedRecipes.count == 14, "every meal still planned")
+        #expect(abs(plan.estimatedGroceryTotal - Self.cheapestWeek) < 0.01, "as cheap as the rules allow")
+        #expect(plan.aiSummary.contains("over your €105.00 budget (within the 10% allowed)"))
+    }
+
+    @Test func aWeekNeverCostsMoreThanTheBudgetPlusTenPercent() async throws {
         let plan = try await suggestions(budget: 20)
 
-        #expect(plan.weeklyMealPlan.allPlannedRecipes.count == 14, "the meals stay; the user decides")
-        #expect(abs(plan.estimatedGroceryTotal - Self.cheapestWeek) < 0.01, "as cheap as the rules allow")
-        #expect(plan.aiSummary.contains("over your €20.00 budget: raise the budget, add cuisines, or set some meals to Outside"))
+        #expect(plan.estimatedGroceryTotal <= MealPlanner.budgetCeiling(20) + 0.005, "at most €22")
+        let open = plan.weeklyMealPlan.days.flatMap { day in MealSlot.allCases.filter(day.isOpenForBudget) }
+        #expect(!open.isEmpty)
+        #expect(plan.weeklyMealPlan.allPlannedRecipes.count + open.count == 14, "every other meal left open is marked")
+        #expect(plan.aiSummary.contains("budget plus 10%, so \(open.count) meals are left open"))
+        #expect(MealPlanner.unplannedMeals(in: plan.weeklyMealPlan, routine: lunchAndDinner,
+                                           preferences: Fixtures.preferences(budget: 20)) == 0,
+                "budget gaps aren't counted as variety gaps")
+    }
+
+    @Test func theCeilingLeavesAsFewMealsOpenAsPossible() {
+        // Four meals at €10, €4, €3 and €1 (€18) against a €14.50 ceiling: dropping the €4 one is enough.
+        let prices = ["A": 10.0, "B": 4, "C": 3, "D": 1]
+        let day = DailyMealPlanSlot(date: Fixtures.now, breakfast: nil, lunch: Fixtures.recipe("A"),
+                                    dinner: Fixtures.recipe("B"))
+        let day2 = DailyMealPlanSlot(date: Fixtures.now, breakfast: nil, lunch: Fixtures.recipe("C"),
+                                     dinner: Fixtures.recipe("D"))
+        let week = WeeklyMealPlan(id: UUID(), weekStart: Fixtures.now, days: [day, day2])
+        let cost = { (plan: WeeklyMealPlan) in plan.allPlannedRecipes.map { prices[$0.name]! }.reduce(0, +) }
+
+        let (capped, leftOpen) = MealPlanner().capToBudget(week, ceiling: 14.5, routine: lunchAndDinner, cost: cost)
+
+        #expect(leftOpen == 1)
+        #expect(plannedNames(capped) == ["A", "C", "D"])
+        #expect(capped.days[0].isOpenForBudget(.dinner))
+    }
+
+    @Test func usualMealsAreLeftOpenOnlyWhenNothingElseIsLeft() {
+        let prices = ["Usual": 10.0, "Other": 2]
+        let day = DailyMealPlanSlot(date: Fixtures.now, breakfast: nil, lunch: Fixtures.recipe("Usual"),
+                                    dinner: Fixtures.recipe("Other"))
+        let week = WeeklyMealPlan(id: UUID(), weekStart: Fixtures.now, days: [day])
+        let cost = { (plan: WeeklyMealPlan) in plan.allPlannedRecipes.map { prices[$0.name]! }.reduce(0, +) }
+        let fixedLunch = MealRoutine(breakfastType: .outside, lunchType: .fixed, dinnerType: .homeCooked)
+
+        let (first, _) = MealPlanner().capToBudget(week, ceiling: 10, routine: fixedLunch, cost: cost)
+        #expect(plannedNames(first) == ["Usual"], "the other meal goes first")
+
+        let (both, leftOpen) = MealPlanner().capToBudget(week, ceiling: 1, routine: fixedLunch, cost: cost)
+        #expect(both.allPlannedRecipes.isEmpty && leftOpen == 2, "the ceiling holds even for usual meals")
     }
 
     @Test func usualMealsAreNeverSwappedForBudget() async throws {
-        // Usual lunches take the first dishes in order: here the dearest (Dish 10, Dish 9, …).
+        // Usual lunches take the first dishes in order: here the dearest (Dish 10, Dish 9, …), €238 in all.
         let fixed = MealRoutine(breakfastType: .outside, lunchType: .fixed, dinnerType: .outside)
-        let plan = try await suggestions(budget: 20, routine: fixed, recipes: pricedDishes.reversed())
+        let plan = try await suggestions(budget: 220, routine: fixed, recipes: pricedDishes.reversed())
 
         #expect(plan.weeklyMealPlan.days.map { $0.lunch?.name } == ["Dish 10", "Dish 10", "Dish 9", "Dish 9", "Dish 8",
                                                                     "Dish 8", "Dish 7"],
-                "the lunches the user always has stay, even over budget")
-        #expect(plan.aiSummary.contains("over your €20.00 budget"))
+                "the lunches the user always has stay, over budget but within 10%")
+        #expect(plan.aiSummary.contains("over your €220.00 budget"))
     }
 
     @Test func groceryListAddsUpIngredientsAcrossTheWeek() async throws {

@@ -65,6 +65,14 @@ enum AppVersion {
 }
 
 /// Launch arguments the UI tests use to start the app in a known state.
+/// What "Share Smart Meal Planner" sends.
+enum AppSharing {
+    /// The project page until the app is on the App Store; then its App Store link.
+    static let url = URL(string: "https://github.com/nivedhitha97/SmartMealPlanner")!
+    static let message = "I plan my week's meals and groceries with Smart Meal Planner: recipes for my diet, "
+        + "this week's supermarket offers and one grocery list. Try it:"
+}
+
 enum LaunchArguments {
     /// Wipe saved preferences, routine, plan and settings before the app starts.
     static let resetState = "-uiTestingResetState"

@@ -33,6 +33,7 @@ struct SettingsView: View {
                     profileCard
                     offerAlertsCard
                     appearanceCard
+                    shareCard
                     aboutCard
                 }
                 .padding(.horizontal, 24)
@@ -258,6 +259,30 @@ struct SettingsView: View {
         .accessibilityLabel(option.title)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityIdentifier("settings.appearance.\(option.rawValue)")
+    }
+
+    /// Sends the app's link with the iOS share sheet.
+    private var shareCard: some View {
+        ShareLink(item: AppSharing.url, subject: Text("Smart Meal Planner"), message: Text(AppSharing.message)) {
+            HStack(spacing: 12) {
+                IconTile(systemName: "square.and.arrow.up.fill", tint: .brandPrimary, background: .brandPrimarySoft)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Share Smart Meal Planner")
+                        .font(.cardTitle)
+                        .foregroundStyle(Color.textPrimary)
+                    Text("Send the app to friends and family")
+                        .font(.footnote)
+                        .foregroundStyle(Color.textSecondary)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.textTertiary)
+            }
+            .card()
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("settings.share")
     }
 
     private var aboutCard: some View {

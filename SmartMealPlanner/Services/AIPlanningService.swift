@@ -71,11 +71,16 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
             groceryLines(for: plan, people: preferences.people, offers: localOffers, ingredientPrices: ingredientPrices,
                          recipes: recipes)
         }
+        let weekCost = { (plan: WeeklyMealPlan) in pricedLines(for: plan).map(\.estimatedLinePrice).reduce(0, +) }
         // Over budget: swap dishes for cheaper ones that still fit every preference.
-        let (weeklyMealPlan, swaps) = mealPlanner.fitToBudget(
+        let (cheaperPlan, swaps) = mealPlanner.fitToBudget(
             firstPlan, recipes: recipes, preferences: preferences, routine: routine,
-            cost: { pricedLines(for: $0).map(\.estimatedLinePrice).reduce(0, +) },
+            cost: weekCost,
             recipeCost: { recipeCost($0, people: preferences.people, ingredientPrices: ingredientPrices) }
+        )
+        // Still more than 10% over: leave meals open, so the week never costs more than the budget plus 10%.
+        let (weeklyMealPlan, leftOpen) = mealPlanner.capToBudget(
+            cheaperPlan, ceiling: MealPlanner.budgetCeiling(preferences.budgetWeekly), routine: routine, cost: weekCost
         )
         let lines = pricedLines(for: weeklyMealPlan)
 
@@ -91,7 +96,7 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
             }.count,
             estimatedTotal: total
         )
-        if let note = Self.budgetNote(total: total, budget: preferences.budgetWeekly, swaps: swaps) {
+        if let note = Self.budgetNote(total: total, budget: preferences.budgetWeekly, swaps: swaps, leftOpen: leftOpen) {
             summary += " " + note
         }
         let highlights = localOffers
@@ -115,11 +120,18 @@ final class LocalHeuristicAIPlanner: AIPlanningService, @unchecked Sendable {
     }
 
     /// What the planner did about the budget, for the planner notes; nil when nothing needed saying.
-    static func budgetNote(total: Double, budget: Double, swaps: Int) -> String? {
+    static func budgetNote(total: Double, budget: Double, swaps: Int, leftOpen: Int = 0) -> String? {
         let euros = { (value: Double) in String(format: "€%.2f", value) }
-        if total > budget {
+        let margin = Int((MealPlanner.budgetMargin * 100).rounded())
+        if leftOpen > 0 {
+            return "Even the cheapest dishes for your preferences cost more than your \(euros(budget)) budget plus "
+                + "\(margin)%, so \(leftOpen) \(leftOpen == 1 ? "meal is" : "meals are") left open: raise the budget, "
+                + "add cuisines, or set some meals to Outside."
+        }
+        if total > budget + 0.005 {
             return "Even with the cheapest dishes for your preferences, the week is \(euros(total - budget)) over your "
-                + "\(euros(budget)) budget: raise the budget, add cuisines, or set some meals to Outside."
+                + "\(euros(budget)) budget (within the \(margin)% allowed): raise the budget, add cuisines, or set "
+                + "some meals to Outside."
         }
         guard swaps > 0 else { return nil }
         return "Swapped \(swaps) \(swaps == 1 ? "dish" : "dishes") for cheaper ones to stay within your \(euros(budget)) budget."
