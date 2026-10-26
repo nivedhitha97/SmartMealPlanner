@@ -22,7 +22,8 @@ editable shopping list grouped by store.
   Supabase Edge Function, each linked to its original page and a real YouTube video; no built-in samples and no AI
   recipes. Apple's on-device model only suggests which dishes to look up. Offline, the app shows only what it saved
 - **Offer alerts:** a weekly local notification when a chosen store's new offers are in
-- **Quality:** 224 unit tests, 25 UI tests, 57 Python tests and 29 API/security checks, all in CI; every test run is
+- **Within budget:** cheaper dishes are swapped in until the week fits; it never costs more than the budget plus 10%
+- **Quality:** 228 unit tests, 26 UI tests, 57 Python tests and 29 API/security checks, all in CI; every test run is
   recorded in a Google Sheet
 
 ## Tech stack

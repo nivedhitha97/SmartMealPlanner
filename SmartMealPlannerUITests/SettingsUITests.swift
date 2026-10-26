@@ -2,7 +2,7 @@
 //  SettingsUITests.swift
 //  SmartMealPlannerUITests
 //
-//  Settings screen: light / dark theme and version number.
+//  Settings screen: light / dark theme, sharing and version number.
 //
 
 import XCTest
@@ -97,5 +97,18 @@ final class SettingsUITests: XCTestCase {
         let jumbo = app.switches["settings.offerAlerts.jumbo"]
         XCTAssertTrue(jumbo.waitForExistence(timeout: 5), "A switch per store with offers")
         XCTAssertTrue(app.element(containing: "Every Wednesday").exists, "Jumbo's alert day")
+    }
+
+    func testTheAppCanBeShared() {
+        let app = XCUIApplication.launchForTesting()
+        app.openTab("Settings")
+        let share = app.buttons["settings.share"]
+        app.scrollTo(share)
+
+        share.tap()
+
+        // The iOS share sheet opens with the app's link.
+        XCTAssertTrue(app.otherElements["ActivityListView"].waitForExistence(timeout: 5)
+                      || app.navigationBars["UIActivityContentView"].waitForExistence(timeout: 2))
     }
 }

@@ -21,6 +21,9 @@
 - **Within budget:** an over-budget week gets cheaper dishes, one swap at a time (the swap that saves most and keeps
   every rule), until it fits; "Your usual meals" are never swapped. If even the cheapest week is over, the planner
   notes say by how much and suggest raising the budget, adding cuisines or setting some meals to Outside
+- **Never more than budget + 10%:** when even the cheapest dishes cost more than that, meals are left open until the
+  week fits, as few as possible (the cheapest dish that is enough to drop, else the dearest); usual meals go last.
+  Those slots say "Left open for your budget"
 - **Planner notes:** offers used, live prices used, where the recipes came from, meals left open
 - Day picker, meal slots with recipe photos, weekly nutrition (calories, protein, carbs, fat)
 - A grocery card that opens the List tab
@@ -70,6 +73,8 @@
 - **Offer alerts:** a weekly notification on each chosen store's offer day at 09:00 ("New offers at Jumbo"); stores
   near you are chosen by default; tapping an alert opens Offers
 - **Appearance:** System, Light or Dark
+- **Share Smart Meal Planner:** the app's link (the project page until the app is on the App Store) through the iOS
+  share sheet
 - Version and build number
 
 ## Offline

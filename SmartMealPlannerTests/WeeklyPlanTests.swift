@@ -98,4 +98,12 @@ struct WeeklyPlanTests {
         #expect(WeeklyPlanContent.emptySlotTitle(slot: slot, breakfastPreference: preference) == "Outside / flexible")
         #expect(WeeklyPlanContent.emptySlotDetail(slot: slot, breakfastPreference: preference) == "No recipe needed")
     }
+
+    @Test func mealsLeftOpenForTheBudgetSaySo() {
+        #expect(WeeklyPlanContent.emptySlotTitle(slot: .dinner, breakfastPreference: .includeRecipes,
+                                                 mealType: .homeCooked, openForBudget: true) == "Left open for your budget")
+        #expect(WeeklyPlanContent.emptySlotDetail(slot: .dinner, breakfastPreference: .includeRecipes,
+                                                  mealType: .homeCooked, openForBudget: true)
+                .hasPrefix("Keeps the week within 10% of your budget"))
+    }
 }

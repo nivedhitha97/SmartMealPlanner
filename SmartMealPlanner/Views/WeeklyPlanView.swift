@@ -259,7 +259,8 @@ struct WeeklyPlanView: View {
 
                     ForEach(Array(day.mealsWithSlot.enumerated()), id: \.element.0) { index, pair in
                         if index > 0 { RowDivider() }
-                        mealSlotRow(slot: pair.0, recipe: pair.1, context: context)
+                        mealSlotRow(slot: pair.0, recipe: pair.1, context: context,
+                                    openForBudget: day.isOpenForBudget(pair.0))
                     }
                 }
                 .padding(EdgeInsets(top: 14, leading: 16, bottom: 6, trailing: 16))
@@ -293,7 +294,8 @@ struct WeeklyPlanView: View {
     }
 
     @ViewBuilder
-    private func mealSlotRow(slot: MealSlot, recipe: Recipe?, context: SlotContext) -> some View {
+    private func mealSlotRow(slot: MealSlot, recipe: Recipe?, context: SlotContext,
+                             openForBudget: Bool = false) -> some View {
         let breakfastPreference = context.breakfastPreference
         let style = SlotStyle(slot)
         if let recipe {
@@ -343,11 +345,13 @@ struct WeeklyPlanView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     slotLabel(slot.rawValue, style: .muted)
                     Text(WeeklyPlanContent.emptySlotTitle(slot: slot, breakfastPreference: breakfastPreference,
-                                                          mealType: WeeklyPlanContent.mealType(for: slot, in: context.routine)))
+                                                          mealType: WeeklyPlanContent.mealType(for: slot, in: context.routine),
+                                                          openForBudget: openForBudget))
                         .font(.cardTitle)
                         .foregroundStyle(Color.textSecondary)
                     Text(WeeklyPlanContent.emptySlotDetail(slot: slot, breakfastPreference: breakfastPreference,
-                                                           mealType: WeeklyPlanContent.mealType(for: slot, in: context.routine)))
+                                                           mealType: WeeklyPlanContent.mealType(for: slot, in: context.routine),
+                                                          openForBudget: openForBudget))
                         .font(.footnote)
                         .foregroundStyle(Color.textTertiary)
                 }
