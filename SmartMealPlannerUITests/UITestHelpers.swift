@@ -13,7 +13,6 @@ enum LaunchFlag {
     static let skipSplash = "-uiTestingSkipSplash"
     static let splashSeconds = "-uiTestingSplashSeconds"
     static let bundledData = "-uiTestingBundledData"
-    static let fixtureRecipes = "-uiTestingFixtureRecipes"
     static let postcodeLookupSeconds = "-uiTestingPostcodeLookupSeconds"
 }
 

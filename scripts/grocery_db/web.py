@@ -1,13 +1,12 @@
-"""HTTP for the store fetchers: browser-like headers, retries, a pause between requests, and a request count
-per store so every run records how many calls it made."""
+"""HTTP for the fetchers: an honest user agent naming the project, retries, a pause between requests, and a request
+count so every run records how many calls it made."""
 
 import json
 import time
 import urllib.error
 import urllib.request
 
-USER_AGENT = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
-              "(KHTML, like Gecko) Version/18.0 Safari/605.1.15")
+USER_AGENT = "SmartMealPlanner/1.0 (github.com/nivedhitha97/SmartMealPlanner)"
 
 
 class FetchError(Exception):
@@ -28,7 +27,7 @@ class Http:
         """Response body as bytes. `data` (a dict) is sent as a JSON POST."""
         body = json.dumps(data).encode() if data is not None else None
         request = urllib.request.Request(url, data=body, headers={
-            "User-Agent": self.user_agent, "Accept-Language": "nl-NL,nl;q=0.9",
+            "User-Agent": self.user_agent,
             **({"Content-Type": "application/json"} if body else {}), **(headers or {}),
         })
         for attempt in range(self.retries + 1):

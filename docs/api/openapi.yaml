@@ -1,21 +1,25 @@
 openapi: 3.1.0
 info:
-  title: SmartMealPlanner grocery feed
-  version: "1.0"
-  summary: Weekly Dutch supermarket offers and ingredient prices for the SmartMealPlanner app.
+  title: SmartMealPlanner feed
+  version: "2.0"
+  summary: Shopper-reported Dutch supermarket offers and prices, and Wikibooks recipes, for the SmartMealPlanner app.
   description: |
-    Read-only JSON files exported from the grocery database (`scripts/grocery_db`) and published to the
-    `grocery-feed` branch by the **Grocery database** GitHub Actions workflow. Each supermarket is fetched once a
-    week, on the day its offer week starts; the files only change after such a fetch (or after manual edits in the
-    Supabase mirror).
+    Read-only files published to the `grocery-feed` branch by the **Grocery database** GitHub Actions workflow, from
+    open data only (no supermarket website is read):
+
+    - offers.json, prices.json, meta.json: from [Open Prices](https://prices.openfoodfacts.org/) (shoppers' price
+      tags and receipts), checked once a day. Price data © Open Food Facts contributors, ODbL; this feed is a derived
+      database shared under the ODbL too (LICENSE.md).
+    - recipes.json: recipes from the [Wikibooks Cookbook](https://en.wikibooks.org/wiki/Cookbook), imported weekly
+      (`scripts/recipes`), CC BY-SA 4.0 (RECIPES-LICENSE.md). Each recipe credits its source revision and authors.
 
     **Clients should download only when the feed can have changed:** read `meta.json`, and download offers and
     prices again only after `nextUpdateAt` *and* when `generatedAt` differs from the copy already held.
 
     No authentication: the data is public. Writes are not possible (the host refuses them).
   license:
-    name: "Data from store websites, Checkjebon (MIT) and Open Prices (ODbL, © Open Food Facts contributors); for personal use"
-    url: https://github.com/supermarkt/checkjebon/blob/main/LICENSE
+    name: "Offers and prices: ODbL (© Open Food Facts contributors); recipes: CC BY-SA 4.0 (Wikibooks contributors)"
+    url: https://opendatacommons.org/licenses/odbl/1-0/
 servers:
   - url: https://raw.githubusercontent.com/nivedhitha97/SmartMealPlanner/grocery-feed
     description: Published feed (GitHub, HTTPS only)
@@ -23,7 +27,7 @@ servers:
 security: []
 tags:
   - name: Feed
-    description: The three files the app downloads
+    description: The files the app downloads
 paths:
   /meta.json:
     get:
@@ -44,7 +48,7 @@ paths:
     get:
       tags: [Feed]
       operationId: getOffers
-      summary: This week's offers from the supermarkets, valid now or starting within a day
+      summary: Shopper-reported discounts (Open Prices) for the week they were seen in, valid now or within a day
       responses:
         "200":
           description: Offers, recipe ingredients first, then by end date and biggest saving
@@ -55,6 +59,33 @@ paths:
                 items: { $ref: "#/components/schemas/Offer" }
         "404":
           description: Not published yet (the feed is built by the first workflow run)
+  /recipes.json:
+    get:
+      tags: [Feed]
+      operationId: getRecipes
+      summary: Recipes from the Wikibooks Cookbook (CC BY-SA 4.0), adapted to grams, with their credits
+      responses:
+        "200":
+          description: The recipes, by name
+          content:
+            text/plain:
+              schema: { $ref: "#/components/schemas/RecipeFeed" }
+        "404":
+          description: Not published yet (the feed is built by the first workflow run)
+  /LICENSE.md:
+    get:
+      tags: [Feed]
+      operationId: getFeedLicence
+      summary: The ODbL licence and attribution of the offers and prices
+      responses:
+        "200": { description: Markdown, content: { text/plain: { schema: { type: string } } } }
+  /RECIPES-LICENSE.md:
+    get:
+      tags: [Feed]
+      operationId: getRecipesLicence
+      summary: The CC BY-SA 4.0 licence and credits of the recipes
+      responses:
+        "200": { description: Markdown, content: { text/plain: { schema: { type: string } } } }
   /prices.json:
     get:
       tags: [Feed]
@@ -62,7 +93,7 @@ paths:
       summary: Typical current price per 100 g of every recipe ingredient
       responses:
         "200":
-          description: One entry per ingredient with shelf prices from stores whose prices are current
+          description: One entry per ingredient with shopper-reported shelf prices from the last 90 days
           content:
             text/plain:
               schema:
@@ -83,15 +114,18 @@ components:
       properties:
         generatedAt: { $ref: "#/components/schemas/Timestamp" }
         nextUpdateAt:
-          description: Earliest next store fetch; nothing new is published before this.
+          description: The next daily check of Open Prices; nothing new is published before this.
           oneOf: [{ $ref: "#/components/schemas/Timestamp" }, { type: "null" }]
         source: { type: string }
+        attribution: { type: string, examples: ["Price data © Open Food Facts contributors, ODbL"] }
+        license: { type: string, const: ODbL-1.0 }
+        licenseURL: { type: string, format: uri }
         offerCount: { type: integer, minimum: 0 }
         priceCount: { type: integer, minimum: 0 }
         productCount: { type: integer, minimum: 0, description: Catalog products in the database }
         requests:
           type: object
-          description: Requests the update job made to supermarkets and Checkjebon
+          description: Requests the update job made to Open Prices
           required: [thisRun, last7Days, last28Days]
           properties:
             thisRun: { type: integer, minimum: 0 }
@@ -109,10 +143,10 @@ components:
         updateDay:
           type: string
           enum: [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
-          description: The day the store starts its offer week and is fetched
+          description: The day the store starts its offer week
         updateDaySource: { type: string, enum: [configured, learned, manual] }
         note: { type: [string, "null"] }
-        fetchesOffers: { type: boolean, description: Offers come from the store itself (else shelf prices only) }
+        fetchesOffers: { type: boolean, description: Always true (offers come from Open Prices for every chain) }
         lastUpdatedAt: { oneOf: [{ $ref: "#/components/schemas/Timestamp" }, { type: "null" }] }
         nextUpdateAt: { oneOf: [{ $ref: "#/components/schemas/Timestamp" }, { type: "null" }] }
         pricesChangedAt:
@@ -141,17 +175,17 @@ components:
         notes: { type: [string, "null"] }
         dealText: { type: [string, "null"], examples: ["1+1 gratis", "2 voor €5,00"] }
         ingredientName: { type: [string, "null"], description: "The recipe ingredient this product is, when recognised" }
-        imageURL: { type: [string, "null"], format: uri, description: Product photo (~300 px) hosted by the store }
+        imageURL: { type: "null", description: No product photos are published }
         source:
-          type: [string, "null"]
-          enum: [Open Prices, null]
-          description: "Who reported the offer when it isn't the store itself. Open Prices data (Albert Heijn's) must be credited: © Open Food Facts contributors, ODbL"
+          type: string
+          const: Open Prices
+          description: "Every offer is shopper-reported on Open Prices and must be credited: © Open Food Facts contributors, ODbL"
     IngredientPrice:
       type: object
       required: [ingredientName, pricePer100g, cheapestStore, cheapestProduct, cheapestPrice, cheapestPricePer100g, storeCount, productCount]
       properties:
         ingredientName: { type: string, examples: [Chicken Breast] }
-        pricePer100g: { type: number, exclusiveMinimum: 0, description: Median of each store's cheapest matching product }
+        pricePer100g: { type: number, exclusiveMinimum: 0, description: Median of each store's cheapest matching reported price }
         cheapestStore: { type: string }
         cheapestProduct: { type: string }
         cheapestPrice: { type: number, exclusiveMinimum: 0 }
@@ -159,3 +193,51 @@ components:
         cheapestPricePer100g: { type: number, exclusiveMinimum: 0 }
         storeCount: { type: integer, minimum: 1 }
         productCount: { type: integer, minimum: 1 }
+    RecipeFeed:
+      type: object
+      required: [generatedAt, source, license, licenseURL, attribution, recipes]
+      properties:
+        generatedAt: { $ref: "#/components/schemas/Timestamp" }
+        source: { type: string }
+        license: { type: string, const: CC BY-SA 4.0 }
+        licenseURL: { type: string, format: uri }
+        attribution: { type: string }
+        recipes:
+          type: array
+          items: { $ref: "#/components/schemas/Recipe" }
+    Recipe:
+      type: object
+      required: [id, name, cuisine, servings, meals, ingredients, steps, sourceName, sourceURL, authorsURL, license, licenseURL, changes]
+      properties:
+        id: { type: string, format: uuid, description: Stable per Wikibooks page }
+        name: { type: string, examples: ["Potato Curry (Aloo Masala)"] }
+        cuisine: { type: string, examples: [Indian, Italian, Asian, International] }
+        servings: { type: integer, minimum: 1 }
+        totalMinutes: { type: [integer, "null"] }
+        meals: { type: array, items: { enum: [Breakfast, Lunch, Dinner] } }
+        ingredients:
+          type: array
+          items:
+            type: object
+            required: [name, grams, caloriesPer100g, proteinPer100g, carbsPer100g, fatPer100g, pricePer100g]
+            properties:
+              name: { type: string, description: From the project's standard ingredient list }
+              grams: { type: integer, minimum: 1, description: For the recipe's servings }
+              caloriesPer100g: { type: number, description: USDA FoodData Central (public domain) }
+              proteinPer100g: { type: number }
+              carbsPer100g: { type: number }
+              fatPer100g: { type: number }
+              pricePer100g: { type: number, description: The project's own estimate in euros }
+        steps: { type: array, items: { type: string }, description: The authors' own method }
+        originalIngredients: { type: array, items: { type: string }, description: The ingredient lines as written }
+        sourceName: { type: string, const: Wikibooks Cookbook }
+        sourceURL: { type: string, format: uri, description: The exact page revision (oldid) the recipe came from }
+        authorsURL: { type: string, format: uri, description: The page history, listing the authors }
+        license: { type: string, const: CC BY-SA 4.0 }
+        licenseURL: { type: string, format: uri }
+        changes: { type: string, description: What was changed for the app }
+        imageURL: { type: string, format: uri, description: A Wikimedia Commons photo, only with a free licence and an author }
+        imageAuthor: { type: string }
+        imageLicense: { type: string, examples: ["CC BY-SA 4.0", Public domain] }
+        imageLicenseURL: { type: [string, "null"], format: uri }
+        imageSourceURL: { type: string, format: uri }

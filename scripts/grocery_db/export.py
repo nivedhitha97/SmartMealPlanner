@@ -8,6 +8,7 @@ import uuid
 
 from . import dates, schedule
 from .db import utc
+from .stores import openprices
 from .matching import INGREDIENTS, NON_FOOD, category_for, clean_name, grams, ingredient_for, short_size
 
 FRESH_DAYS = 45          # shelf prices unchanged for longer than this are treated as stale
@@ -29,7 +30,10 @@ def export(db, now, out_dir, requests_this_run):
     meta = {
         "generatedAt": utc(now),
         "nextUpdateAt": min((s["nextUpdateAt"] for s in _store_meta(stores, now)), default=None),
-        "source": "SmartMealPlanner grocery database (store websites and Checkjebon)",
+        "source": "Open Prices (prices.openfoodfacts.org), shopper-reported open data",
+        "attribution": openprices.ATTRIBUTION,
+        "license": "ODbL-1.0",
+        "licenseURL": openprices.LICENSE_URL,
         "offerCount": len(offers),
         "priceCount": len(prices),
         "productCount": db.connection.execute("SELECT count(*) FROM products").fetchone()[0],
@@ -43,14 +47,35 @@ def export(db, now, out_dir, requests_this_run):
     out_dir.mkdir(parents=True, exist_ok=True)
     for name, value in (("offers.json", offers), ("prices.json", prices), ("meta.json", meta)):
         (out_dir / name).write_text(json.dumps(value, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    (out_dir / "LICENSE.md").write_text(FEED_LICENSE, encoding="utf-8")
     return meta
+
+
+# The offers, prices and database are a database derived from Open Prices, so they are shared under the same
+# licence (ODbL share-alike), with its attribution.
+FEED_LICENSE = f"""# Smart Meal Planner grocery feed: licence
+
+The offers and prices in this feed (offers.json, prices.json, grocery.db.gz) come from
+[Open Prices](https://prices.openfoodfacts.org/), shopper-reported open data by Open Food Facts.
+
+{openprices.ATTRIBUTION}.
+
+This feed is a database derived from Open Prices and is made available under the
+[Open Database License (ODbL) v1.0]({openprices.LICENSE_URL}). Any rights in individual contents of the database
+are licensed under the [Database Contents License]({"https://opendatacommons.org/licenses/dbcl/1-0/"}).
+You may use, share and adapt it under the terms of the ODbL, including attribution and share-alike.
+
+No data in this feed was taken from supermarket websites. The ingredient price estimates in prices.json that are
+not based on Open Prices are the project's own estimates. Supermarket names are trademarks of their owners; this
+project is not affiliated with any supermarket.
+"""
 
 
 # ---- Offers ----
 
 def store_offers(db, stores, fresh, now):
-    """Offers fetched from the stores themselves that are valid now. Deals without a price (Jumbo's
-    '1+1 gratis') are priced from the shelf price of the cheapest product they apply to."""
+    """Offers (shopper-reported discounts) that are valid now. Deals without a price are priced from the shelf price
+    of the cheapest product they apply to."""
     catalogs = {}
     result = []
     for row in db.current_offers(now):
@@ -74,7 +99,7 @@ def store_offers(db, stores, fresh, now):
             key=f"{row['store_id']}:{row['offer_key']}:{row['valid_from']}",
             store=stores[row["store_id"]]["name"], title=title, price=price, regular=regular, size=size,
             valid_until=row["valid_to"], deal=_deal_label(deal, row["offer_price"]), category=row["category"],
-            image_url=row["image_url"], source=_source(row["url"])))
+            source=_source(row["url"])))
     return result
 
 
@@ -127,7 +152,7 @@ def _deal_label(deal, bundle_price):
 
 
 def price_drops(db, stores, fresh, now):
-    """For stores without an offers fetcher: products clearly cheaper than they were in the last three weeks."""
+    """For stores without offers: products clearly cheaper than they were in the last three weeks."""
     since = utc(now - dt.timedelta(days=DROP_WINDOW_DAYS))
     drops = []
     for store_id in fresh:
@@ -298,7 +323,7 @@ def _store_meta(stores, now):
             "note": row["weekday_note"],
             "fetchesOffers": bool(row["has_offers"]),
             "lastUpdatedAt": row["last_success_at"],
-            "nextUpdateAt": utc(schedule.next_fetch(schedule.weekday_of(row), row["fetched_week"], now)),
+            "nextUpdateAt": utc(schedule.next_fetch(now)),
             "pricesChangedAt": row["catalog_changed_at"],
             "pricesAreCurrent": _is_fresh(row, now) if row["has_catalog"] else None,
             "lastError": row["last_error"],

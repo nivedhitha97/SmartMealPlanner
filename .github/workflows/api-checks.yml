@@ -1,6 +1,5 @@
-# Runs the Postman checks for the grocery feed (docs/api) with Newman: schemas, data sanity and security
-# (HTTPS, headers, no leaked secrets, no writes, Supabase refusing requests without a key), and the tests of the
-# recipe-search Edge Function (supabase/functions/recipe-search).
+# Runs the Postman checks for the grocery feed (docs/api) with Newman: schemas, data sanity, licences and security
+# (HTTPS, headers, no leaked secrets, no writes, Supabase refusing requests without a key).
 
 name: API checks
 
@@ -10,10 +9,10 @@ on:
   workflow_dispatch:
   push:
     branches: [ "develop" ]
-    paths: [ "docs/api/**", "supabase/functions/**", ".github/workflows/api-checks.yml" ]
+    paths: [ "docs/api/**", ".github/workflows/api-checks.yml" ]
   pull_request:
     branches: [ "develop" ]
-    paths: [ "docs/api/**", "supabase/functions/**", ".github/workflows/api-checks.yml" ]
+    paths: [ "docs/api/**", ".github/workflows/api-checks.yml" ]
 
 jobs:
   newman:
@@ -39,13 +38,3 @@ jobs:
         name: newman-results
         path: newman-results.xml
 
-  recipe-search:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-    - uses: actions/checkout@v5
-    - uses: actions/setup-node@v4
-      with:
-        node-version: "22"
-    - name: Test the recipe-search function's logic
-      run: node --experimental-strip-types --test supabase/functions/recipe-search/logic.test.ts

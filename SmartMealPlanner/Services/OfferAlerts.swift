@@ -22,8 +22,8 @@ struct OfferAlert: Equatable {
     let weekday: Int
 
     var identifier: String { Self.identifierPrefix + storeID }
-    var title: String { "New offers at \(storeName)" }
-    var body: String { "This week's \(storeName) offers are in Smart Meal Planner." }
+    var title: String { "New offer week at \(storeName)" }
+    var body: String { "\(storeName)'s new offers start today. Add the deals you want to plan with." }
 
     /// Weekly alerts for the chosen stores that fetch offers (shelf-price-only stores have no offer week).
     static func alerts(for stores: [StoreSchedule], enabled storeIDs: Set<String>) -> [OfferAlert] {

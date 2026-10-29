@@ -26,6 +26,9 @@ struct RecipeDetailView: View {
                     referenceLinks
                     ingredientsBlock
                     instructionsBlock
+                    if let credit = recipe.credit {
+                        creditBlock(credit)
+                    }
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 24)
@@ -57,14 +60,8 @@ struct RecipeDetailView: View {
                 .padding(.horizontal, 10)
                 .background(Color.brandPrimarySoft, in: Capsule())
 
-            if recipe.isAIGenerated {
-                // Only in plans saved by older versions, which could have AI-written recipes.
-                Label("AI-generated: check ingredients for allergens", systemImage: "sparkles")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.accentAmber)
-                    .accessibilityIdentifier("recipe.aiGenerated")
-            } else if recipe.isFromSpoonacular {
-                Label("Published recipe: check ingredients for allergens", systemImage: "book.closed")
+            if recipe.isFromWikibooks {
+                Label("By Wikibooks contributors · check ingredients for allergens", systemImage: "book.closed")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.textSecondary)
                     .accessibilityIdentifier("recipe.published")
@@ -89,14 +86,16 @@ struct RecipeDetailView: View {
         }
     }
 
-    /// Total, prep and cooking time.
+    /// Total, prep and cooking time (only the total when the recipe gives only that).
     private var timesRow: some View {
         HStack(spacing: 0) {
             timeItem("Total", recipe.totalMinutes, icon: "clock.fill", emphasised: true)
-            Divider().frame(height: 32)
-            timeItem("Prep", recipe.prepMinutes, icon: "knife")
-            Divider().frame(height: 32)
-            timeItem("Cook", recipe.cookMinutes, icon: "flame")
+            if recipe.hasTimeSplit {
+                Divider().frame(height: 32)
+                timeItem("Prep", recipe.prepMinutes, icon: "knife")
+                Divider().frame(height: 32)
+                timeItem("Cook", recipe.cookMinutes, icon: "flame")
+            }
         }
         .padding(.vertical, 10)
         .background(Color.bgSurface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -136,20 +135,8 @@ struct RecipeDetailView: View {
                                         tint: .accentCoral, background: .accentCoralSoft)
                     }
                     if let book = recipe.cookbookURLParsed {
-                        referenceButton(url: book, icon: "book", title: "Original", subtitle: "Full recipe page",
-                                        tint: .brandPrimaryDeep, background: .brandPrimarySoft)
-                    }
-                }
-            }
-            let finds = recipe.findRecipeLinks
-            if !finds.isEmpty {
-                // No source of its own (written by on-device AI): find a published version instead.
-                Text("Find this recipe")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Color.textSecondary)
-                HStack(spacing: 12) {
-                    ForEach(finds, id: \.site) { find in
-                        referenceButton(url: find.url, icon: "magnifyingglass", title: find.site, subtitle: "Recipe search",
+                        referenceButton(url: book, icon: "book", title: "Original",
+                                        subtitle: recipe.isFromWikibooks ? "On Wikibooks" : "Full recipe page",
                                         tint: .brandPrimaryDeep, background: .brandPrimarySoft)
                     }
                 }
@@ -226,7 +213,64 @@ struct RecipeDetailView: View {
                 .background(Color.bgSurface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.borderSubtle))
             }
+            if let original = recipe.originalIngredients, !original.isEmpty {
+                DisclosureGroup("As written in the recipe (serves \(recipe.servings))") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(original.enumerated()), id: \.offset) { _, line in
+                            Text("• " + line)
+                                .font(.footnote)
+                                .foregroundStyle(Color.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 8)
+                }
+                .font(.footnote.weight(.semibold))
+                .tint(Color.brandPrimaryDeep)
+                .accessibilityIdentifier("recipe.originalIngredients")
+            }
         }
+    }
+
+    /// Who wrote the recipe and under which licence, with links, and what was changed for the app; the photo's credit.
+    private func creditBlock(_ credit: RecipeCredit) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "About this recipe")
+            Text("From the \(credit.sourceName), written by its contributors. Licensed under \(credit.license).")
+                .font(.footnote)
+                .foregroundStyle(Color.textSecondary)
+            if let changes = credit.changes {
+                Text(changes)
+                    .font(.footnote)
+                    .foregroundStyle(Color.textSecondary)
+            }
+            HStack(spacing: 14) {
+                creditLink("Source", credit.sourceURL)
+                if let authors = credit.authorsURL { creditLink("Authors", authors) }
+                creditLink("Licence", credit.licenseURL)
+            }
+            if let author = credit.imageAuthor, let license = credit.imageLicense, recipe.imageURLParsed != nil {
+                Text("Photo: \(author), \(license), via Wikimedia Commons.")
+                    .font(.footnote)
+                    .foregroundStyle(Color.textSecondary)
+                HStack(spacing: 14) {
+                    if let source = credit.imageSourceURL { creditLink("Photo source", source) }
+                    if let licenseURL = credit.imageLicenseURL { creditLink("Photo licence", licenseURL) }
+                }
+            }
+        }
+        .card(padding: 16, radius: 18)
+        .accessibilityIdentifier("recipe.credit")
+    }
+
+    private func creditLink(_ title: String, _ link: String) -> some View {
+        Button(title) {
+            if let url = URL(string: link) { ExternalLinks.open(url) }
+        }
+        .font(.footnote.weight(.semibold))
+        .foregroundStyle(Color.brandPrimaryDeep)
+        .accessibilityAddTraits(.isLink)
     }
 
     private var instructionsBlock: some View {

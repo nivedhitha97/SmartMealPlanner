@@ -2,7 +2,7 @@
 //  RecipeDiscoveryTests.swift
 //  SmartMealPlannerTests
 //
-//  Recipe discovery: published recipes from recipe search, with stand-ins for the search and the dish ideas.
+//  Recipe discovery: the Wikibooks recipes, with stand-ins for the library and the dish ideas.
 //
 
 import Foundation
@@ -24,73 +24,111 @@ final class FakeDishIdeas: DishIdeaSuggesting {
     }
 }
 
-/// Stands in for the recipe-search function.
-final class FakeRecipeSearch: RecipeSearching {
-    static var off: FakeRecipeSearch { FakeRecipeSearch(isConfigured: false) }
-
-    let isConfigured: Bool
+/// Stands in for the recipe library (the Wikibooks recipes in the feed).
+final class FakeRecipeLibrary: RecipeLibrary {
     var result: Result<[Recipe], Error>
     private(set) var calls = 0
-    private(set) var lastIdeas: [String] = []
 
-    init(isConfigured: Bool = true, result: Result<[Recipe], Error> = .success([])) {
-        self.isConfigured = isConfigured
+    init(_ result: Result<[Recipe], Error> = .success([])) {
         self.result = result
     }
 
-    func search(for preferences: UserPreferences, ideas: [String]) async throws -> [Recipe] {
+    func recipes() async throws -> [Recipe] {
         calls += 1
-        lastIdeas = ideas
         return try result.get()
     }
+
+    func savedRecipes() -> [Recipe] { (try? result.get()) ?? [] }
 }
 
 @MainActor
 @Suite("Recipe discovery")
 struct RecipeDiscoveryTests {
 
-    private let cache = FileManager.default.temporaryDirectory.appending(path: "searched-recipes-\(UUID().uuidString).json")
-
-    private func preferences(allergies: [String] = []) -> UserPreferences {
-        var preferences = Fixtures.preferences(diet: "Vegan", cuisines: ["Indian"], allergies: allergies)
+    private func preferences(allergies: [String] = [], cuisines: [String] = ["Indian"]) -> UserPreferences {
+        var preferences = Fixtures.preferences(diet: "Vegan", cuisines: cuisines, allergies: allergies)
         preferences.people = 3
         return preferences
     }
 
-    private func discovery(_ search: FakeRecipeSearch, ideas: FakeDishIdeas = FakeDishIdeas(),
-                           now: @escaping () -> Date = Date.init) -> RecipeDiscovery {
-        RecipeDiscovery(search: search, ideas: ideas, cacheURL: cache, now: now)
+    private func dish(_ name: String, cuisine: String = "Indian", meals: [String] = ["Lunch", "Dinner"],
+                      ingredients: [String] = ["Chickpeas", "Tomatoes"]) -> Recipe {
+        var recipe = Fixtures.recipe(name, cuisine: cuisine,
+                                     ingredients: ingredients.map { (Fixtures.ingredient($0), 100) })
+        recipe.meals = meals
+        return recipe
     }
 
-    // MARK: - AI finds, never writes
-
-    @Test func dishIdeasAreSentToTheSearch() async throws {
-        let search = FakeRecipeSearch(result: .success(try RemoteRecipeSearch.recipes(from: searchedJSON)))
-        let ideas = FakeDishIdeas(["Chana Masala", "Aloo Gobi"])
-
-        let found = await discovery(search, ideas: ideas).recipes(for: preferences())
-
-        #expect(search.lastIdeas == ["Chana Masala", "Aloo Gobi"])
-        #expect(found.recipes.map(\.name) == ["Cauliflower Fried Rice"], "the published recipe, not the idea")
-        #expect(found.recipes.allSatisfy { !$0.isAIGenerated && $0.isFromSpoonacular })
+    private var feedJSON: Data {
+        Data("""
+        {"recipes": [{"id": "6F1B2C3D-0000-5000-8000-000000000001", "name": "Potato Curry (Aloo Masala)",
+          "cuisine": "Indian", "servings": 4, "totalMinutes": 20, "meals": ["Lunch", "Dinner"],
+          "steps": ["Heat oil.", "Add potatoes."], "originalIngredients": ["4 large potatoes", "1 tablespoon oil"],
+          "ingredients": [
+            {"name": "Potatoes", "grams": 1108, "caloriesPer100g": 77, "proteinPer100g": 2, "carbsPer100g": 17.5,
+             "fatPer100g": 0.1, "pricePer100g": 0.15},
+            {"name": "Vegetable Oil", "grams": 14, "caloriesPer100g": 884, "proteinPer100g": 0, "carbsPer100g": 0,
+             "fatPer100g": 100, "pricePer100g": 0.35}],
+          "sourceName": "Wikibooks Cookbook",
+          "sourceURL": "https://en.wikibooks.org/w/index.php?title=Cookbook%3APotato_Curry&oldid=4615205",
+          "authorsURL": "https://en.wikibooks.org/w/index.php?title=Cookbook%3APotato_Curry&action=history",
+          "license": "CC BY-SA 4.0", "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0/",
+          "changes": "Adapted for Smart Meal Planner: amounts converted to grams.",
+          "imageURL": "https://upload.wikimedia.org/x.jpg", "imageAuthor": "Thamizhpparithi Maari",
+          "imageLicense": "CC BY-SA 4.0", "imageLicenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+          "imageSourceURL": "https://commons.wikimedia.org/wiki/File:X.jpg"}]}
+        """.utf8)
     }
 
-    @Test func withoutIdeasTheSearchUsesThePreferencesAlone() async throws {
-        let search = FakeRecipeSearch(result: .success(try RemoteRecipeSearch.recipes(from: searchedJSON)))
+    // MARK: - The Wikibooks recipes
 
-        let found = await discovery(search).recipes(for: preferences())
+    @Test func feedRecipesBecomeCreditedAppRecipes() throws {
+        let recipe = try #require(FeedRecipe.recipes(from: feedJSON).first)
 
-        #expect(search.calls == 1 && search.lastIdeas.isEmpty)
-        #expect(found.recipes.count == 1)
+        #expect((recipe.name, recipe.cuisine, recipe.servings, recipe.totalMinutes, recipe.hasTimeSplit)
+                == ("Potato Curry (Aloo Masala)", "Indian", 4, 20, false), "only the total time is known")
+        #expect(recipe.ingredients.map(\.quantity) == [1108, 14])
+        #expect(recipe.ingredients[0].ingredient.defaultPrice == 0.15)
+        #expect(recipe.instructions == ["Heat oil.", "Add potatoes."], "the authors' own steps")
+        #expect(recipe.originalIngredients == ["4 large potatoes", "1 tablespoon oil"])
+        #expect(recipe.isFromWikibooks && !recipe.isAIGenerated)
+        #expect(recipe.credit?.license == "CC BY-SA 4.0")
+        #expect(recipe.credit?.authorsURL?.hasSuffix("action=history") == true, "the authors are credited")
+        #expect(recipe.cookbookURL?.contains("oldid=4615205") == true, "the exact revision it came from")
+        #expect(recipe.credit?.imageAuthor == "Thamizhpparithi Maari" && recipe.imageURL != nil)
+        #expect(recipe.youtubeURL?.hasPrefix("https://www.youtube.com/results?search_query=") == true,
+                "a YouTube search link, no YouTube API")
+        #expect(recipe.id == UUID(uuidString: "6F1B2C3D-0000-5000-8000-000000000001"), "the same id every week")
     }
 
-    @Test func withoutRecipeSearchNoRecipesAreMadeUp() async {
-        let ideas = FakeDishIdeas(["Chana Masala"])
-        let found = await discovery(FakeRecipeSearch.off, ideas: ideas).recipes(for: preferences())
+    @Test func aPhotoWithoutACreditIsNotShown() throws {
+        let json = String(decoding: feedJSON, as: UTF8.self)
+            .replacingOccurrences(of: "\"imageAuthor\": \"Thamizhpparithi Maari\",", with: "")
+        let recipe = try #require(FeedRecipe.recipes(from: Data(json.utf8)).first)
+        #expect(recipe.imageURL == nil)
+    }
 
-        #expect(found.recipes.isEmpty)
-        #expect(found.note == RecipeDiscovery.notSetUpNote)
-        #expect(ideas.calls == 0, "no point asking for ideas with nothing to search")
+    @Test func recipesFitThePreferencesAndBreakfastsComeFromAnyCuisine() async {
+        let library = FakeRecipeLibrary(.success([
+            dish("Chana Masala"),
+            dish("Butter Chicken", ingredients: ["Chicken Breast", "Butter"]),
+            dish("Pasta Arrabbiata", cuisine: "Italian"),
+            dish("Shakshuka", cuisine: "International", meals: ["Breakfast"], ingredients: ["Tomatoes", "Onion"]),
+            dish("Peanut Noodles", ingredients: ["Peanut Butter", "Noodles"]),
+        ]))
+        let found = await RecipeDiscovery(library: library, ideas: NoDishIdeas())
+            .recipes(for: preferences(allergies: ["peanut"]))
+
+        #expect(Set(found.recipes.map(\.name)) == ["Chana Masala", "Shakshuka"],
+                "vegan, no peanut, Indian lunches and dinners, breakfast from any cuisine")
+        #expect(found.note == nil)
+    }
+
+    @Test func dishIdeasComeFirst() {
+        let recipes = (1...10).map { dish("Dish \($0)") } + [dish("Aloo Gobi"), dish("Chana Masala Curry")]
+        let ranked = RecipeDiscovery.ranked(recipes, ideas: ["Chana Masala", "Aloo Gobi"])
+        #expect(Set(ranked.prefix(2).map(\.name)) == ["Aloo Gobi", "Chana Masala Curry"])
+        #expect(ranked.count == recipes.count)
     }
 
     @Test func dishIdeasAreTidied() {
@@ -101,152 +139,66 @@ struct RecipeDiscoveryTests {
 
     @Test func ideasPromptCarriesThePreferences() {
         let prompt = OnDeviceDishIdeas.prompt(for: preferences(allergies: ["peanut"]))
-
-        #expect(prompt.contains("3 people"))
-        #expect(prompt.contains("Diet: Vegan"))
-        #expect(prompt.contains("Indian"))
-        #expect(prompt.contains("peanut"))
+        #expect(prompt.contains("3 people") && prompt.contains("Diet: Vegan") && prompt.contains("Indian")
+                && prompt.contains("peanut"))
     }
 
-    // MARK: - Recipe search (Spoonacular)
+    @Test func offlineWithNoRecipesSaysSo() async {
+        let found = await RecipeDiscovery(library: FakeRecipeLibrary(.failure(URLError(.notConnectedToInternet))),
+                                          ideas: NoDishIdeas()).recipes(for: preferences())
+        #expect(found.recipes.isEmpty && found.note == RecipeDiscovery.offlineNote)
 
-    private var searchedJSON: Data {
-        Data("""
-        {"recipes": [{"spoonacularId": 716426, "name": "Cauliflower Fried Rice", "cuisine": "Indian", "servings": 4,
-          "prepMinutes": 10, "cookMinutes": 20, "steps": ["Rice the cauliflower", "Fry with the rice"],
-          "imageURL": "https://img.spoonacular.com/716426.jpg",
-          "sourceURL": "https://fullbellysisters.blogspot.com/cauliflower-fried-rice", "sourceName": "Full Belly Sisters",
-          "meals": ["Lunch", "Dinner"], "youtubeURL": "https://www.youtube.com/watch?v=abcdefghijk",
-          "ingredients": [
-            {"name": "Cauliflower", "grams": 600, "caloriesPer100g": 25, "proteinPer100g": 1.9, "carbsPer100g": 5,
-             "fatPer100g": 0.3, "pricePer100g": 0.35},
-            {"name": "Brown Rice", "grams": 390, "caloriesPer100g": 112, "proteinPer100g": 2.3, "carbsPer100g": 23.5,
-             "fatPer100g": 0.8, "pricePer100g": 0.3}]}]}
-        """.utf8)
+        let down = await RecipeDiscovery(library: FakeRecipeLibrary(.failure(URLError(.badServerResponse))),
+                                         ideas: NoDishIdeas()).recipes(for: preferences())
+        #expect(down.note == RecipeDiscovery.unreachableNote)
     }
 
-    @Test func searchedRecipesBecomeAppRecipesCreditingSpoonacular() throws {
-        let recipe = try #require(RemoteRecipeSearch.recipes(from: searchedJSON).first)
-
-        #expect((recipe.name, recipe.cuisine, recipe.servings, recipe.prepMinutes, recipe.cookMinutes)
-                == ("Cauliflower Fried Rice", "Indian", 4, 10, 20))
-        #expect(recipe.ingredients.map(\.quantity) == [600, 390])
-        #expect(recipe.ingredients[1].ingredient.defaultPrice == 0.3)
-        #expect(recipe.imageURL == "https://img.spoonacular.com/716426.jpg")
-        #expect(recipe.cookbookReference == "Spoonacular · Full Belly Sisters")
-        #expect(recipe.cookbookURL == "https://fullbellysisters.blogspot.com/cauliflower-fried-rice")
-        #expect(!recipe.isAIGenerated && recipe.isFromSpoonacular, "a published recipe, not an AI one")
-        #expect(recipe.id == SearchedRecipe.id(for: 716426), "the same recipe keeps the same id")
-        #expect(recipe.meals == ["Lunch", "Dinner"])
-        #expect(recipe.youtubeURL == "https://www.youtube.com/watch?v=abcdefghijk" && recipe.hasVideo, "the video the function found")
-        #expect(recipe.findRecipeLinks.isEmpty, "it links its own source")
+    @Test func noMatchingRecipeIsExplained() async {
+        let library = FakeRecipeLibrary(.success([dish("Butter Chicken", ingredients: ["Chicken Breast"])]))
+        let found = await RecipeDiscovery(library: library, ideas: NoDishIdeas()).recipes(for: preferences())
+        #expect(found.recipes.isEmpty && found.note == RecipeDiscovery.noMatchNote)
     }
 
-    @Test func searchRequestSendsOnlyWhatTheSearchNeeds() throws {
-        let config = RecipeSearchConfig(url: "https://abc.supabase.co/functions/v1/recipe-search", appKey: "app-key")
-        let request = try RemoteRecipeSearch.request(for: preferences(allergies: ["peanut"]), ideas: ["Chana Masala"],
-                                                     config: config)
-
-        #expect(request.httpMethod == "POST")
-        #expect(request.value(forHTTPHeaderField: "x-app-key") == "app-key")
-        let body = try #require(request.httpBody.flatMap { try JSONSerialization.jsonObject(with: $0) as? [String: Any] })
-        #expect(Set(body.keys) == ["diet", "cuisines", "allergies", "dislikes", "people", "ideas"], "no postcode or budget")
-        #expect(body["ideas"] as? [String] == ["Chana Masala"])
-        #expect(body["diet"] as? String == "Vegan" && body["people"] as? Int == 3)
-        #expect(body["allergies"] as? [String] == ["peanut"])
+    @Test func plannerNoteCreditsTheAuthors() {
+        #expect(RecipeDiscovery.plannerNote.contains("Wikibooks Cookbook"))
+        #expect(RecipeDiscovery.plannerNote.contains("CC BY-SA 4.0"))
     }
 
-    @Test func searchIsOffWithoutAnHTTPSAddressAndKey() {
-        #expect(!RemoteRecipeSearch(config: RecipeSearchConfig(url: "", appKey: "")).isConfigured)
-        #expect(!RemoteRecipeSearch(config: RecipeSearchConfig(url: "http://abc.supabase.co/x", appKey: "k")).isConfigured)
-        #expect(!RemoteRecipeSearch(config: RecipeSearchConfig(url: "https://abc.supabase.co/x", appKey: "")).isConfigured)
-        #expect(RemoteRecipeSearch(config: RecipeSearchConfig(url: "https://abc.supabase.co/x", appKey: "k")).isConfigured)
+    // MARK: - The library on the phone
+
+    @Test func theLibraryKeepsItsCopyForOfflineUse() async throws {
+        let file = FileManager.default.temporaryDirectory.appending(path: "recipes-\(UUID().uuidString).json")
+        try feedJSON.write(to: file)
+        let offline = RemoteRecipeLibrary(baseURL: URL(string: "https://invalid.invalid/")!, fileURL: file,
+                                          now: { Date.distantFuture })
+        let recipes = try await offline.recipes()
+        #expect(recipes.map(\.name) == ["Potato Curry (Aloo Masala)"], "can't download: the copy, however old")
+        #expect(offline.savedRecipes().count == 1)
     }
 
-    @Test func searchedRecipesAreCachedUntilThePreferencesChange() async throws {
-        let search = FakeRecipeSearch(result: .success(try RemoteRecipeSearch.recipes(from: searchedJSON)))
-        let discovery = discovery(search)
+    // MARK: - Earlier versions' data
 
-        _ = await discovery.recipes(for: preferences())
-        var richer = preferences()
-        richer.budgetWeekly = 120  // budget doesn't change which recipes fit
-        _ = await discovery.recipes(for: richer)
-        #expect(search.calls == 1)
+    @Test func spoonacularAndAIRecipesFromEarlierVersionsAreRemoved() throws {
+        let storage = IsolatedDefaults()
+        let folder = FileManager.default.temporaryDirectory.appending(path: "legacy-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for name in LegacyDataCleanup.oldRecipeFiles {
+            try Data("[]".utf8).write(to: folder.appending(path: name))
+        }
+        var spoonacular = dish("Cauliflower Fried Rice")
+        spoonacular.cookbookReference = "Spoonacular · Full Belly Sisters"
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let plan = Fixtures.plan(days: [Fixtures.day(Fixtures.now, lunch: spoonacular)])
+        storage.defaults.set(try encoder.encode(plan), forKey: PlanningViewModel.Keys.lastPlan)
 
-        _ = await discovery.recipes(for: preferences(allergies: ["soy"]))
-        #expect(search.calls == 2, "new allergies need new recipes")
-    }
+        LegacyDataCleanup.run(defaults: storage.defaults, folder: folder)
 
-    @Test func searchedRecipesBreakingAllergiesAreDropped() async throws {
-        let searched = try RemoteRecipeSearch.recipes(from: searchedJSON)
-        let discovery = discovery(FakeRecipeSearch(result: .success(searched)))
-
-        let found = await discovery.recipes(for: preferences(allergies: ["rice"]))
-
-        #expect(found.recipes.isEmpty)
-        #expect(found.note == "No recipe matched all your preferences.")
-    }
-
-    @Test func offlineWithNothingSavedSaysSo() async {
-        let search = FakeRecipeSearch(result: .failure(URLError(.notConnectedToInternet)))
-        let found = await discovery(search).recipes(for: preferences())
-
-        #expect(found.recipes.isEmpty)
-        #expect(found.note == RecipeDiscovery.offlineNote)
-    }
-
-    @Test func serverTroubleIsNotCalledOffline() async {
-        let search = FakeRecipeSearch(result: .failure(RemoteRecipeSearch.SearchError.server(502, nil)))
-        let found = await discovery(search).recipes(for: preferences())
-
-        #expect(found.note == "Couldn't reach recipe search; try again later.")
-    }
-
-    @Test func savedRecipesAreSearchedAgainAfterAWeek() async throws {
-        let searched = try RemoteRecipeSearch.recipes(from: searchedJSON)
-        let search = FakeRecipeSearch(result: .success(searched))
-        var today = Fixtures.now
-        let discovery = discovery(search, now: { today })
-
-        _ = await discovery.recipes(for: preferences())
-        today = Fixtures.date(daysFromNow: 6)
-        _ = await discovery.recipes(for: preferences())
-        #expect(search.calls == 1, "still fresh after 6 days")
-
-        today = Fixtures.date(daysFromNow: 8)
-        _ = await discovery.recipes(for: preferences())
-        #expect(search.calls == 2, "a new search for new recipes after a week")
-    }
-
-    @Test func offlineTheSavedRecipesAreUsedHoweverOld() async throws {
-        let searched = try RemoteRecipeSearch.recipes(from: searchedJSON)
-        let search = FakeRecipeSearch(result: .success(searched))
-        var today = Fixtures.now
-        let discovery = discovery(search, ideas: FakeDishIdeas(["Chana Masala"]), now: { today })
-        _ = await discovery.recipes(for: preferences())
-
-        search.result = .failure(URLError(.notConnectedToInternet))
-        today = Fixtures.date(daysFromNow: 30)
-        let found = await discovery.recipes(for: preferences())
-
-        #expect(found.recipes.map(\.name) == ["Cauliflower Fried Rice"], "the stored recipes")
-        #expect(found.note == nil)
-        #expect(discovery.savedRecipes().map(\.name) == ["Cauliflower Fried Rice"])
-    }
-
-    @Test func searchedBreakfastsFromOtherCuisinesAreKept() async throws {
-        var breakfast = Fixtures.recipe("Shakshuka", cuisine: "Middle Eastern",
-                                        ingredients: [(Fixtures.ingredient("Eggplant"), 200), (Fixtures.ingredient("Tomato"), 200)])
-        breakfast.meals = ["Breakfast"]
-        let discovery = discovery(FakeRecipeSearch(result: .success([breakfast])))
-
-        let found = await discovery.recipes(for: preferences())  // Indian only
-
-        #expect(found.recipes.map(\.name) == ["Shakshuka"], "the planner decides which cuisines a meal may come from")
-    }
-
-    @Test func plannerNoteCreditsTheOriginals() {
-        #expect(RecipeDiscovery.plannerNote.hasPrefix("Recipes from Spoonacular"))
-        #expect(!RecipeDiscovery.plannerNote.contains("AI"))
+        #expect(storage.defaults.data(forKey: PlanningViewModel.Keys.lastPlan) == nil)
+        for name in LegacyDataCleanup.oldRecipeFiles {
+            #expect(!FileManager.default.fileExists(atPath: folder.appending(path: name).path()))
+        }
+        let ok = Fixtures.plan(days: [Fixtures.day(Fixtures.now, lunch: dish("Chana Masala"))])
+        #expect(!LegacyDataCleanup.planHasOldRecipes(try encoder.encode(ok)), "a plan of current recipes stays")
     }
 }

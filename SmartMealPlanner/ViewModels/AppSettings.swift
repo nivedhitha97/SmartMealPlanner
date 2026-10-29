@@ -83,8 +83,6 @@ enum LaunchArguments {
     /// Use the UI tests' fixed offers and recipes (Data/UITestOffers.json, UITestRecipes.json) instead of the network,
     /// so results don't depend on it. Only UI tests pass this; users never see that data.
     static let bundledData = "-uiTestingBundledData"
-    /// Only the fixed recipes (with live offers): for the README screenshots while recipe search isn't set up.
-    static let fixtureRecipes = "-uiTestingFixtureRecipes"
     /// Followed by a number of seconds: wait that long before looking up a typed postcode, so a UI test can
     /// save while the lookup is still running without the nearby-stores list appearing mid-scroll.
     static let postcodeLookupSeconds = "-uiTestingPostcodeLookupSeconds"

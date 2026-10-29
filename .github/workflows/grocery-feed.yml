@@ -1,9 +1,9 @@
-# Keeps the grocery database up to date. Each supermarket is fetched once a week, on the day its new offer week
-# starts (see scripts/grocery_db/stores/__init__.py); the job runs every morning but on days when no store is due
-# it makes no requests and publishes nothing.
+# Keeps the app's feed up to date, from open data only (no supermarket website is read):
+# - every morning, each chain's offers and shelf prices from Open Prices (shopper-reported, ODbL);
+# - every Monday (or when they're missing), the recipes from the Wikibooks Cookbook (CC BY-SA 4.0).
 #
-# The database (grocery.db.gz) and the files the app downloads (offers.json, prices.json, meta.json) live on the
-# grocery-feed branch; the job pushes with the workflow's own GITHUB_TOKEN.
+# The database (grocery.db.gz) and the files the app downloads (offers.json, prices.json, meta.json, recipes.json,
+# with their licences) live on the grocery-feed branch; the job pushes with the workflow's own GITHUB_TOKEN.
 #
 # Optional: with the SUPABASE_URL and SUPABASE_SERVICE_KEY repository secrets, the database is mirrored to
 # Supabase for browsing and editing in its table editor, and manual edits made there are applied every morning
@@ -18,15 +18,15 @@ on:
   workflow_dispatch:
     inputs:
       stores:
-        description: "Fetch these stores now (comma-separated ids, or 'all'); empty = only stores that are due"
+        description: "Fetch these stores again today (comma-separated ids, or 'all'); empty = once a day"
         required: false
         default: ""
   push:
     branches: [ "develop" ]
-    paths: [ "scripts/grocery_db/**", ".github/workflows/grocery-feed.yml" ]
+    paths: [ "scripts/grocery_db/**", "scripts/recipes/**", ".github/workflows/grocery-feed.yml" ]
   pull_request:
     branches: [ "develop" ]
-    paths: [ "scripts/grocery_db/**", ".github/workflows/grocery-feed.yml" ]
+    paths: [ "scripts/grocery_db/**", "scripts/recipes/**", ".github/workflows/grocery-feed.yml" ]
 
 permissions:
   contents: write
@@ -46,18 +46,22 @@ jobs:
 
     - name: Unit tests
       working-directory: scripts
-      run: python3 -m unittest discover -s grocery_db/tests -t . -v
+      run: |
+        python3 -m unittest discover -s grocery_db/tests -t . -v
+        python3 -m unittest discover -s recipes/tests -t . -v
 
     - name: Get the current database
       run: |
         mkdir -p "$RUNNER_TEMP/data"
         if git clone -q --depth 1 --branch grocery-feed "https://github.com/${{ github.repository }}.git" "$RUNNER_TEMP/feed"; then
           if [ -f "$RUNNER_TEMP/feed/grocery.db.gz" ]; then gunzip -c "$RUNNER_TEMP/feed/grocery.db.gz" > "$RUNNER_TEMP/data/grocery.db"; fi
+          # The other files too, so a run that only updates one part publishes the rest unchanged.
+          find "$RUNNER_TEMP/feed" -maxdepth 1 -type f ! -name grocery.db.gz -exec cp {} "$RUNNER_TEMP/data/" \;
         fi
 
-    # On pull requests every store is fetched (to check the fetchers still work from GitHub's servers) but
+    # On pull requests every store is fetched (to check the fetcher still works from GitHub's servers) but
     # nothing is published.
-    - name: Fetch due stores
+    - name: Fetch Open Prices
       id: update
       working-directory: scripts
       env:
@@ -74,8 +78,18 @@ jobs:
         python3 -m grocery_db update --data "$RUNNER_TEMP/data" "${args[@]}"
         python3 -m grocery_db status --data "$RUNNER_TEMP/data"
 
+    # Weekly, or when the feed has no recipes yet; on pull requests too, to check the importer, without publishing.
+    - name: Import recipes from the Wikibooks Cookbook
+      id: recipes
+      working-directory: scripts
+      run: |
+        if [ "$(date -u +%u)" = "1" ] || [ ! -f "$RUNNER_TEMP/data/recipes.json" ] || [ "${{ github.event_name }}" != "schedule" ]; then
+          python3 -m recipes.build --out "$RUNNER_TEMP/data"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Publish to the grocery-feed branch
-      if: steps.update.outputs.changed == 'true' && github.event_name != 'pull_request'
+      if: (steps.update.outputs.changed == 'true' || steps.recipes.outputs.changed == 'true') && github.event_name != 'pull_request'
       run: |
         cd "$RUNNER_TEMP/data"
         gzip -9 -c grocery.db > grocery.db.gz && rm grocery.db
@@ -83,6 +97,6 @@ jobs:
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git add .
-        git commit -q -m "Grocery database $(date -u +%Y-%m-%dT%H:%MZ)"
+        git commit -q -m "Feed $(date -u +%Y-%m-%dT%H:%MZ): Open Prices (ODbL) and Wikibooks recipes (CC BY-SA 4.0)"
         # The database keeps its own history, so the branch is a single commit replaced on each update.
         git push -q --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" grocery-feed

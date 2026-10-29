@@ -1,0 +1,16 @@
+Copyright © 2026 Nivedhitha Parthasarathy. All rights reserved.
+
+The source code, design and documentation in this repository are the author's. No licence is granted to copy,
+modify, distribute or use them, other than viewing and forking this repository on GitHub as GitHub's Terms of Service
+allow. For any other use, ask the author.
+
+Third-party data is not covered by this notice and keeps its own licences:
+- Recipes from the Wikibooks Cookbook: CC BY-SA 4.0, by the Wikibooks contributors (each recipe credits its source).
+  The adapted recipes in the published feed are shared under CC BY-SA 4.0.
+- Recipe photos from Wikimedia Commons: each under the licence credited with it.
+- Nutrition data from USDA FoodData Central (scripts/recipes/foods.json): public domain (CC0 1.0).
+- Offers and prices from Open Prices: © Open Food Facts contributors, Open Database License (ODbL); the published
+  feed derived from them is shared under the ODbL.
+See SmartMealPlanner/Legal/CREDITS.md.
+
+Supermarket names are trademarks of their owners; this project is not affiliated with any of them.

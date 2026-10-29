@@ -24,43 +24,48 @@
 - **Never more than budget + 10%:** when even the cheapest dishes cost more than that, meals are left open until the
   week fits, as few as possible (the cheapest dish that is enough to drop, else the dearest); usual meals go last.
   Those slots say "Left open for your budget"
-- **Planner notes:** offers used, live prices used, where the recipes came from, meals left open
+- **Planner notes:** offers and reported prices used, where the recipes came from (with the CC BY-SA credit), meals left open
 - Day picker, meal slots with recipe photos, weekly nutrition (calories, protein, carbs, fat)
 - A grocery card that opens the List tab
 
 ## Recipes
-- **Human-made, found for your preferences:** [recipe search](DESIGN.md#recipe-search) finds published recipes on
-  Spoonacular (up to 6 breakfasts and 12 lunch/dinner dishes) with the author's method word for word, amounts in grams
-  and nutrition per 100 g, converted from Spoonacular's own data (free). AI never writes or rewrites a recipe.
-  Searched again after a week, for variety
-- **AI picks what to look for:** where Apple Intelligence is on, Apple's free on-device model suggests up to 8 dishes
-  that suit your diet and cuisines and avoid your allergies, and recipe search finds published recipes for them
-- Each says which meals it suits: breakfasts are only planned for breakfast, mains for lunch and dinner. Breakfasts
-  may come from any cuisine; lunches and dinners keep to yours
-- Photo, cuisine, ingredients with amounts **for your household** ("For 2 people"), method steps
-- **Total, prep and cooking time** ("No cooking" for no-cook dishes)
-- **Watch:** opens a real YouTube video of the dish (found by the YouTube Data API), else a YouTube search; in the
-  YouTube app, or in Safari when it isn't installed
-- **Original:** Spoonacular recipes credit Spoonacular and the site that published them, and link to that page
-- Every recipe is labelled "Published recipe: check ingredients for allergens"
+- **Written by people:** every recipe is from the [Wikibooks Cookbook](https://en.wikibooks.org/wiki/Cookbook)
+  (CC BY-SA 4.0), imported weekly (about 400 meals). The method is the authors' own text; AI never writes or rewrites
+  a recipe
+- **Credited:** **About this recipe** says who wrote it (Wikibooks contributors), the licence, and what was adapted
+  (amounts converted to grams, ingredients named from a standard list), with links to the exact source revision, the
+  authors (page history) and the licence; a photo shows its author and licence (Wikimedia Commons)
+- **As written:** the recipe's ingredient lines as the authors wrote them, next to the amounts in grams
+- **Chosen for your preferences on the phone:** filtered by diet, allergies and dislikes (nothing is sent anywhere);
+  lunches and dinners keep to your cuisines, breakfasts may come from any. Where Apple Intelligence is on, Apple's
+  on-device model suggests dishes that suit you and recipes with those names come first
+- Each says which meals it suits: breakfasts are only planned for breakfast, mains for lunch and dinner
+- Photo (when there's a freely licensed one), cuisine, ingredients with amounts **for your household** ("For 2
+  people"), method steps, nutrition from USDA FoodData Central
+- **Total time** (and prep and cooking time when known)
+- **Watch:** opens a YouTube search for the dish, in the YouTube app or in Safari
+- **Original:** opens the recipe's page on Wikibooks
+- Every recipe is labelled "By Wikibooks contributors · check ingredients for allergens"
+- Offline, the recipes downloaded before are used; recipes saved by earlier versions (Spoonacular, AI) are deleted
 
 ## Offers
-- This week's offers from Jumbo, Lidl, Dirk, DekaMarkt, Hoogvliet and Poiesz with their real end dates, deals
-  ("1+1 gratis", "2 voor €5,00", priced per item) and product photos; price drops at Spar
+- Discounts shoppers reported on **Open Prices** for every chain (Albert Heijn, Aldi, DekaMarkt, Dirk, Hoogvliet,
+  Jumbo, Lidl, Plus, Poiesz, Spar, Vomar), shown as "Reported on Open Prices", valid for the week they were seen in.
+  Crowdsourced, so there are only a few; no product photos. Credit under the offers: "© Open Food Facts contributors,
+  ODbL", and that the app isn't affiliated with any supermarket
 - **Near me:** only stores within 2 km of your postcode (on by default when known)
-- **Store filter** shown as each store's logo badge, plus category filter; "Ending soon" and "More deals"
+- **Store filter** (each store's initials and name) and category filter; "Ending soon" and "More deals"
 - **+ on each offer** adds it to the grocery list (shows the quantity; tap again for one more)
-- **Albert Heijn Bonus:** AH doesn't let apps read its offers, so the card opens AH's own Bonus page (in the AH app
-  when installed, else Safari) and **Add a deal** saves the deals you want, marked "Added by you". They run until
-  Sunday (AH's Bonus week) unless you change the date, can be linked to a recipe ingredient so the planner uses the
-  price, and stay on the phone. Long-press one to delete it.
-- AH discounts that shoppers report on **Open Prices** appear as "Reported on Open Prices", with the ODbL credit
-- Freshness line (live, or the saved copy when offline), the next store update, and a **Store updates** list with each
-  store's weekly day and whether its data is current; pull to refresh
+- **Albert Heijn Bonus:** the card opens AH's own Bonus page (in the AH app when installed, else Safari) and **Add a
+  deal** saves the deals you want from any store's folder, marked "Added by you". They run until Sunday unless you
+  change the date, can be linked to a recipe ingredient so the planner uses the price, and stay on the phone.
+  Long-press one to delete it
+- Freshness line (live, or the saved copy when offline), when prices are checked next (daily), and a **Store updates**
+  list with each store's offer-week day; pull to refresh
 
 ## Grocery list (List tab)
 - One editable list: the plan's groceries, offers you added, and your own items
-- Filters: **All**, **Added**, and each store (logo badges); grouped by store with subtotals, the overall total and
+- Filters: **All**, **Added**, and each store; grouped by store with subtotals, the overall total and
   what's left to buy
 - Tick items off, edit name/store/price/quantity, delete, add your own; the tab badge shows items left to buy
 - **Share:** sends what's left to buy in the current filter as text, by store, with amounts, quantities, prices and
@@ -70,11 +75,13 @@
 ## Settings
 - **Profile:** spent this week (from ticked-off items) against your budget, "Saved €X against your budget" or
   "€X over budget", savings from offers, and the previous three weeks
-- **Offer alerts:** a weekly notification on each chosen store's offer day at 09:00 ("New offers at Jumbo"); stores
+- **Offer alerts:** a weekly reminder on each chosen store's offer day at 09:00 ("New offer week at Jumbo"); stores
   near you are chosen by default; tapping an alert opens Offers
 - **Appearance:** System, Light or Dark
 - **Share Smart Meal Planner:** the app's link (the project page until the app is on the App Store) through the iOS
   share sheet
+- **Privacy and legal:** the privacy policy, terms of use, and data sources with their licences and the trademark
+  notice, readable offline
 - Version and build number
 
 ## Offline
@@ -82,8 +89,14 @@
 - With nothing saved yet, Offers says "No internet connection" with **Try again**, and generating a plan says that
   recipes need an internet connection
 
-## Grocery data (behind the scenes)
-- A grocery database fetches each supermarket once a week, on the day its offer week starts, and the app downloads
-  only when the feed can have changed. See the [design document](DESIGN.md#grocery-database) and the
-  [API document](api/README.md).
+## Privacy
+- No accounts, analytics, ads or tracking; everything you enter stays on the phone. Allergies and diet are used only
+  on the phone, to filter recipes
+- The app downloads the feed (GitHub), recipe photos (Wikimedia) and looks up your postcode (Apple Maps); see the
+  [Privacy policy](../SmartMealPlanner/Legal/PRIVACY.md)
+
+## Data behind the scenes
+- Open data only, no supermarket website is read: Open Prices is checked once a day, the Wikibooks recipes are
+  imported every Monday, and the app downloads only when the feed can have changed. See the
+  [design document](DESIGN.md#grocery-database) and the [API document](api/README.md).
 - Prices and offers can be browsed and corrected in the Supabase mirror's table editor.

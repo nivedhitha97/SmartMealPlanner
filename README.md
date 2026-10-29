@@ -4,68 +4,49 @@
 [![Grocery database](https://github.com/nivedhitha97/SmartMealPlanner/actions/workflows/grocery-feed.yml/badge.svg?branch=develop)](https://github.com/nivedhitha97/SmartMealPlanner/actions/workflows/grocery-feed.yml)
 [![API checks](https://github.com/nivedhitha97/SmartMealPlanner/actions/workflows/api-checks.yml/badge.svg?branch=develop)](https://github.com/nivedhitha97/SmartMealPlanner/actions/workflows/api-checks.yml)
 
-**Smart Meal Planner** plans a week of meals around your diet, routine, household and budget, and builds the grocery
-list from this week's offers at the Dutch supermarkets near you.
-
-## Screenshots
-
-<table>
-  <tr>
-    <td align="center"><img src="docs/screenshots/01-launch.png" width="200" alt="Launch screen"/><br/><b>Launch</b></td>
-    <td align="center"><img src="docs/screenshots/02-weekly-plan.png" width="200" alt="Weekly plan with budget card, grocery list card and planner notes"/><br/><b>Weekly plan</b><br/><sub>Budget, grocery list &amp; notes</sub></td>
-    <td align="center"><img src="docs/screenshots/03-meals.png" width="200" alt="Day picker with the day's meals and weekly nutrition"/><br/><b>Daily meals</b><br/><sub>Day picker &amp; nutrition</sub></td>
-    <td align="center"><img src="docs/screenshots/04-recipe.png" width="200" alt="Recipe with total, prep and cook times, amounts for 2 people"/><br/><b>Recipe</b><br/><sub>Times &amp; amounts for your household</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/screenshots/05-offers.png" width="200" alt="Offers near you with store logo filters, Albert Heijn Bonus card and product photos"/><br/><b>Offers</b><br/><sub>Stores within 2 km &amp; AH Bonus</sub></td>
-    <td align="center"><img src="docs/screenshots/06-grocery-list.png" width="200" alt="Grocery list grouped by store with totals"/><br/><b>Grocery list</b><br/><sub>Per-store totals, tick off</sub></td>
-    <td align="center"><img src="docs/screenshots/07-preferences.png" width="200" alt="Preferences: diet, people, breakfast and cuisines"/><br/><b>Preferences</b><br/><sub>Diet, people &amp; cuisines</sub></td>
-    <td align="center"><img src="docs/screenshots/08-settings.png" width="200" alt="Settings with weekly spending profile and offer alerts"/><br/><b>Settings</b><br/><sub>Spending profile &amp; alerts</sub></td>
-  </tr>
-</table>
+**Smart Meal Planner** plans a week of meals around your diet, routine, household and budget, from human-written
+recipes, and builds the grocery list with the prices shoppers report for Dutch supermarkets. It uses only open data,
+and everything you enter stays on your phone.
 
 UI designed in Figma: [Smart Meal Planner – UI Revamp](https://www.figma.com/design/mCMW5PlNeirvCva8Ns9EAs)
 
 ## Features
 
 ### Weekly plan
-- **A week of meals in one tap.** Generates 7 days of breakfast, lunch and dinner from real recipes found for your
-  diet, cuisines, allergies and dislikes; breakfasts get breakfast dishes.
+- **A week of meals in one tap.** Generates 7 days of breakfast, lunch and dinner from recipes that fit your diet,
+  cuisines, allergies and dislikes; breakfasts get breakfast dishes.
 - **Variety rules.** A dish is never planned twice on one day or more than twice a week; when the recipes run out,
   the slot says so and the notes suggest adding cuisines.
-- **Budget card.** The estimated grocery cost against your weekly budget, priced from this week's offers and live
-  supermarket prices.
+- **Budget card.** The estimated grocery cost against your weekly budget.
 - **Kept within budget.** When the week costs more than your budget, the planner swaps dishes for cheaper ones that
   still fit your diet, cuisines and variety rules (your usual meals stay). A week never costs more than the budget plus
   10%: if even the cheapest dishes cost more, meals are left open ("Left open for your budget") and the notes say what
   to change.
-- **Planner notes.** What the planner did: offers used, live prices used, where the recipes came from, meals left open.
-- **Daily meals and nutrition.** Pick a day to see its meals with photos; weekly calories, protein, carbs and fat.
+- **Planner notes.** What the planner did: offers and reported prices used, where the recipes came from, meals left
+  open.
+- **Daily meals and nutrition.** Pick a day to see its meals; weekly calories, protein, carbs and fat.
 
 ### Recipes
-- **Human-made recipes, with their source.** Recipes are found on Spoonacular (published on real recipe sites) with
-  their original method, amounts in grams and nutrition. Each links to the original recipe page and is re-checked
-  against your allergies. AI never writes or rewrites a recipe.
-- **AI helps find them.** Where Apple Intelligence is on, Apple's free on-device model suggests dishes that suit your
-  diet and cuisines (e.g. "Chana Masala"), and recipe search looks up the published recipes for them.
-- **A real video.** Watch opens a YouTube video of the dish (in the YouTube app, or Safari without it).
-- **Amounts for your household.** Ingredient amounts scale to the number of people you cook for.
-- **Total, prep and cook time.** Instead of a step count, so you know how long a dish really takes.
-- **No made-up recipes.** The app ships none of its own, and if recipe search can't be reached it uses only the
-  recipes it found before.
+- **Written by people, credited.** Recipes come from the [Wikibooks Cookbook](https://en.wikibooks.org/wiki/Cookbook)
+  (CC BY-SA 4.0), with the authors' own method. Each recipe page credits its authors, links to the exact source
+  revision and says what was adapted. AI never writes or rewrites a recipe.
+- **AI helps choose.** Where Apple Intelligence is on, Apple's on-device model suggests dishes that suit your diet and
+  cuisines, and recipes with those names come first.
+- **Amounts for your household.** Ingredient amounts in grams, scaled to the number of people you cook for, with the
+  original lines as written; nutrition from USDA FoodData Central.
+- **Watch.** Opens a YouTube search for the dish (in the YouTube app, or Safari without it).
+- **No made-up recipes.** The app ships none of its own; offline it uses the recipes it downloaded before.
 
 ### Offline
 - **Stored data, never samples.** Offline, the app shows the offers, recipes and plan it last saved. With nothing
   saved yet, it says it needs an internet connection.
 
 ### Offers
-- **Deals near you.** This week's offers from the supermarkets within 2 km of your postcode, with real end dates,
-  deals such as "1+1 gratis" priced per item, and product photos.
-- **Store and category filters.** Store filters show each supermarket's logo.
-- **Add to list.** The + on an offer puts it on your grocery list.
-- **Albert Heijn Bonus.** AH doesn't share its offers with apps, so the app opens AH's own Bonus page and lets you
-  add the deals you want; AH discounts reported by shoppers on Open Prices appear too.
-- **Fresh data.** Shows when prices were updated and when each store's next weekly update is due.
+- **Shopper-reported deals.** Discounts reported by shoppers on [Open Prices](https://prices.openfoodfacts.org/)
+  (ODbL), at the supermarkets within 2 km of your postcode. Crowdsourced, so there are only a few.
+- **Your own deals.** Add deals from a supermarket's folder or AH's Bonus page (opened in AH's app or Safari); they
+  stay on your phone and the planner uses them.
+- **Store and category filters**, and **add to list** with the + on an offer.
 
 ### Grocery list
 - **One editable list.** Your plan's groceries, offers you added and your own items, grouped by store.
@@ -76,17 +57,33 @@ UI designed in Figma: [Smart Meal Planner – UI Revamp](https://www.figma.com/d
 ### Preferences
 - **Diet, people, breakfast, cuisines and exclusions.** Everything the planner needs, saved on the first tap.
 - **Weekly budget.** From €20 to €150.
-- **Accurate location.** A Dutch postcode gives your city, street-level location and the supermarkets within 2 km.
+- **Location.** A Dutch postcode gives your city and the supermarkets within 2 km (Apple Maps).
 - **Meal routine.** Set breakfast, lunch and dinner to your usual meals, home cooked, flexible or eating out.
 
 ### Settings
 - **Spending profile.** What you spent this week from ticked-off items, what you saved against your budget, and the
   past three weeks.
-- **Offer alerts.** A notification on each chosen supermarket's offer day, when its new offers are in.
+- **Offer alerts.** A reminder on each chosen supermarket's offer day.
 - **Appearance.** System, light or dark.
 - **Share Smart Meal Planner.** Sends the app's link with the iOS share sheet.
+- **Privacy and legal.** The privacy policy, terms of use and data sources with their licences.
 
 Every feature in detail, screen by screen: [Features](docs/FEATURES.md).
+
+## Privacy, data and licences
+
+- **Privacy:** no accounts, analytics, ads or tracking; everything you enter stays on your phone
+  ([Privacy policy](SmartMealPlanner/Legal/PRIVACY.md)).
+- **Terms:** free for personal, non-commercial use; check ingredients for allergens yourself; prices are estimates
+  ([Terms of use](SmartMealPlanner/Legal/TERMS.md)).
+- **Data sources:** recipes from the Wikibooks Cookbook (CC BY-SA 4.0), photos from Wikimedia Commons (each with its
+  own free licence), nutrition from USDA FoodData Central (public domain), offers and prices from Open Prices (ODbL, ©
+  Open Food Facts contributors). No supermarket website is read
+  ([Data sources and licences](SmartMealPlanner/Legal/CREDITS.md)).
+- **Trademarks:** supermarket names belong to their owners and only say where an offer is from. The app shows no
+  logos and is not affiliated with any supermarket.
+- **This code:** © 2026 Nivedhitha Parthasarathy, all rights reserved ([LICENSE](LICENSE)). The data feed is shared
+  under the licences above.
 
 ## Documentation
 
@@ -94,9 +91,9 @@ Every feature in detail, screen by screen: [Features](docs/FEATURES.md).
 |---|---|
 | [Summary](docs/SUMMARY.md) | What the app does, the problem it solves, highlights, tech stack, roadmap |
 | [Features](docs/FEATURES.md) | Every feature, screen by screen |
-| [Design](docs/DESIGN.md) | Architecture, project structure, grocery database, recipe search, Supabase, key decisions, design system |
-| [API](docs/api/README.md) | The grocery feed API: endpoints, schemas ([OpenAPI](docs/api/openapi.yaml)), download rules, Postman security checks |
-| [Test report](docs/TEST_REPORT.md) | Unit, UI, Python, API and function tests, how to run them, and the Google Sheets test case report |
+| [Design](docs/DESIGN.md) | Architecture, project structure, grocery database, recipes, data sources and licences, key decisions, design system |
+| [API](docs/api/README.md) | The feed: endpoints, schemas ([OpenAPI](docs/api/openapi.yaml)), licences, download rules, Postman checks |
+| [Test report](docs/TEST_REPORT.md) | Unit, UI and Python tests, API checks, how to run them, and the Google Sheets test case report |
 
 ## Getting started
 
@@ -104,10 +101,8 @@ Every feature in detail, screen by screen: [Features](docs/FEATURES.md).
 2. Select the `SmartMealPlanner` scheme and run on an iOS Simulator.
 3. Run the tests with ⌘U (see the [test report](docs/TEST_REPORT.md)).
 
-The app needs no API keys of its own. Recipes come from recipe search (Spoonacular, optionally YouTube), a
-Supabase function that holds those keys. The whole setup is free: deploy it as described in
-[Recipe search](docs/DESIGN.md#recipe-search).
-Until then, the app has no recipes to plan with.
+The app needs no API keys or accounts: it downloads the published feed (recipes, offers and prices), which the
+**Grocery database** workflow builds from open data.
 
 ## Author
 

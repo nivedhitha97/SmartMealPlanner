@@ -82,8 +82,8 @@ struct WeeklyOffersView: View {
                             if let stores = grocery?.stores, !stores.isEmpty {
                                 storeUpdates(OffersList.storeStatuses(stores))
                             }
-                            if list.offers.contains(where: { $0.source == SupermarketOffer.openPrices }) {
-                                Text("Prices marked Open Prices were reported by shoppers. © Open Food Facts contributors, ODbL.")
+                            if list.offers.contains(where: { !$0.isAddedByYou }) || grocery?.stores.isEmpty == false {
+                                Text(OffersList.openPricesCredit)
                                     .font(.caption2)
                                     .foregroundStyle(Color.textTertiary)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -173,7 +173,7 @@ struct WeeklyOffersView: View {
                     Text("Albert Heijn Bonus")
                         .font(.cardTitle)
                         .foregroundStyle(Color.textPrimary)
-                    Text("AH doesn't share its offers with apps. Check this week's Bonus and add the deals you want.")
+                    Text("See this week's Bonus on AH's own page, then add the deals you want to plan with.")
                         .font(.footnote)
                         .foregroundStyle(Color.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -277,7 +277,7 @@ struct WeeklyOffersView: View {
         }
     }
 
-    /// Each supermarket's weekly refresh day and whether its data is current.
+    /// Each supermarket's offer-week day and when its shopper-reported prices were last checked.
     private func storeUpdates(_ statuses: [StoreStatus]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("STORE UPDATES")

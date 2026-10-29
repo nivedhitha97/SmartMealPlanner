@@ -54,7 +54,7 @@ struct OfferAlertsTests {
         let alerts = OfferAlert.alerts(for: stores, enabled: ["jumbo", "ah"])
         #expect(alerts.map(\.storeName) == ["Jumbo"], "AH has only shelf prices, Lidl wasn't chosen")
         #expect(alerts.first?.weekday == 4)
-        #expect(alerts.first?.title == "New offers at Jumbo")
+        #expect(alerts.first?.title == "New offer week at Jumbo")
     }
 
     @Test func enablingSchedulesAWeeklyAlertOnEachStoresDay() async throws {
@@ -69,7 +69,7 @@ struct OfferAlertsTests {
         let trigger = try #require(jumbo.trigger as? UNCalendarNotificationTrigger)
         #expect(trigger.repeats)
         #expect(trigger.dateComponents.weekday == 4 && trigger.dateComponents.hour == OfferAlert.hour)
-        #expect(jumbo.content.title == "New offers at Jumbo")
+        #expect(jumbo.content.title == "New offer week at Jumbo")
     }
 
     @Test func turningAlertsOffRemovesThemButLeavesOtherNotifications() async {

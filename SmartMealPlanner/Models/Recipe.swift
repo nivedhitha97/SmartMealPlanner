@@ -25,16 +25,22 @@ struct Recipe: Identifiable, Codable {
     var cookbookURL: String?
     /// The meals this dish is for ("Breakfast", "Lunch", "Dinner"); nil means any meal.
     var meals: [String]?
-    /// Written by AI. No longer produced (recipes only come from Spoonacular); kept so older saved plans still decode
-    /// and their AI recipes stay labelled.
+    /// Written by AI. No longer produced; kept only so older saved data still decodes (it is removed at launch).
     var isAIGenerated: Bool
+    /// Total time in minutes when the source gives only that (not prep and cooking separately).
+    var readyInMinutes: Int?
+    /// The ingredient lines as the recipe's authors wrote them (the list above is adapted to grams).
+    var originalIngredients: [String]?
+    /// Who wrote the recipe and under which licence; nil for test fixtures.
+    var credit: RecipeCredit?
 
-    /// A recipe found on Spoonacular; its source is credited as the cookbook reference.
-    var isFromSpoonacular: Bool { cookbookReference?.hasPrefix("Spoonacular") == true }
+    /// A recipe from the Wikibooks Cookbook, credited to its authors.
+    var isFromWikibooks: Bool { credit?.sourceName == RecipeCredit.wikibooks }
 
     enum CodingKeys: String, CodingKey {
         case id, name, cuisine, ingredients, servings, prepMinutes, cookMinutes, instructions
         case imageURL, youtubeURL, cookbookReference, cookbookURL, isAIGenerated, meals
+        case readyInMinutes, originalIngredients, credit
     }
 
     init(
@@ -51,7 +57,10 @@ struct Recipe: Identifiable, Codable {
         cookbookReference: String? = nil,
         cookbookURL: String? = nil,
         isAIGenerated: Bool = false,
-        meals: [String]? = nil
+        meals: [String]? = nil,
+        readyInMinutes: Int? = nil,
+        originalIngredients: [String]? = nil,
+        credit: RecipeCredit? = nil
     ) {
         self.id = id
         self.name = name
@@ -67,6 +76,9 @@ struct Recipe: Identifiable, Codable {
         self.cookbookURL = cookbookURL
         self.isAIGenerated = isAIGenerated
         self.meals = meals
+        self.readyInMinutes = readyInMinutes
+        self.originalIngredients = originalIngredients
+        self.credit = credit
     }
 
     init(from decoder: Decoder) throws {
@@ -85,6 +97,9 @@ struct Recipe: Identifiable, Codable {
         cookbookURL = try c.decodeIfPresent(String.self, forKey: .cookbookURL)
         isAIGenerated = try c.decodeIfPresent(Bool.self, forKey: .isAIGenerated) ?? false
         meals = try c.decodeIfPresent([String].self, forKey: .meals)
+        readyInMinutes = try c.decodeIfPresent(Int.self, forKey: .readyInMinutes)
+        originalIngredients = try c.decodeIfPresent([String].self, forKey: .originalIngredients)
+        credit = try c.decodeIfPresent(RecipeCredit.self, forKey: .credit)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -103,6 +118,9 @@ struct Recipe: Identifiable, Codable {
         try c.encodeIfPresent(cookbookURL, forKey: .cookbookURL)
         if isAIGenerated { try c.encode(isAIGenerated, forKey: .isAIGenerated) }
         try c.encodeIfPresent(meals, forKey: .meals)
+        try c.encodeIfPresent(readyInMinutes, forKey: .readyInMinutes)
+        try c.encodeIfPresent(originalIngredients, forKey: .originalIngredients)
+        try c.encodeIfPresent(credit, forKey: .credit)
     }
 
     /// Whether the dish suits this meal (dishes without meals suit any).
@@ -174,19 +192,6 @@ struct Recipe: Identifiable, Codable {
         return YouTubeLink.isYouTube(url) && url.path != "/results"
     }
 
-    /// For a recipe without a source (one written by the on-device AI): searches for the dish on trusted recipe
-    /// sites, so a published, tested version is one tap away. Empty when the recipe links its own source.
-    var findRecipeLinks: [(site: String, url: URL)] {
-        guard cookbookURLParsed == nil else { return [] }
-        var allowed = CharacterSet.urlQueryAllowed
-        allowed.remove(charactersIn: "&+=?#")
-        guard let query = name.addingPercentEncoding(withAllowedCharacters: allowed) else { return [] }
-        return [
-            ("Allerhande", URL(string: "https://www.ah.nl/allerhande/recepten-zoeken?query=\(query)")),
-            ("BBC Good Food", URL(string: "https://www.bbcgoodfood.com/search?q=\(query)")),
-        ].compactMap { site, url in url.map { (site, $0) } }
-    }
-
     /// Whether there's a YouTube or cookbook link to show.
     var hasReferenceLinks: Bool {
         youtubeURLParsed != nil || cookbookURLParsed != nil
@@ -197,11 +202,14 @@ struct Recipe: Identifiable, Codable {
         ingredients.reduce(0) { $0 + $1.ingredient.calories * $1.quantity / 100 } / Double(servings)
     }
 
-    /// Prep plus cooking time in minutes, or nil when neither is known.
+    /// Prep plus cooking time in minutes, else the source's total time; nil when unknown.
     var totalMinutes: Int? {
-        guard prepMinutes != nil || cookMinutes != nil else { return nil }
+        guard prepMinutes != nil || cookMinutes != nil else { return readyInMinutes }
         return (prepMinutes ?? 0) + (cookMinutes ?? 0)
     }
+
+    /// Whether prep and cooking time are known separately (else only the total is shown).
+    var hasTimeSplit: Bool { prepMinutes != nil || cookMinutes != nil }
 
     /// "1 h 15 min", "45 min".
     static func durationText(_ minutes: Int) -> String {
@@ -221,4 +229,25 @@ struct RecipeIngredient: Codable, Identifiable {
     var ingredient: Ingredient
     /// Grams (nutrition values on `Ingredient` are per 100 g).
     var quantity: Double
+}
+
+/// Who wrote a recipe and under which licence, shown on the recipe page. Wikibooks Cookbook recipes are CC BY-SA 4.0:
+/// they are credited to their authors (the page history), linked to the revision they came from, and the changes made
+/// for the app are stated. A photo is credited to its author with its own licence.
+struct RecipeCredit: Codable, Equatable {
+    static let wikibooks = "Wikibooks Cookbook"
+
+    var sourceName: String
+    /// The exact revision of the recipe page the recipe was taken from.
+    var sourceURL: String
+    /// The page history, listing the recipe's authors.
+    var authorsURL: String?
+    var license: String
+    var licenseURL: String
+    /// What was changed to fit the app (CC BY-SA asks for it to be said).
+    var changes: String?
+    var imageAuthor: String?
+    var imageLicense: String?
+    var imageLicenseURL: String?
+    var imageSourceURL: String?
 }

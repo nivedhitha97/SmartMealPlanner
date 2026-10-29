@@ -6,7 +6,7 @@ from grocery_db import export
 class DealTests(unittest.TestCase):
     def test_offers_reported_on_open_prices_are_credited(self):
         self.assertEqual(export._source("https://prices.openfoodfacts.org/prices/36400"), "Open Prices")
-        self.assertIsNone(export._source("https://www.lidl.nl/p/kipfilet/p101"))
+        self.assertIsNone(export._source("https://example.org/p/kipfilet"))
         self.assertIsNone(export._source(None))
 
     def test_deal_text_is_normalised_and_non_deals_dropped(self):
@@ -58,8 +58,8 @@ class DealTests(unittest.TestCase):
 class OfferJsonTests(unittest.TestCase):
     def test_exported_offer_carries_its_image(self):
         offer = export._offer_json("k", "Lidl", "Broccoli", 0.89, None, "500 g", "2026-10-18T21:59:59Z", None, None,
-                                   image_url="https://www.lidl.nl/assets/broccoli.png")
-        self.assertEqual(offer["imageURL"], "https://www.lidl.nl/assets/broccoli.png")
+                                   image_url="https://example.org/broccoli.png")
+        self.assertEqual(offer["imageURL"], "https://example.org/broccoli.png")
         self.assertIsNone(export._offer_json("k", "Lidl", "X", 1.0, None, "", "2026-10-18T21:59:59Z", None, None)["imageURL"])
 
 

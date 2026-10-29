@@ -102,15 +102,13 @@ struct OffersTests {
                       pricesChangedAt: nil, pricesAreCurrent: current, lastError: error)
     }
 
-    @Test func nextUpdateNamesTheStoresRefreshedSoonest() {
-        let stores = [
-            store("jumbo", day: "Wednesday", next: Fixtures.date(daysFromNow: 6)),
-            store("dirk", day: "Wednesday", next: Fixtures.date(daysFromNow: 6)),
-            store("poiesz", day: "Sunday", next: Fixtures.date(daysFromNow: 3)),
-        ]
-        #expect(OffersList.nextUpdateText(stores: stores, now: Fixtures.now) == "Next update: Poiesz on Sunday")
-        #expect(OffersList.nextUpdateText(stores: Array(stores.prefix(2)), now: Fixtures.now)
-                == "Next update: Dirk and Jumbo on Wednesday")
+    @Test func nextUpdateSaysWhenPricesAreCheckedAgain() {
+        let tomorrow = Fixtures.calendar.date(byAdding: .hour, value: 18, to: Fixtures.now)!  // 06:00 the next day
+        let stores = [store("jumbo", day: "Wednesday", next: tomorrow), store("dirk", day: "Wednesday", next: tomorrow)]
+        #expect(OffersList.nextUpdateText(stores: stores, now: Fixtures.now, calendar: Fixtures.calendar)
+                == "Next update: tomorrow morning")
+        #expect(OffersList.nextUpdateText(stores: [store("ah", day: "Monday", next: Fixtures.now)], now: Fixtures.now,
+                                          calendar: Fixtures.calendar) == "Next update: today")
         #expect(OffersList.nextUpdateText(stores: [], now: Fixtures.now) == nil)
     }
 
@@ -123,9 +121,9 @@ struct OffersTests {
         ], now: Fixtures.now)
 
         #expect(statuses.map(\.name) == ["Jumbo", "Spar", "Lidl", "Plus"])
-        #expect(statuses[0].schedule == "Every Wednesday")
-        #expect(statuses[0].detail.hasPrefix("Offers · updated"))
-        #expect(statuses[1].detail.hasPrefix("Shelf prices only"))
+        #expect(statuses[0].schedule == "Week starts Wednesday")
+        #expect(statuses[0].detail.hasPrefix("Shopper-reported prices · checked"))
+        #expect(statuses[1].detail.hasPrefix("Shopper-reported prices"))
         #expect(statuses[2].isWarning && statuses[2].detail.contains("failed"))
         #expect(statuses[3].isWarning && statuses[3].detail.contains("out of date"))
     }
@@ -167,41 +165,18 @@ struct OffersTests {
         ("lidl", "L"),
         ("Plus", "P+"),
         ("DekaMarkt", "DM"),
+        ("Albert Heijn To Go", "AH"),
+        ("", "?"),
     ])
-    func knownStoresGetTheirBrandMonogram(store: String, monogram: String) {
-        let brand = StoreBrand.forStore(store)
-        #expect(brand.monogram == monogram)
-        #expect(brand.background != .bgMuted, "known stores have their brand colour")
+    func storesGetTheirInitials(store: String, monogram: String) {
+        #expect(StoreBrand.forStore(store).monogram == monogram)
     }
 
-    @Test func unknownStoresGetNeutralInitials() {
-        #expect(StoreBrand.forStore("Albert Heijn To Go").monogram == "AH")
-        #expect(StoreBrand.forStore("Ekoplaza").background == .bgMuted)
-        #expect(StoreBrand.forStore("").monogram == "?")
-    }
-
-    @Test func everyStoreInTheFeedHasABrand() {
-        let feedStores = ["Albert Heijn", "Jumbo", "Lidl", "Dirk", "DekaMarkt", "Hoogvliet", "Poiesz", "Plus", "Spar", "Vomar"]
-        #expect(feedStores.allSatisfy { StoreBrand.forStore($0).background != .bgMuted })
-    }
-
-    @Test func storesWithAPublicDomainLogoShowItAndItIsInTheApp() throws {
-        let withLogo = ["Albert Heijn", "Jumbo", "Lidl", "Dirk", "DekaMarkt", "Hoogvliet", "Spar", "Vomar", "Aldi"]
-        for store in withLogo {
-            let logo = try #require(StoreBrand.forStore(store).logo, "\(store) has its logo")
-            #expect(UIImage(named: logo.asset) != nil, "\(logo.asset) is in the asset catalog")
+    @Test func noSupermarketLogosAreInTheApp() {
+        for asset in ["logo-ah", "logo-jumbo", "logo-lidl", "logo-dirk", "logo-dekamarkt", "logo-hoogvliet", "logo-spar",
+                      "logo-vomar", "logo-aldi"] {
+            #expect(UIImage(named: asset) == nil, "\(asset): the app uses no supermarket logos")
         }
-        #expect(StoreBrand.forStore("Poiesz").logo == nil && StoreBrand.forStore("Plus").logo == nil,
-                "no public-domain logo: the monogram stays")
-        #expect(StoreBrand.forStore("Ekoplaza").logo == nil)
-    }
-
-    @Test func logoTilesAreAsWideAsTheLogoUpToALimit() {
-        #expect(StoreBadge.width(for: "Lidl", size: 20) == 20, "square logos get a square tile")
-        #expect(StoreBadge.width(for: "Albert Heijn", size: 20) == 20, "narrower than square: still square")
-        #expect(abs(StoreBadge.width(for: "Vomar", size: 20) - 41.4) < 0.01)
-        #expect(StoreBadge.width(for: "Spar", size: 20) == 52, "very wide wordmarks are capped at 2.6×")
-        #expect(StoreBadge.width(for: "Plus", size: 20) == 20, "monograms are square")
     }
 
     @Test func offersCanBeFilteredByStoreAndListTheirStores() {

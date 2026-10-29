@@ -34,6 +34,7 @@ struct SettingsView: View {
                     offerAlertsCard
                     appearanceCard
                     shareCard
+                    LegalCard()
                     aboutCard
                 }
                 .padding(.horizontal, 24)

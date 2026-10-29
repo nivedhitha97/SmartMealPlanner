@@ -22,6 +22,8 @@ struct SmartMealPlannerApp: App {
         if LaunchArguments.contains(LaunchArguments.resetState), let bundleID = Bundle.main.bundleIdentifier {
             UserDefaults.standard.removePersistentDomain(forName: bundleID)
         }
+        // Before anything reads saved data: remove what earlier versions saved and this one must not keep.
+        LegacyDataCleanup.run()
         _planning = StateObject(wrappedValue: PlanningViewModel(ai: LocalHeuristicAIPlanner()))
         _showSplash = State(initialValue: !LaunchArguments.contains(LaunchArguments.skipSplash))
         UNUserNotificationCenter.current().delegate = OfferAlertDelegate.shared
