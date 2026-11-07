@@ -20,7 +20,7 @@ To work, the app downloads data. Like any internet request, these reveal your IP
 
 - **Offers, prices and recipes** come from the project's public feed on GitHub (raw.githubusercontent.com).
   See the [GitHub Privacy Statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement).
-- **Recipe photos** load from Wikimedia (upload.wikimedia.org). See the
+- **Recipe photos** load from Wikimedia (upload.wikimedia.org and thumb.wikimedia.org). See the
   [Wikimedia Foundation Privacy Policy](https://foundation.wikimedia.org/wiki/Policy:Privacy_policy).
 - **Your postcode** is looked up with Apple Maps to find your area and the supermarkets near you; Apple receives the
   postcode for that search. See [Apple's Privacy Policy](https://www.apple.com/legal/privacy/).

@@ -232,7 +232,7 @@
 									"});",
 									"pm.test(\"Photos only with an author and a free licence\", function () {",
 									"    feed.recipes.filter(r => r.imageURL).forEach(r => {",
-									"        pm.expect(r.imageURL, r.name).to.match(/^https:\\/\\/upload\\.wikimedia\\.org\\//);",
+									"        pm.expect(r.imageURL, r.name).to.match(/^https:\\/\\/(upload|thumb)\\.wikimedia\\.org\\//);",
 									"        pm.expect(r.imageAuthor, r.name).to.be.a(\"string\").and.not.empty;",
 									"        pm.expect(r.imageLicense, r.name).to.match(/^(public domain|pd|cc0|cc[- ]by)/i);",
 									"    });",
