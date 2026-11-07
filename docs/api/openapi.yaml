@@ -236,7 +236,7 @@ components:
         license: { type: string, const: CC BY-SA 4.0 }
         licenseURL: { type: string, format: uri }
         changes: { type: string, description: What was changed for the app }
-        imageURL: { type: string, format: uri, description: A Wikimedia Commons photo, only with a free licence and an author }
+        imageURL: { type: string, format: uri, description: "A Wikimedia Commons photo (upload. or thumb.wikimedia.org), only with a free licence and an author" }
         imageAuthor: { type: string }
         imageLicense: { type: string, examples: ["CC BY-SA 4.0", Public domain] }
         imageLicenseURL: { type: [string, "null"], format: uri }

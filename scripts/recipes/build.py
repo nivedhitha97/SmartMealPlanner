@@ -222,6 +222,10 @@ def image_credit(info):
         return None
     artist = re.sub(r"<[^>]+>", "", html.unescape(info.get("artist") or "")).strip()
     artist = re.sub(r"\s+", " ", artist)
+    # Commons' fallback text: "No machine-readable author provided. Name assumed (based on copyright claims)."
+    assumed = re.search(r"No machine-readable author provided\.\s*(.+?) assumed\b", artist)
+    if assumed:
+        artist = assumed.group(1).removesuffix("~commonswiki")
     if not artist and not (info.get("license") or "").lower().startswith(("public domain", "pd", "cc0")):
         return None
     return {"imageURL": info["thumbURL"], "imageAuthor": artist[:120] or "Unknown author",
