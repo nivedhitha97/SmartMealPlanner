@@ -113,6 +113,8 @@ class BuildTests(unittest.TestCase):
         self.assertIsNone(build.image_credit({**free, "license": "GFDL"}), "GFDL needs its full text; not used")
         self.assertIsNone(build.image_credit({**free, "artist": ""}), "no author to credit")
         self.assertIsNotNone(build.image_credit({**free, "license": "Public domain", "artist": ""}))
+        fallback = "No machine-readable author provided. Mohylek assumed (based on copyright claims)."
+        self.assertEqual(build.image_credit({**free, "artist": fallback})["imageAuthor"], "Mohylek")
 
 
 if __name__ == "__main__":
