@@ -1,0 +1,46 @@
+[
+ {
+  "ingredientName": "Black Beans",
+  "pricePer100g": 0.395,
+  "cheapestStore": "Albert Heijn",
+  "cheapestProduct": "AH Terra Zwarte bonen",
+  "cheapestPrice": 0.79,
+  "cheapestSize": "200 g",
+  "cheapestPricePer100g": 0.395,
+  "storeCount": 1,
+  "productCount": 1
+ },
+ {
+  "ingredientName": "Broccoli",
+  "pricePer100g": 0.518,
+  "cheapestStore": "Hoogvliet",
+  "cheapestProduct": "BIO Broccoli",
+  "cheapestPrice": 2.59,
+  "cheapestSize": "",
+  "cheapestPricePer100g": 0.518,
+  "storeCount": 1,
+  "productCount": 1
+ },
+ {
+  "ingredientName": "Butter",
+  "pricePer100g": 0.956,
+  "cheapestStore": "Albert Heijn",
+  "cheapestProduct": "Smeerbare Roomboter Met Plantaardige Olie Ongezouten",
+  "cheapestPrice": 2.19,
+  "cheapestSize": "250 gram",
+  "cheapestPricePer100g": 0.876,
+  "storeCount": 2,
+  "productCount": 2
+ },
+ {
+  "ingredientName": "Parmesan Cheese",
+  "pricePer100g": 2.495,
+  "cheapestStore": "Hoogvliet",
+  "cheapestProduct": "Italiaanse Parmigiano Reggiano",
+  "cheapestPrice": 4.99,
+  "cheapestSize": "200g",
+  "cheapestPricePer100g": 2.495,
+  "storeCount": 1,
+  "productCount": 1
+ }
+]
